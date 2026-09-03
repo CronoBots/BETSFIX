@@ -19,6 +19,15 @@ _WORDMARK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "static", "logo.png")
 
+# ⚙️ STYLE DES CARTES (user 2026-09-03) : "unibet" = liste plate façon Unibet (rail de statut à gauche,
+# en-tête « Type @ cote · état », sélection en gras, match dessous, résumé compact ; le DÉTAIL riche
+# — logos, barres, analyse — s'affiche au dépli). "classic" = ancien design (logos + grille au repli).
+# ⛔ REVENIR À L'ANCIEN STYLE = poser la variable d'env `BETSFIX_CARD_STYLE=classic` (rien d'autre à toucher :
+# toutes les branches classiques sont conservées intactes). Mémoire `card-style-unibet-flag`.
+CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "unibet").strip().lower()
+def _e_style() -> bool:
+    return CARD_STYLE == "unibet"
+
 def _bets_for_url(url: str, compact: bool = False) -> str:
     """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
     Remplace l'ancienne bannière perle « Confiance » devenue redondante.
@@ -2156,6 +2165,54 @@ CSS = """
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
   .mc-tg .mc-comp-sep{color:#5f7a97}
+  /* ===== STYLE E — liste plate façon Unibet (user 2026-09-03, flag BETSFIX_CARD_STYLE) =====
+     Résumé compact : rail de statut à gauche, en-tête « Type @ cote · état », sélection en gras,
+     match dessous, pied confiance/score. Le DÉTAIL riche (logos, barres, analyse) est dans .mc-body. */
+  .row.mc.ue{background:#0b1826;border:1px solid rgba(255,255,255,.08);
+       border-left:5px solid var(--st-soon);border-radius:13px;overflow:hidden;
+       box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0}
+  .row.mc.ue.mc-r-won{border-left-color:var(--st-won)}
+  .row.mc.ue.mc-r-lost{border-left-color:var(--st-lost)}
+  .row.mc.ue.mc-r-push{border-left-color:var(--st-void)}
+  .row.mc.ue.mc-r-live{border-left-color:var(--st-live)}
+  .ue .mc-head{position:relative;padding:13px 38px 14px 15px;cursor:pointer}
+  .ue-hd{display:flex;align-items:baseline;gap:6px;font-size:13.5px;font-weight:800;color:var(--text)}
+  .ue-hd .od{font-variant-numeric:tabular-nums}
+  .ue-hd .dot{color:var(--dim);font-weight:600}
+  .ue-hd .res{font-weight:900;margin-left:auto;padding-right:2px}
+  .ue-hd .res.won{color:var(--st-won)} .ue-hd .res.lost{color:var(--st-lost)}
+  .ue-hd .res.soon,.ue-hd .res.live{color:var(--gold)} .ue-hd .res.push{color:var(--st-void)}
+  .ue-meta{font-size:11.5px;color:#6f8299;font-weight:600;margin:3px 0 11px}
+  .ue-sel{font-size:15.5px;font-weight:900;letter-spacing:-.01em;line-height:1.25;color:var(--text)}
+  .ue-match{font-size:12.5px;color:#8fa2b8;font-weight:600;margin-top:3px}
+  .ue-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:12px;
+       border-top:1px solid rgba(255,255,255,.08);padding-top:11px;font-size:12.5px;color:var(--muted);font-weight:700}
+  .ue-foot .v{color:var(--text);font-weight:900;font-variant-numeric:tabular-nums}
+  .ue-foot .v.c{color:var(--st-won)} .ue-foot .v.neg{color:var(--st-lost)}
+  .ue .mc-chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:15px;transition:transform .18s}
+  .ue.mc-open .mc-chev{transform:translateY(-50%) rotate(90deg)}
+  .ue-abst .ue-sel{color:var(--muted);font-weight:800;font-size:14px}
+  /* détail riche au dépli : réutilise les composants existants, sans double cadre */
+  .ue .mc-body{padding:2px 15px 15px}
+  .ue .mc-body>.cleg{border:none;background:transparent;padding:0}
+  /* combiné OUVERT E : jambes numérotées + verdict par jambe + cote totale en colonne */
+  .ue-co .split{display:flex;border-top:1px solid rgba(255,255,255,.08)}
+  .ue-co .legs{flex:1;min-width:0}
+  .ue-co .leg{display:flex}
+  .ue-co .leg+.leg{border-top:1px solid rgba(255,255,255,.08)}
+  .ue-co .num{flex:none;width:34px;display:grid;place-items:center;font-size:14px;font-weight:900;color:#04130a;align-self:stretch}
+  .ue-co .leg.won .num{background:var(--st-won)} .ue-co .leg.lost .num{background:var(--st-lost)}
+  .ue-co .leg.push .num,.ue-co .leg.void .num{background:var(--st-void)}
+  .ue-co .leg.soon .num{background:var(--st-soon);color:#1b1403}
+  .ue-co .lb{flex:1;min-width:0;padding:10px 12px 11px}
+  .ue-co .lb .lt{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .ue-co .lb .sel{font-size:13.5px;font-weight:900;line-height:1.25;color:var(--text)}
+  .ue-co .lb .rr{flex:none;font-size:12px;font-weight:900}
+  .ue-co .lb .rr.won{color:var(--st-won)} .ue-co .lb .rr.lost{color:var(--st-lost)} .ue-co .lb .rr.push{color:var(--st-void)}
+  .ue-co .lb .sub{font-size:11px;color:#8fa2b8;font-weight:600;margin-top:3px;line-height:1.45}
+  .ue-co .odc{flex:none;width:74px;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .ue-co .odc i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--muted)}
+  .ue-co .odc b{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
@@ -6873,6 +6930,10 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in cb["legs"])
     if not include_settled and _all_done:
         return ""
+    # Style E (user 2026-09-03) : combiné OUVERT façon Unibet (jambes numérotées + cote en colonne).
+    if _e_style():
+        _et = title or {"soir": "Combiné du soir"}.get(variant, "Combiné du jour")
+        return _ue_combo_card(cb, title=_et, sport=sport)
     # PLUS de badge d'état COURANT en haut à droite (« 🟢 Live » / « ⏳ En cours ») — demande user
     # 2026-07-21 : l'état vit dans les JAMBES (badge 🟢 LIVE par jambe). On ne garde le badge global
     # que pour un combiné RÉGLÉ (✅/❌/➖, zone Résultats).
@@ -7700,7 +7761,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
                 continue                                   # carte réglée d'un AUTRE tier -> pas dans cette zone
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
             _umc = match_select.unibet_meta_for(sp, d.get("home"), d.get("away")) or {}   # pays (best-effort)
-            out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _leg_card(
+            _rich = _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
                  "country": (_umc.get("country") or d.get("country")           # live meta -> sidecar -> cache appris
                              or match_select.comp_country(d.get("comp")) or ""),
@@ -7708,7 +7769,11 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
-                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix", live_layout=True)))
+                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix", live_layout=True)
+            # Style E (user 2026-09-03) : résumé plat + détail riche (`_rich`) au dépli. Sinon carte classique.
+            _rhtml = (_ue_result_card(sp, d, rb, _board.get("score") or _sco, _rich, _umc)
+                      if _e_style() else _rich)
+            out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _rhtml))
     # ORDRE (demande user 2026-08-01) : GAGNÉ d'abord, puis remboursé, puis PERDU ; à rang égal, le plus
     # récent en tête. Cohérent avec l'ordre voulu par type : non joué → live → gagné → perdu.
     out.sort(key=lambda x: (x[0], -x[1]))
@@ -10679,6 +10744,141 @@ def _live_scoreboard(score: str, home: str, away: str, tennis: bool = False,
             f'<div class="lb-row{" lb-lead" if away_lead else ""}">'
             f'<span class="lb-n">{an}</span><span class="lb-s">{cells(1)}</span></div></div>')
 
+def _ue_conf_qual(cf) -> str:
+    """Qualificatif de confiance (style E, aligné sur analyses.verdict_line) — minuscule pour la ligne de pied."""
+    try:
+        cf = float(cf)
+    except (TypeError, ValueError):
+        return ""
+    return "très élevée" if cf >= 80 else "élevée" if cf >= 68 else "modérée" if cf >= 55 else "faible"
+
+
+def _ue_confval(b) -> float | None:
+    """Confiance en % (0-100) depuis un dict de pari (cprob calibrée prioritaire, sinon prob brute 0-1/0-100)."""
+    if not isinstance(b, dict):
+        return None
+    v = b.get("cprob")
+    if v is None:
+        v = b.get("prob")
+    if v is None:
+        return None
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return v * 100.0 if v <= 1 else v
+
+
+def _ue_head_html(*, tier_label: str, cote_txt: str, state_word: str, state_cls: str, meta_txt: str,
+                  sel_txt: str, match_txt: str, foot_left: str = "", foot_right: str = "",
+                  chev: bool = True, abst: bool = False) -> str:
+    """En-tête de carte STYLE E (résumé compact façon Unibet) : « Type @ cote · état », méta (date · ligue),
+    sélection en gras, match, pied confiance/score. `foot_left`/`foot_right` = HTML déjà sûr (spans .v)."""
+    e = html.escape
+    cote_h = (f'<span class="dot">@</span><span class="od">{e(cote_txt)}</span>' if cote_txt else "")
+    st_h = (f'<span class="res {state_cls}">{e(state_word)}</span>' if state_word else "")
+    hd = f'<div class="ue-hd"><span>{e(tier_label)}</span>{cote_h}{st_h}</div>'
+    meta = f'<div class="ue-meta">{e(meta_txt)}</div>' if meta_txt else ""
+    sel = f'<div class="ue-sel">{e(sel_txt)}</div>' if sel_txt else ""
+    mt = f'<div class="ue-match">{e(match_txt)}</div>' if match_txt else ""
+    foot = (f'<div class="ue-foot"><span>{foot_left}</span><span>{foot_right}</span></div>'
+            if (foot_left or foot_right) else "")
+    chev_h = '<span class="mc-chev">▸</span>' if chev else ""
+    cls = " ue-abst" if abst else ""
+    return f'<div class="mc-head{cls}">{hd}{meta}{sel}{mt}{foot}{chev_h}</div>'
+
+
+def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict) -> str:
+    """Carte RÉSULTAT style E (onglet Résultats) : résumé plat « Type @ cote · Gagné/Perdu » + pied
+    Confiance/Score, et le DÉTAIL riche (`_leg_card`) au dépli. Rail gauche coloré par le verdict."""
+    e = html.escape
+    _res = rb.get("result")
+    _sw, _sc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
+                "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_res, ("Terminé", ""))
+    _rcls = {"won": " mc-r-won", "lost": " mc-r-lost", "push": " mc-r-push", "void": " mc-r-push"}.get(_res, "")
+    _tier = {"value": "Value", "montante": "Montante", "combo": "Combiné"}.get(analyses.tier_of(d, rb), "Confiance")
+    _home, _away = d.get("home", ""), d.get("away", "")
+    _comp = str(d.get("comp") or "")
+    _cty = _cap(str(umc.get("country") or d.get("country") or match_select.comp_country(_comp) or ""))
+    if _cty and _cty.lower() in _comp.lower():
+        _cty = ""
+    _league = " • ".join(x for x in (_cty, _comp) if x)
+    _when = fmt_local(d.get("start"), with_date=True)
+    _meta = " · ".join(x for x in (_when, _league) if x)
+    _cote = rb.get("cote")
+    _cote_txt = f"{_cote:g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _cf = _ue_confval(rb)
+    _cf_i = int(round(_cf)) if _cf is not None else None
+    _sc_txt = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(score or "")).strip().replace("-", " - ")
+    _fl = (f'Confiance <span class="v c">{_cf_i}%</span>' if _cf_i is not None else "")
+    _fr = (f'Score <span class="v">{e(_sc_txt)}</span>' if _sc_txt and any(ch.isdigit() for ch in _sc_txt) else "")
+    _head = _ue_head_html(tier_label=_tier, cote_txt=_cote_txt, state_word=_sw, state_cls=_sc, meta_txt=_meta,
+                          sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away), match_txt=f"{_home} — {_away}",
+                          foot_left=_fl, foot_right=_fr, chev=True)
+    return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{rich_html}</div></div>'
+
+
+def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
+    """Combiné OUVERT style E (façon Unibet) : en-tête « Combiné @ cote · état », jambes NUMÉROTÉES
+    (rail coloré par verdict), sélection + verdict par jambe + sous-ligne (match · heure · score), et la
+    COTE totale en colonne à droite. Toujours ouvert (le combiné EST son propre détail). '' si vide."""
+    e = html.escape
+    legs = cb.get("legs") or []
+    if not legs:
+        return ""
+    _res = cb.get("result")
+    _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in legs)
+    _any_settled = any(l.get("result") in ("won", "lost", "push", "void") for l in legs)
+    if _res == "won":
+        _sw, _sc, _rcls = "Gagné", "won", " mc-r-won"
+    elif _res == "lost":
+        _sw, _sc, _rcls = "Perdu", "lost", " mc-r-lost"
+    elif _res in ("void", "push"):
+        _sw, _sc, _rcls = "Remboursé", "push", " mc-r-push"
+    elif _any_settled and not _all_done:
+        _sw, _sc, _rcls = "En cours", "live", " mc-r-live"
+    else:
+        _sw, _sc, _rcls = "À venir", "soon", ""
+    # Cote EFFECTIVE si une jambe est annulée/remboursée (elle sort du produit — même règle que _combo_tg_card).
+    _cote = cb.get("cote")
+    if any(l.get("result") in ("void", "push") for l in legs):
+        _ec, _ok = 1.0, True
+        for l in legs:
+            if l.get("result") in ("void", "push"):
+                continue
+            try:
+                _ec *= float(l.get("cote"))
+            except (TypeError, ValueError):
+                _ok = False
+        if _ok and _ec > 1:
+            _cote = round(_ec, 2)
+    _cote_txt = f"{round(_cote, 2):g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _legs_html = ""
+    for i, l in enumerate(legs, 1):
+        _lr = l.get("result")
+        _lcls = _lr if _lr in ("won", "lost", "push", "void") else "soon"
+        _rrw, _rrc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
+                      "push": ("Remb.", "push"), "void": ("Remb.", "push")}.get(_lr, ("", ""))
+        _lh, _la = l.get("home", ""), l.get("away", "")
+        _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
+        _lwhen = fmt_local(l.get("start"), with_date=False)
+        _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
+        _subs = [x for x in (f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen) if x]
+        if _lscore and any(c.isdigit() for c in _lscore):
+            _subs.append(f"Score {_lscore}")
+        _rr_h = f'<div class="rr {_rrc}">{e(_rrw)}</div>' if _rrw else ""
+        _legs_html += (f'<div class="leg {_lcls}"><div class="num">{i}</div>'
+                       f'<div class="lb"><div class="lt"><div class="sel">{e(_lsel)}</div>{_rr_h}</div>'
+                       f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div></div></div>')
+    _odc = f'<div class="odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
+    _cote_h = (f'<span class="dot">@</span><span class="od">{e(_cote_txt)}</span>' if _cote_txt else "")
+    _head = (f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>{_cote_h}'
+             f'<span class="res {_sc}">{e(_sw)}</span></div>'
+             f'<div class="ue-meta">{len(legs)} jambes</div></div>')
+    return (f'<div class="row pick mc ue ue-co{_rcls}">{_head}'
+            f'<div class="split"><div class="legs">{_legs_html}</div>{_odc}</div></div>')
+
+
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
     away, prob (float ou 3-tuple), sub, badge, url, pick."""
@@ -11102,6 +11302,64 @@ def _sport_row(r: dict) -> str:
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
         return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{head}</div>')
+    # ===== STYLE E (liste plate façon Unibet) : résumé compact + DÉTAIL riche au dépli (user 2026-09-03) =====
+    # Le résumé replié devient une ligne plate ; le corps déplié réutilise TEL QUEL le détail classique
+    # (ligue + équipes/logos + grille verdict/barres + analyse). Combinés gérés à part (_ue_combo).
+    if _e_style() and not is_combo:
+        _pb = next((b for b in bets3 if isinstance(b, dict) and not b.get("_info") and not b.get("tag")), None)
+        if _pb is None:
+            _pb = next((b for b in bets3 if isinstance(b, dict) and not b.get("_info")), None)
+        _uhome, _uaway = r.get("home", ""), r.get("away", "")
+        _umatch = f"{_uhome} — {_uaway}" if (_uhome and _uaway) else (_uhome or _uaway or "")
+        _uwhen = fmt_local(sdt, with_date=True) if sdt else (starthm or "")
+        _umeta = " · ".join(x for x in (_uwhen, " • ".join(_cparts)) if x)
+        try:
+            _utk = (analyses.bet_tier_for(sport_key, _pmid) or "") if (sport_key and _pmid) else ""
+        except Exception:
+            _utk = ""
+        _utier = {"value": "Value", "montante": "Montante", "combo": "Combiné"}.get(_utk, "Confiance")
+        if is_live:
+            _usw, _usc = "Live", "live"
+        elif is_finished:
+            _ures = (_pb or {}).get("result")
+            _usw, _usc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
+                          "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_ures, ("Terminé", ""))
+        else:
+            _usw, _usc = "À venir", "soon"
+        _ucf = _ue_confval(_pb)
+        if _ucf is None and sport_key and _pmid:
+            try:
+                _usd = analyses.meta(sport_key, _pmid)
+                _ucf = (_ue_confval(analyses.stat_bet(_usd) if isinstance(_usd, dict) else None)
+                        or _ue_confval(analyses.retained_bet(sport_key, _pmid) or None))
+            except Exception:
+                pass
+        _ucf_i = int(round(_ucf)) if _ucf is not None else None
+        _ucote = (_pb or {}).get("cote")
+        _ucote_txt = f"{_ucote:g}" if isinstance(_ucote, (int, float)) and _ucote else ""
+        _uscore = str(r.get("score") or "").strip()
+        _uscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", _uscore).replace("-", " - ") if _uscore else ""
+        _ufl = _ufr = ""
+        if _ucf_i is not None:
+            _ucc = f'<span class="v c">{_ucf_i}%</span>'
+            _ufl = (f'Confiance {_ucc}' if is_finished
+                    else f'Confiance {_ucc}' + (f' · {e(_ue_conf_qual(_ucf_i))}' if _ue_conf_qual(_ucf_i) else ''))
+        if is_finished and any(ch.isdigit() for ch in _uscore):
+            _ufr = f'Score <span class="v">{e(_uscore)}</span>'
+        elif (not is_finished) and isinstance(_ucote, (int, float)) and _ucote:
+            _ufr = f'marché <span class="v">{round(100.0 / _ucote)}%</span>'
+        if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
+            _uehead = _ue_head_html(
+                tier_label=(_utier if _pb else "Analysé"), cote_txt=_ucote_txt, state_word=_usw,
+                state_cls=_usc, meta_txt=_umeta,
+                sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
+                match_txt=_umatch, foot_left=_ufl, foot_right=_ufr, chev=True, abst=(_pb is None))
+            _uedetail = (f'<div class="mc-main">'
+                         f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{comp_only}</span></div>'
+                         f'<div class="mc-teams">{teams}</div>'
+                         f'<div class="mc-sub">{line3}</div></div>{body}')
+            return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
+                    f'<div class="mc-body" hidden>{_uedetail}</div></div>')
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
