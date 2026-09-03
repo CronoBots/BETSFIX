@@ -2189,11 +2189,9 @@ CSS = """
   .ue-cote{flex:none;display:flex;align-items:baseline;gap:5px}
   .ue-cote i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:#61748b;text-transform:uppercase}
   .ue-cote b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  /* Ligne équipes : « home — away » (gauche) + HEURE collée à droite (user 2026-09-03). */
-  .ue-tm{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-       font-size:12px;font-weight:600;color:#8fa4bd;margin-top:5px;line-height:1.3}
-  .ue-tm .tt{min-width:0;overflow-wrap:anywhere}
-  .ue-when{flex:none;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  /* Ligne équipes : « home — away · HH:MM » — l'HEURE est COLLÉE au nom d'équipe (inline, user 2026-09-03). */
+  .ue-tm{font-size:12px;font-weight:600;color:#8fa4bd;margin-top:5px;line-height:1.3;overflow-wrap:anywhere}
+  .ue-when{font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
   /* Pied : métriques (gauche) + SCORE en bas à droite (user 2026-09-03). */
   .ue-foot{display:flex;align-items:flex-end;gap:10px;margin-top:8px}
   .ue-mx{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums}
@@ -2236,14 +2234,15 @@ CSS = """
   .uel-ct b{font-size:15px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .uel-ct .uel-v{font-size:12px;font-weight:900}
   .uel-v.won{color:var(--st-won)} .uel-v.lost{color:var(--st-lost)} .uel-v.push{color:var(--st-void)}
-  /* Ligne équipes : « home — away » (gauche) + HEURE à droite. */
-  .uel-sub{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-       font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px}
-  .uel-sub .tt{min-width:0;overflow-wrap:anywhere}
-  .uel-tm{flex:none;font-size:10.5px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
-  .uel-mx{font-size:11px;font-weight:700;color:#61748b;margin-top:5px;font-variant-numeric:tabular-nums}
+  /* Ligne équipes : « home — away · HH:MM » — l'HEURE est COLLÉE au nom d'équipe (inline). */
+  .uel-sub{font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px;overflow-wrap:anywhere}
+  .uel-when{font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  /* Pied : métriques (gauche) + SCORE dans le coin en bas à droite. */
+  .uel-foot{display:flex;align-items:flex-end;gap:10px;margin-top:5px}
+  .uel-mx{flex:1;min-width:0;font-size:11px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums}
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
+  .uel-score{flex:none;font-size:12.5px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
   /* Colonne cote globale : léger fond « panneau » (user 2026-09-03, point 3) pour combler le vide vertical
      et la lire comme un bloc volontaire, sans cadre lourd. */
   .cbo-odc{border-left:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
@@ -10821,9 +10820,8 @@ def _ue_head_html(*, league: str, when: str, sel_txt: str, cote_txt: str, match_
     e = html.escape
     eye = f'<div class="ue-eye"><span class="ue-lg">{e(league)}</span></div>'
     top = f'<div class="ue-top"><div class="ue-pk">{e(sel_txt)}</div>{_ue_cote_html(cote_txt)}</div>'
-    _when_h = f'<span class="ue-when">{e(when)}</span>' if when else ""
-    mt = (f'<div class="ue-tm"><span class="tt">{e(match_txt)}</span>{_when_h}</div>'
-          if (match_txt or _when_h) else "")
+    _when_h = f' · <span class="ue-when">{e(when)}</span>' if when else ""
+    mt = f'<div class="ue-tm">{e(match_txt)}{_when_h}</div>' if (match_txt or when) else ""
     _score_h = f'<span class="ue-score">{e(score_txt)}</span>' if score_txt else ""
     foot = (f'<div class="ue-foot"><div class="ue-mx">{metrics_html}</div>{_score_h}</div>'
             if (metrics_html or _score_h) else "")
@@ -10927,10 +10925,12 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
         # COTE à droite du pari (même ligne) + marqueur verdict éventuel — user 2026-09-03.
         _ct_h = (f'<div class="uel-ct"><b>{e(_lcote_txt)}</b>{_v_h}</div>' if (_lcote_txt or _v_h) else "")
-        # Ligne équipes (+ score si réglé) à gauche, HEURE à droite (user 2026-09-03). Ligue retirée.
+        # Ligne équipes : « home — away · HH:MM » — l'HEURE est COLLÉE au nom d'équipe (inline), pas
+        # right-aligned (user 2026-09-03). Le SCORE va dans le coin en BAS À DROITE (pied), pas ici.
         _sub_txt = e(f"{_lh} — {_la}") if (_lh and _la) else ""
-        if _lscore and any(c.isdigit() for c in _lscore):
-            _sub_txt += (" · " if _sub_txt else "") + f'<b class="h">{e(_lscore)}</b>'
+        if _lwhen:
+            _sub_txt += (" · " if _sub_txt else "") + f'<span class="uel-when">{e(_lwhen)}</span>'
+        _score_txt = _lscore if (_lscore and any(c.isdigit() for c in _lscore)) else ""
         # Métriques par jambe (Confiance·Edge·Value) : edge/value dérivés de la VRAIE cote de jambe.
         _lp = l.get("prob")
         _lconf = (round(_lp * 100) if isinstance(_lp, (int, float)) and _lp <= 1
@@ -10942,14 +10942,14 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
             except (TypeError, ValueError, ZeroDivisionError):
                 _le = _lv = None
         _mx = _ue_metrics_html(_lconf, _le, _lv)
-        _mx_h = f'<div class="uel-mx">{_mx}</div>' if _mx else ""
-        # Ligne équipes (gauche) + HEURE à droite (user 2026-09-03).
-        _tm_h = f'<span class="uel-tm">{e(_lwhen)}</span>' if _lwhen else ""
-        _sub_h = (f'<div class="uel-sub"><span class="tt">{_sub_txt}</span>{_tm_h}</div>'
-                  if (_sub_txt or _tm_h) else "")
+        _sub_h = f'<div class="uel-sub">{_sub_txt}</div>' if _sub_txt else ""
+        # PIED : métriques (gauche) + SCORE dans le coin en bas à droite (user 2026-09-03).
+        _score_h = f'<span class="uel-score">{e(_score_txt)}</span>' if _score_txt else ""
+        _foot_h = (f'<div class="uel-foot"><div class="uel-mx">{_mx}</div>{_score_h}</div>'
+                   if (_mx or _score_h) else "")
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
-                       f'{_sub_h}{_mx_h}</div></div>')
+                       f'{_sub_h}{_foot_h}</div></div>')
     # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
     # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
