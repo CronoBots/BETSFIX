@@ -2202,9 +2202,9 @@ CSS = """
   .ue-co .leg+.leg{border-top:1px solid rgba(255,255,255,.08)}
   /* numéro de jambe = PASTILLE ronde colorée par verdict (gouttière transparente ; le fin liseré du
      bord gauche de la carte court tout du long) — user 2026-09-03, fini le pavé plein pleine-hauteur. */
-  .ue-co .num{flex:none;width:40px;display:grid;place-items:center}
-  .ue-co .num .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
-       font-size:12px;font-weight:900;color:#04130a;background:var(--st-soon);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+  .ue-co .num{flex:none;width:25px;display:grid;place-items:center}   /* gouttière compacte (user 2026-09-03 : les numéros prenaient trop de place) */
+  .ue-co .num .n{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;
+       font-size:10px;font-weight:900;color:#04130a;background:var(--st-soon);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
   .ue-co .leg.won .num .n{background:var(--st-won)}
   .ue-co .leg.lost .num .n{background:var(--st-lost);color:#2a0608}
   .ue-co .leg.push .num .n,.ue-co .leg.void .num .n{background:var(--st-void);color:#0d1420}
@@ -10807,7 +10807,6 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     _sw, _sc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
                 "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_res, ("Terminé", ""))
     _rcls = {"won": " mc-r-won", "lost": " mc-r-lost", "push": " mc-r-push", "void": " mc-r-push"}.get(_res, "")
-    _tier = {"value": "Value", "montante": "Montante", "combo": "Combiné"}.get(analyses.tier_of(d, rb), "Confiance")
     _home, _away = d.get("home", ""), d.get("away", "")
     _comp = str(d.get("comp") or "")
     _cty = _cap(str(umc.get("country") or d.get("country") or match_select.comp_country(_comp) or ""))
@@ -10823,7 +10822,8 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     _sc_txt = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(score or "")).strip().replace("-", " - ")
     _fl = (f'Confiance <span class="v c">{_cf_i}%</span>' if _cf_i is not None else "")
     _fr = (f'Score <span class="v">{e(_sc_txt)}</span>' if _sc_txt and any(ch.isdigit() for ch in _sc_txt) else "")
-    _head = _ue_head_html(tier_label=_tier, cote_txt=_cote_txt, state_word=_sw, state_cls=_sc, meta_txt=_meta,
+    # En-tête « Simple » (type de pari) et non le tier : la ZONE porte déjà Confiance/Value (user 2026-09-03).
+    _head = _ue_head_html(tier_label="Simple", cote_txt=_cote_txt, state_word=_sw, state_cls=_sc, meta_txt=_meta,
                           sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away), match_txt=f"{_home} — {_away}",
                           foot_left=_fl, foot_right=_fr, chev=True)
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{rich_html}</div></div>'
@@ -11338,11 +11338,6 @@ def _sport_row(r: dict) -> str:
         _umatch = f"{_uhome} — {_uaway}" if (_uhome and _uaway) else (_uhome or _uaway or "")
         _uwhen = fmt_local(sdt, with_date=True) if sdt else (starthm or "")
         _umeta = " · ".join(x for x in (_uwhen, " • ".join(_cparts)) if x)
-        try:
-            _utk = (analyses.bet_tier_for(sport_key, _pmid) or "") if (sport_key and _pmid) else ""
-        except Exception:
-            _utk = ""
-        _utier = {"value": "Value", "montante": "Montante", "combo": "Combiné"}.get(_utk, "Confiance")
         if is_live:
             _usw, _usc = "Live", "live"
         elif is_finished:
@@ -11388,7 +11383,9 @@ def _sport_row(r: dict) -> str:
             _ufr = " · ".join(_ev)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
             _uehead = _ue_head_html(
-                tier_label=(_utier if _pb else "Analysé"), cote_txt=_ucote_txt, state_word=_usw,
+                # En-tête = TYPE de pari « Simple » (façon Unibet), pas le tier : la ZONE (Confiance/Value) porte
+                # déjà la catégorie -> plus de répétition (user 2026-09-03). La confiance reste au pied (métrique).
+                tier_label=("Simple" if _pb else "Analysé"), cote_txt=_ucote_txt, state_word=_usw,
                 state_cls=_usc, meta_txt=_umeta,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                 match_txt=_umatch, foot_left=_ufl, foot_right=_ufr, chev=True, abst=(_pb is None))
