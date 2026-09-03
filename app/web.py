@@ -2243,6 +2243,7 @@ CSS = """
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
   .uel-score{flex:none;font-size:12.5px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+  .uel-score.live{color:var(--gold)}   /* score LIVE (match en cours) */
   /* Colonne cote globale : léger fond « panneau » (user 2026-09-03, point 3) pour combler le vide vertical
      et la lire comme un bloc volontaire, sans cadre lourd. */
   .cbo-odc{border-left:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
@@ -10917,6 +10918,15 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
         _lwhen = fmt_local(l.get("start"), with_date=False)
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
+        _live_leg = False
+        if not (_lscore and any(c.isdigit() for c in _lscore)):     # pas de score réglé -> SCORE LIVE si en cours
+            try:                                                     # (onglet Pronos aussi, user 2026-09-03)
+                _lsp = l.get("sport") or sport
+                _lls = str(live_fields(match_select.live_state_for(_lsp, _lh, _la), _lsp).get("score") or "").strip()
+                if _lls and "-" in _lls:
+                    _lscore, _live_leg = _lls.replace("-", " - "), True
+            except Exception:
+                pass
         _lc = l.get("cote")
         _lcote_txt = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
         # Coin haut-droite de la jambe = COTE de jambe (+ marqueur ✗/= si perdue/remboursée). PAS de « ✓ » sur
@@ -10944,7 +10954,9 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _mx = _ue_metrics_html(_lconf, _le, _lv)
         _sub_h = f'<div class="uel-sub">{_sub_txt}</div>' if _sub_txt else ""
         # PIED : métriques (gauche) + SCORE dans le coin en bas à droite (user 2026-09-03).
-        _score_h = f'<span class="uel-score">{e(_score_txt)}</span>' if _score_txt else ""
+        # Score LIVE (match en cours) en OR pour le distinguer d'un score final.
+        _score_h = (f'<span class="uel-score{" live" if _live_leg else ""}">{e(_score_txt)}</span>'
+                    if _score_txt else "")
         _foot_h = (f'<div class="uel-foot"><div class="uel-mx">{_mx}</div>{_score_h}</div>'
                    if (_mx or _score_h) else "")
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
