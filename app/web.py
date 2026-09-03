@@ -2186,11 +2186,17 @@ CSS = """
   .ue-cote{flex:none;display:flex;align-items:baseline;gap:5px}
   .ue-cote i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:#61748b;text-transform:uppercase}
   .ue-cote b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .ue-tm{font-size:12px;font-weight:600;color:#8fa4bd;margin-top:5px;line-height:1.3;overflow-wrap:anywhere}
-  .ue-tm .h{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
-  .ue-mx{font-size:11.5px;font-weight:700;color:#61748b;margin-top:8px;font-variant-numeric:tabular-nums}
+  /* Ligne équipes : « home — away » (gauche) + HEURE collée à droite (user 2026-09-03). */
+  .ue-tm{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+       font-size:12px;font-weight:600;color:#8fa4bd;margin-top:5px;line-height:1.3}
+  .ue-tm .tt{min-width:0;overflow-wrap:anywhere}
+  .ue-when{flex:none;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  /* Pied : métriques (gauche) + SCORE en bas à droite (user 2026-09-03). */
+  .ue-foot{display:flex;align-items:flex-end;gap:10px;margin-top:8px}
+  .ue-mx{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums}
   .ue-mx b{font-weight:900;color:#8fa4bd} .ue-mx b.c{color:var(--st-won)} .ue-mx b.pos{color:var(--st-won)}
   .ue-mx .sep{color:#3a4a5e;margin:0 4px}
+  .ue-score{flex:none;font-size:13px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.02em}
   .ue .mc-chev{position:absolute;right:11px;bottom:7px;color:#4d6076;font-size:13px;transition:transform .18s}
   .ue.mc-open .mc-chev{transform:rotate(180deg)}
   .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
@@ -10803,21 +10809,24 @@ def _ue_cote_html(cote_txt: str) -> str:
             if cote_txt else "")
 
 
-def _ue_head_html(*, league: str, right_html: str, right_cls: str, sel_txt: str, cote_txt: str,
-                  match_txt: str, metrics_html: str = "", chev: bool = True, abst: bool = False) -> str:
+def _ue_head_html(*, league: str, when: str, sel_txt: str, cote_txt: str, match_txt: str,
+                  metrics_html: str = "", score_txt: str = "", chev: bool = True, abst: bool = False) -> str:
     """En-tête de carte STYLE E (liste plate façon Unibet). Structure fixée (user 2026-09-03) :
-    ligue (eyebrow gauche) · état/heure/score (eyebrow droite) — PARI en gras + COTE à droite — équipes —
-    Confiance·Edge·Value. `right_html`/`metrics_html` = HTML déjà sûr. Le verdict passe par le RAIL gauche,
+    ligue (eyebrow) — PARI en gras + COTE à droite — équipes + HEURE collée à droite — Confiance·Edge·Value
+    (gauche) + SCORE en bas à droite. `metrics_html` = HTML déjà sûr. Le verdict passe par le RAIL gauche,
     pas de badge Gagné/Perdu ici (couleur `.mc-r-*` sur la carte)."""
     e = html.escape
-    st_h = f'<span class="ue-st {right_cls}">{right_html}</span>' if right_html else ""
-    eye = f'<div class="ue-eye"><span class="ue-lg">{e(league)}</span>{st_h}</div>'
+    eye = f'<div class="ue-eye"><span class="ue-lg">{e(league)}</span></div>'
     top = f'<div class="ue-top"><div class="ue-pk">{e(sel_txt)}</div>{_ue_cote_html(cote_txt)}</div>'
-    mt = f'<div class="ue-tm">{e(match_txt)}</div>' if match_txt else ""
-    mx = f'<div class="ue-mx">{metrics_html}</div>' if metrics_html else ""
+    _when_h = f'<span class="ue-when">{e(when)}</span>' if when else ""
+    mt = (f'<div class="ue-tm"><span class="tt">{e(match_txt)}</span>{_when_h}</div>'
+          if (match_txt or _when_h) else "")
+    _score_h = f'<span class="ue-score">{e(score_txt)}</span>' if score_txt else ""
+    foot = (f'<div class="ue-foot"><div class="ue-mx">{metrics_html}</div>{_score_h}</div>'
+            if (metrics_html or _score_h) else "")
     chev_h = '<span class="mc-chev">▾</span>' if chev else ""
     cls = " ue-abst" if abst else ""
-    return f'<div class="mc-head{cls}">{eye}{top}{mt}{mx}{chev_h}</div>'
+    return f'<div class="mc-head{cls}">{eye}{top}{mt}{foot}{chev_h}</div>'
 
 
 def _ue_metrics_html(conf_i, edge=None, value=None) -> str:
@@ -10852,11 +10861,12 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     _cf = _ue_confval(rb)
     _cf_i = int(round(_cf)) if _cf is not None else None
     _sc_txt = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(score or "")).strip().replace("-", " - ")
-    # Eyebrow droite = SCORE final (le verdict est porté par le rail gauche coloré, user 2026-09-03).
-    _right = f'<b class="h">{e(_sc_txt)}</b>' if _sc_txt and any(ch.isdigit() for ch in _sc_txt) else ""
-    _head = _ue_head_html(league=_league or _when, right_html=_right, right_cls="",
-                          sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away), cote_txt=_cote_txt,
-                          match_txt=f"{_home} — {_away}", metrics_html=_ue_metrics_html(_cf_i), chev=True)
+    # SCORE final en bas à droite ; heure collée aux équipes ; verdict = rail gauche coloré (user 2026-09-03).
+    _score_txt = _sc_txt if (_sc_txt and any(ch.isdigit() for ch in _sc_txt)) else ""
+    _when_hm = fmt_local(d.get("start"), with_date=False)
+    _head = _ue_head_html(league=_league, when=_when_hm, sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
+                          cote_txt=_cote_txt, match_txt=f"{_home} — {_away}",
+                          metrics_html=_ue_metrics_html(_cf_i), score_txt=_score_txt, chev=True)
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{rich_html}</div></div>'
 
 
@@ -10938,7 +10948,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
                        f'{_sub_h}{_mx_h}</div></div>')
     # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
-    _nb = f'{len(legs)} jambe{"s" if len(legs) > 1 else ""}'
+    _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
     # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
     _odc = f'<div class="cbo-odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
     _head = (f'<div class="mc-head"><div class="cbo-hd">'
@@ -11397,18 +11407,13 @@ def _sport_row(r: dict) -> str:
         _ucote_txt = f"{_ucote:g}" if isinstance(_ucote, (int, float)) and _ucote else ""
         _uscore = str(r.get("score") or "").strip()
         _uscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", _uscore).replace("-", " - ") if _uscore else ""
-        # Eyebrow DROITE : live -> « 🟢 Live » (or) ; terminé -> SCORE (gras) ; à venir -> date/heure.
+        _uwhen_hm = fmt_local(sdt, with_date=False) if sdt else (starthm or "")
+        # HEURE collée aux équipes (« 🟢 Live » si en direct) ; SCORE en bas à droite (live/terminé).
         # Le VERDICT (gagné/perdu) est porté par le rail gauche coloré (`_rcls`), pas de badge (user 2026-09-03).
-        if is_live:
-            _uright, _urcls = "🟢 Live", "live"
-        elif is_finished and any(ch.isdigit() for ch in _uscore):
-            _uright, _urcls = f'<b class="h">{e(_uscore)}</b>', ""
-        elif is_finished:
-            _uright, _urcls = "", ""
-        else:
-            _uright, _urcls = f'<span class="cd">{e(_uwhen)}</span>', ""
+        _uwhen_disp = "🟢 Live" if is_live else _uwhen_hm
+        _uscore_txt = _uscore if ((is_finished or is_live) and any(ch.isdigit() for ch in _uscore)) else ""
         # Edge/Value discrets (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
-        # Masqués une fois le match terminé (le score prime alors dans l'eyebrow).
+        # Masqués une fois le match terminé (le score prime alors en bas à droite).
         _uedge = _uval = None
         if (not is_finished) and _ucf_i is not None and isinstance(_ucote, (int, float)) and _ucote:
             try:
@@ -11419,9 +11424,9 @@ def _sport_row(r: dict) -> str:
         _umx = _ue_metrics_html(_ucf_i, _uedge, _uval)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
             _uehead = _ue_head_html(
-                league=_uleague or _uwhen, right_html=_uright, right_cls=_urcls, cote_txt=_ucote_txt,
+                league=_uleague, when=_uwhen_disp, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
-                match_txt=_umatch, metrics_html=_umx, chev=True, abst=(_pb is None))
+                match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, chev=True, abst=(_pb is None))
             _uedetail = (f'<div class="mc-main">'
                          f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{comp_only}</span></div>'
                          f'<div class="mc-teams">{teams}</div>'
