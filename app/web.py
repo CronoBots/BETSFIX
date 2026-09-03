@@ -2227,13 +2227,14 @@ CSS = """
   .uel-ct b{font-size:15px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .uel-ct .uel-v{font-size:12px;font-weight:900}
   .uel-v.won{color:var(--st-won)} .uel-v.lost{color:var(--st-lost)} .uel-v.push{color:var(--st-void)}
-  .uel-sub{font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px;overflow-wrap:anywhere}
-  /* Pied de jambe : métriques (gauche) + HEURE en bas à droite. */
-  .uel-foot{display:flex;align-items:flex-end;gap:10px;margin-top:5px}
-  .uel-mx{flex:1;min-width:0;font-size:11px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums}
+  /* Ligne équipes : « home — away » (gauche) + HEURE à droite. */
+  .uel-sub{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+       font-size:11.5px;color:#8fa2b8;font-weight:600;margin-top:3px}
+  .uel-sub .tt{min-width:0;overflow-wrap:anywhere}
+  .uel-tm{flex:none;font-size:10.5px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  .uel-mx{font-size:11px;font-weight:700;color:#61748b;margin-top:5px;font-variant-numeric:tabular-nums}
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
-  .uel-tm{flex:none;font-size:10.5px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
   /* Colonne cote globale : léger fond « panneau » (user 2026-09-03, point 3) pour combler le vide vertical
      et la lire comme un bloc volontaire, sans cadre lourd. */
   .cbo-odc{border-left:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
@@ -10827,9 +10828,9 @@ def _ue_metrics_html(conf_i, edge=None, value=None) -> str:
     if conf_i is not None:
         bits.append(f'Confiance <b class="c">{conf_i}%</b>')
     if edge is not None:
-        bits.append(f'edge <b class="pos">+{edge}</b>' if edge > 0 else f'edge <b>{edge:+d}</b>')
+        bits.append(f'Edge <b class="pos">+{edge}</b>' if edge > 0 else f'Edge <b>{edge:+d}</b>')
     if value is not None:
-        bits.append(f'value <b class="pos">+{value}%</b>' if value >= 3 else f'value <b>{value:+d}%</b>')
+        bits.append(f'Value <b class="pos">+{value}%</b>' if value >= 3 else f'Value <b>{value:+d}%</b>')
     return '<span class="sep">·</span>'.join(bits)
 
 
@@ -10913,7 +10914,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
         # COTE à droite du pari (même ligne) + marqueur verdict éventuel — user 2026-09-03.
         _ct_h = (f'<div class="uel-ct"><b>{e(_lcote_txt)}</b>{_v_h}</div>' if (_lcote_txt or _v_h) else "")
-        # Sous-ligne = équipes (+ score en gras si réglé). Ligue retirée. L'HEURE va en bas à droite (pied).
+        # Ligne équipes (+ score si réglé) à gauche, HEURE à droite (user 2026-09-03). Ligue retirée.
         _sub_txt = e(f"{_lh} — {_la}") if (_lh and _la) else ""
         if _lscore and any(c.isdigit() for c in _lscore):
             _sub_txt += (" · " if _sub_txt else "") + f'<b class="h">{e(_lscore)}</b>'
@@ -10928,14 +10929,14 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
             except (TypeError, ValueError, ZeroDivisionError):
                 _le = _lv = None
         _mx = _ue_metrics_html(_lconf, _le, _lv)
-        # PIED : métriques (gauche) + HEURE en bas à droite (user 2026-09-03).
+        _mx_h = f'<div class="uel-mx">{_mx}</div>' if _mx else ""
+        # Ligne équipes (gauche) + HEURE à droite (user 2026-09-03).
         _tm_h = f'<span class="uel-tm">{e(_lwhen)}</span>' if _lwhen else ""
-        _foot_h = (f'<div class="uel-foot"><div class="uel-mx">{_mx}</div>{_tm_h}</div>'
-                   if (_mx or _tm_h) else "")
-        _sub_h = f'<div class="uel-sub">{_sub_txt}</div>' if _sub_txt else ""
+        _sub_h = (f'<div class="uel-sub"><span class="tt">{_sub_txt}</span>{_tm_h}</div>'
+                  if (_sub_txt or _tm_h) else "")
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
-                       f'{_sub_h}{_foot_h}</div></div>')
+                       f'{_sub_h}{_mx_h}</div></div>')
     # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
     _nb = f'{len(legs)} jambe{"s" if len(legs) > 1 else ""}'
     # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
@@ -11372,9 +11373,10 @@ def _sport_row(r: dict) -> str:
     # ===== STYLE E (liste plate façon Unibet) : résumé compact + DÉTAIL riche au dépli (user 2026-09-03) =====
     # Le résumé replié devient une ligne plate ; le corps déplié réutilise TEL QUEL le détail classique
     # (ligue + équipes/logos + grille verdict/barres + analyse). Combinés gérés à part (_ue_combo).
-    # ⚠️ LIVE EXCLU (user 2026-09-03) : les paris EN DIRECT gardent la présentation CLASSIQUE d'avant la refonte
-    # (scoreboard live + horloge + barre « chance live ») — le résumé plat E perdait ces infos live.
-    if _e_style() and not is_combo and not is_live:
+    # ⚠️ ONGLET LIVE EXCLU (user 2026-09-03) : dans l'onglet « Directs » (`render_directs` pose `_livetab`), les
+    # cartes gardent la présentation CLASSIQUE d'avant la refonte (scoreboard live + horloge + barre « chance
+    # live »). Ailleurs (Programme), un match live reste en style E. NE PAS gater sur `is_live` seul (trop large).
+    if _e_style() and not is_combo and not r.get("_livetab"):
         _pb = next((b for b in bets3 if isinstance(b, dict) and not b.get("_info") and not b.get("tag")), None)
         if _pb is None:
             _pb = next((b for b in bets3 if isinstance(b, dict) and not b.get("_info")), None)
@@ -11745,6 +11747,10 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _mont_title, _mont_card = "", ""
 
     def _cards(rows):
+        # `_livetab` : onglet Live -> présentation CLASSIQUE (pas de style E plat), user 2026-09-03.
+        for c in rows:
+            if isinstance(c, dict) and not c.get("_html"):
+                c["_livetab"] = True
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
     # MONTANTE FUSIONNÉE DANS CONFIANCE en Live aussi (user 2026-08-08) : plus de zone séparée. On DÉDUPLIQUE
