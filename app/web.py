@@ -2165,67 +2165,53 @@ CSS = """
   .mc-tg .mc-sport{color:#5fd0ff;font-weight:800;letter-spacing:.05em}
   .mc-tg .mc-comp{color:#93b7db;font-weight:600}
   .mc-tg .mc-comp-sep{color:#5f7a97}
-  /* ===== STYLE E — liste plate façon Unibet (user 2026-09-03, flag BETSFIX_CARD_STYLE) =====
-     Résumé compact : rail de statut à gauche, en-tête « Type @ cote · état », sélection en gras,
-     match dessous, pied confiance/score. Le DÉTAIL riche (logos, barres, analyse) est dans .mc-body. */
-  .row.mc.ue{background:#12212f;border:1px solid rgba(255,255,255,.08);
-       border-left:5px solid var(--st-soon);border-radius:13px;overflow:hidden;
-       box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0}
-  .row.mc.ue.mc-r-won{border-left-color:var(--st-won)}
-  .row.mc.ue.mc-r-lost{border-left-color:var(--st-lost)}
-  .row.mc.ue.mc-r-push{border-left-color:var(--st-void)}
-  .row.mc.ue.mc-r-live{border-left-color:var(--st-live)}
-  .ue .mc-head{position:relative;padding:13px 38px 14px 15px;cursor:pointer}
-  .ue-hd{display:flex;align-items:baseline;gap:6px;font-size:13.5px;font-weight:800;color:var(--text)}
-  .ue-hd .od{font-variant-numeric:tabular-nums}
-  .ue-hd .dot{color:var(--dim);font-weight:600}
-  .ue-hd .res{font-weight:900;margin-left:auto;padding-right:2px}
-  .ue-hd .res.won{color:var(--st-won)} .ue-hd .res.lost{color:var(--st-lost)}
-  .ue-hd .res.soon,.ue-hd .res.live{color:var(--gold)} .ue-hd .res.push{color:var(--st-void)}
-  .ue-meta{font-size:11.5px;color:#6f8299;font-weight:600;margin:3px 0 11px}
-  .ue-sel{font-size:15.5px;font-weight:900;letter-spacing:-.01em;line-height:1.25;color:var(--text)}
-  .ue-match{font-size:12.5px;color:#8fa2b8;font-weight:600;margin-top:3px}
-  .ue-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:12px;
-       border-top:1px solid rgba(255,255,255,.08);padding-top:11px;font-size:12.5px;color:var(--muted);font-weight:700}
-  .ue-foot .v{color:var(--text);font-weight:900;font-variant-numeric:tabular-nums}
-  .ue-foot .v.c,.ue-foot .v.pos{color:var(--st-won)} .ue-foot .v.neg{color:var(--st-lost)}
-  .ue .mc-chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:15px;transition:transform .18s}
-  .ue.mc-open .mc-chev{transform:translateY(-50%) rotate(90deg)}
-  .ue-abst .ue-sel{color:var(--muted);font-weight:800;font-size:14px}
-  /* détail riche au dépli : réutilise les composants existants, sans double cadre */
-  .ue .mc-body{padding:2px 15px 15px}
+  /* ===== STYLE E — liste plate (user 2026-09-03, flag BETSFIX_CARD_STYLE). Structure demandée :
+     ligue (eyebrow) · PARI + cote à droite · équipes + heure · Confiance·Edge·Value. Rail gauche = statut,
+     pas de badge Gagné/Perdu. Combiné : chaque jambe = même structure + sa cote ; cote totale en en-tête. ===== */
+  .row.mc.ue{position:relative;background:#12212f;border:1px solid rgba(255,255,255,.08);border-radius:13px;
+       overflow:hidden;box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0;box-sizing:border-box;max-width:100%}
+  .row.mc.ue::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--st-soon);z-index:2}
+  .row.mc.ue.mc-r-won::before{background:var(--st-won)}
+  .row.mc.ue.mc-r-lost::before{background:var(--st-lost)}
+  .row.mc.ue.mc-r-push::before{background:var(--st-void)}
+  .row.mc.ue.mc-r-live::before{background:var(--st-live)}
+  .ue .mc-head{position:relative;padding:12px 16px 14px 16px;cursor:pointer}
+  .ue-eye{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:13px}
+  .ue-lg{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#7fa8d6;
+       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .ue-st{flex:none;font-size:11px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
+  .ue-st .cd{color:#5fd0ff} .ue-st.live{color:var(--gold)}
+  .ue-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-width:0}
+  .ue-pk{font-size:15.5px;font-weight:900;letter-spacing:-.015em;line-height:1.22;color:#fff;min-width:0;overflow-wrap:anywhere}
+  .ue-cote{flex:none;display:flex;align-items:baseline;gap:5px}
+  .ue-cote i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:#61748b;text-transform:uppercase}
+  .ue-cote b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .ue-tm{font-size:12px;font-weight:600;color:#8fa4bd;margin-top:5px;line-height:1.3;overflow-wrap:anywhere}
+  .ue-tm .h{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+  .ue-mx{font-size:11.5px;font-weight:700;color:#61748b;margin-top:8px;font-variant-numeric:tabular-nums}
+  .ue-mx b{font-weight:900;color:#8fa4bd} .ue-mx b.c{color:var(--st-won)} .ue-mx b.pos{color:var(--st-won)}
+  .ue-mx .sep{color:#3a4a5e;margin:0 4px}
+  .ue .mc-chev{position:absolute;right:11px;bottom:7px;color:#4d6076;font-size:13px;transition:transform .18s}
+  .ue.mc-open .mc-chev{transform:rotate(180deg)}
+  .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
+  .ue .mc-body{padding:2px 16px 15px 16px}
   .ue .mc-body>.cleg{border:none;background:transparent;padding:0}
-  /* combiné OUVERT E : jambes numérotées + verdict par jambe + cote totale en colonne */
-  .ue-co .split{display:grid;grid-template-columns:minmax(0,1fr) 74px;border-top:1px solid rgba(255,255,255,.08)}
-  .ue-co .legs{min-width:0}
-  .ue-co .leg{display:flex}
-  .ue-co .leg+.leg{border-top:1px solid rgba(255,255,255,.08)}
-  /* numéro de jambe = PASTILLE ronde colorée par verdict (gouttière transparente ; le fin liseré du
-     bord gauche de la carte court tout du long) — user 2026-09-03, fini le pavé plein pleine-hauteur. */
-  .ue-co .num{flex:none;width:25px;display:grid;place-items:center}   /* gouttière compacte (user 2026-09-03 : les numéros prenaient trop de place) */
-  .ue-co .num .n{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;
+  /* En-tête de combiné E : titre + COTE totale (or). Jambes = classes DÉDIÉES `.ueg*` (⚠️ NE PAS réutiliser
+     `.cleg*`/`.cnum` : ces noms servent déjà aux cartes de jambe classiques `_leg_card` → collision CSS). */
+  .ue.cbo .mc-head{cursor:default}
+  .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .cbo-ti{font-size:15px;font-weight:900;letter-spacing:-.01em;color:#fff;min-width:0;overflow-wrap:anywhere}
+  .cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
+  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
+  .cbo-ct b{font-size:20px;font-weight:900;color:#fff;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .ueg{display:flex;gap:10px;padding:11px 0;border-top:1px solid rgba(255,255,255,.08);min-width:0}
+  .ueg:first-of-type{margin-top:6px}
+  .ueg-n{flex:none;width:17px;height:17px;margin-top:2px;border-radius:50%;display:grid;place-items:center;
        font-size:10px;font-weight:900;color:#04130a;background:var(--st-soon);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
-  .ue-co .leg.won .num .n{background:var(--st-won)}
-  .ue-co .leg.lost .num .n{background:var(--st-lost);color:#2a0608}
-  .ue-co .leg.push .num .n,.ue-co .leg.void .num .n{background:var(--st-void);color:#0d1420}
-  .ue-co .lb{flex:1;min-width:0;padding:10px 12px 11px}
-  .ue-co .lb .lt{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-  .ue-co .lb .sel{font-size:13.5px;font-weight:900;line-height:1.25;color:var(--text)}
-  .ue-co .lb .rr{flex:none;font-size:12px;font-weight:900}
-  .ue-co .lb .rr.won{color:var(--st-won)} .ue-co .lb .rr.lost{color:var(--st-lost)} .ue-co .lb .rr.push{color:var(--st-void)}
-  .ue-co .lb .rr.conf{color:var(--st-won);font-weight:800;font-variant-numeric:tabular-nums}   /* confiance % par jambe (avant règlement) */
-  .ue-co .lb .sub{font-size:11px;color:#8fa2b8;font-weight:600;margin-top:3px;line-height:1.45}
-  .ue-co .lb .lev{font-size:10.5px;color:#61748b;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
-  .ue-co .lb .lev b{font-weight:900;color:#8fa4bd} .ue-co .lb .lev b.pos{color:var(--st-won)}
-  .ue-co .odc{flex:0 0 74px;width:74px;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-  /* anti-débordement horizontal (mobile étroit) : chaque niveau flex peut rétrécir sous son contenu */
-  .row.mc.ue{box-sizing:border-box;max-width:100%}
-  .ue-co .split,.ue-co .legs,.ue-co .leg,.ue-co .lb,.ue-co .lb .lt{min-width:0}
-  .ue-co .lb .sel,.ue-co .lb .sub{min-width:0;overflow-wrap:anywhere}
-  .ue-hd{flex-wrap:wrap;min-width:0}
-  .ue-hd>span:first-child{min-width:0;overflow-wrap:anywhere}
-  .ue-co .odc i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--muted)}
-  .ue-co .odc b{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .ueg.won .ueg-n{background:var(--st-won)} .ueg.lost .ueg-n{background:var(--st-lost);color:#2a0608}
+  .ueg.push .ueg-n,.ueg.void .ueg-n{background:var(--st-void);color:#0d1420}
+  .ueg-b{flex:1;min-width:0}
+  .ueg-b .ue-cote b{font-size:15px} .ueg-b .ue-pk{font-size:13.5px} .ueg-b .ue-tm{margin-top:3px}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
@@ -10782,23 +10768,41 @@ def _ue_confval(b) -> float | None:
     return v * 100.0 if v <= 1 else v
 
 
-def _ue_head_html(*, tier_label: str, cote_txt: str, state_word: str, state_cls: str, meta_txt: str,
-                  sel_txt: str, match_txt: str, foot_left: str = "", foot_right: str = "",
-                  chev: bool = True, abst: bool = False) -> str:
-    """En-tête de carte STYLE E (résumé compact façon Unibet) : « Type @ cote · état », méta (date · ligue),
-    sélection en gras, match, pied confiance/score. `foot_left`/`foot_right` = HTML déjà sûr (spans .v)."""
+def _ue_cote_html(cote_txt: str) -> str:
+    """Pastille COTE d'une carte/jambe style E : « COTE 1.38 » (i + b). '' si pas de cote."""
+    return (f'<span class="ue-cote"><i>COTE</i><b>{html.escape(cote_txt)}</b></span>'
+            if cote_txt else "")
+
+
+def _ue_head_html(*, league: str, right_html: str, right_cls: str, sel_txt: str, cote_txt: str,
+                  match_txt: str, metrics_html: str = "", chev: bool = True, abst: bool = False) -> str:
+    """En-tête de carte STYLE E (liste plate façon Unibet). Structure fixée (user 2026-09-03) :
+    ligue (eyebrow gauche) · état/heure/score (eyebrow droite) — PARI en gras + COTE à droite — équipes —
+    Confiance·Edge·Value. `right_html`/`metrics_html` = HTML déjà sûr. Le verdict passe par le RAIL gauche,
+    pas de badge Gagné/Perdu ici (couleur `.mc-r-*` sur la carte)."""
     e = html.escape
-    cote_h = (f'<span class="dot">@</span><span class="od">{e(cote_txt)}</span>' if cote_txt else "")
-    st_h = (f'<span class="res {state_cls}">{e(state_word)}</span>' if state_word else "")
-    hd = f'<div class="ue-hd"><span>{e(tier_label)}</span>{cote_h}{st_h}</div>'
-    meta = f'<div class="ue-meta">{e(meta_txt)}</div>' if meta_txt else ""
-    sel = f'<div class="ue-sel">{e(sel_txt)}</div>' if sel_txt else ""
-    mt = f'<div class="ue-match">{e(match_txt)}</div>' if match_txt else ""
-    foot = (f'<div class="ue-foot"><span>{foot_left}</span><span>{foot_right}</span></div>'
-            if (foot_left or foot_right) else "")
-    chev_h = '<span class="mc-chev">▸</span>' if chev else ""
+    st_h = f'<span class="ue-st {right_cls}">{right_html}</span>' if right_html else ""
+    eye = f'<div class="ue-eye"><span class="ue-lg">{e(league)}</span>{st_h}</div>'
+    top = f'<div class="ue-top"><div class="ue-pk">{e(sel_txt)}</div>{_ue_cote_html(cote_txt)}</div>'
+    mt = f'<div class="ue-tm">{e(match_txt)}</div>' if match_txt else ""
+    mx = f'<div class="ue-mx">{metrics_html}</div>' if metrics_html else ""
+    chev_h = '<span class="mc-chev">▾</span>' if chev else ""
     cls = " ue-abst" if abst else ""
-    return f'<div class="mc-head{cls}">{hd}{meta}{sel}{mt}{foot}{chev_h}</div>'
+    return f'<div class="mc-head{cls}">{eye}{top}{mt}{mx}{chev_h}</div>'
+
+
+def _ue_metrics_html(conf_i, edge=None, value=None) -> str:
+    """Ligne de métriques style E : « Confiance <b class=c>93%</b> · edge <b>+5</b> · value <b>+12%</b> ».
+    conf en vert (.c) ; edge/value positifs POPENT en vert (.pos), négatif/neutre restent gris (profil normal
+    d'un pari Confiance à cote courte). Renvoie '' si rien à montrer."""
+    bits = []
+    if conf_i is not None:
+        bits.append(f'Confiance <b class="c">{conf_i}%</b>')
+    if edge is not None:
+        bits.append(f'edge <b class="pos">+{edge}</b>' if edge > 0 else f'edge <b>{edge:+d}</b>')
+    if value is not None:
+        bits.append(f'value <b class="pos">+{value}%</b>' if value >= 3 else f'value <b>{value:+d}%</b>')
+    return '<span class="sep">·</span>'.join(bits)
 
 
 def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict) -> str:
@@ -10806,8 +10810,6 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     Confiance/Score, et le DÉTAIL riche (`_leg_card`) au dépli. Rail gauche coloré par le verdict."""
     e = html.escape
     _res = rb.get("result")
-    _sw, _sc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
-                "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_res, ("Terminé", ""))
     _rcls = {"won": " mc-r-won", "lost": " mc-r-lost", "push": " mc-r-push", "void": " mc-r-push"}.get(_res, "")
     _home, _away = d.get("home", ""), d.get("away", "")
     _comp = str(d.get("comp") or "")
@@ -10816,25 +10818,23 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
         _cty = ""
     _league = " • ".join(x for x in (_cty, _comp) if x)
     _when = fmt_local(d.get("start"), with_date=True)
-    _meta = " · ".join(x for x in (_when, _league) if x)
     _cote = rb.get("cote")
     _cote_txt = f"{_cote:g}" if isinstance(_cote, (int, float)) and _cote else ""
     _cf = _ue_confval(rb)
     _cf_i = int(round(_cf)) if _cf is not None else None
     _sc_txt = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(score or "")).strip().replace("-", " - ")
-    _fl = (f'Confiance <span class="v c">{_cf_i}%</span>' if _cf_i is not None else "")
-    _fr = (f'Score <span class="v">{e(_sc_txt)}</span>' if _sc_txt and any(ch.isdigit() for ch in _sc_txt) else "")
-    # En-tête « Simple » (type de pari) et non le tier : la ZONE porte déjà Confiance/Value (user 2026-09-03).
-    _head = _ue_head_html(tier_label="Simple", cote_txt=_cote_txt, state_word=_sw, state_cls=_sc, meta_txt=_meta,
-                          sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away), match_txt=f"{_home} — {_away}",
-                          foot_left=_fl, foot_right=_fr, chev=True)
+    # Eyebrow droite = SCORE final (le verdict est porté par le rail gauche coloré, user 2026-09-03).
+    _right = f'<b class="h">{e(_sc_txt)}</b>' if _sc_txt and any(ch.isdigit() for ch in _sc_txt) else ""
+    _head = _ue_head_html(league=_league or _when, right_html=_right, right_cls="",
+                          sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away), cote_txt=_cote_txt,
+                          match_txt=f"{_home} — {_away}", metrics_html=_ue_metrics_html(_cf_i), chev=True)
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{rich_html}</div></div>'
 
 
 def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
-    """Combiné OUVERT style E (façon Unibet) : en-tête « Combiné @ cote · état », jambes NUMÉROTÉES
-    (rail coloré par verdict), sélection + verdict par jambe + sous-ligne (match · heure · score), et la
-    COTE totale en colonne à droite. Toujours ouvert (le combiné EST son propre détail). '' si vide."""
+    """Combiné OUVERT style E (façon Unibet). En-tête = titre + COTE totale (or). Chaque jambe reprend la
+    MÊME structure qu'une carte simple (pastille numérotée colorée par verdict · PARI + cote · équipes/heure ·
+    Confiance·Edge·Value). Toujours ouvert (le combiné EST son propre détail). '' si vide."""
     e = html.escape
     legs = cb.get("legs") or []
     if not legs:
@@ -10846,15 +10846,15 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in legs)
     _any_settled = any(l.get("result") in ("won", "lost", "push", "void") for l in legs)
     if _res == "won":
-        _sw, _sc, _rcls = "Gagné", "won", " mc-r-won"
+        _rcls = " mc-r-won"
     elif _res == "lost":
-        _sw, _sc, _rcls = "Perdu", "lost", " mc-r-lost"
+        _rcls = " mc-r-lost"
     elif _res in ("void", "push"):
-        _sw, _sc, _rcls = "Remboursé", "push", " mc-r-push"
+        _rcls = " mc-r-push"
     elif _any_settled and not _all_done:
-        _sw, _sc, _rcls = "En cours", "live", " mc-r-live"
+        _rcls = " mc-r-live"
     else:
-        _sw, _sc, _rcls = "", "soon", ""     # « À venir » retiré (user 2026-09-03) : état affiché seulement live/réglé
+        _rcls = ""     # verdict porté par le RAIL gauche (couleur), pas de badge (user 2026-09-03)
     # Cote EFFECTIVE si une jambe est annulée/remboursée (elle sort du produit — même règle que _combo_tg_card).
     _cote = cb.get("cote")
     if any(l.get("result") in ("void", "push") for l in legs):
@@ -10873,49 +10873,36 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     for i, l in enumerate(legs, 1):
         _lr = l.get("result")
         _lcls = _lr if _lr in ("won", "lost", "push", "void") else "soon"
-        _rrw, _rrc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
-                      "push": ("Remb.", "push"), "void": ("Remb.", "push")}.get(_lr, ("", ""))
         _lh, _la = l.get("home", ""), l.get("away", "")
         _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
         _lwhen = fmt_local(l.get("start"), with_date=False)
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
-        _subs = [x for x in (f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen) if x]
+        _lc = l.get("cote")
+        _lcote_txt = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
+        # Ligne équipes/heure (+ score si réglé, en gras) — .ue-tm réutilisé.
+        _tm_parts = [f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen]
+        _tm_txt = " · ".join(e(x) for x in _tm_parts if x)
         if _lscore and any(c.isdigit() for c in _lscore):
-            _subs.append(f"Score {_lscore}")
-        # à droite de la jambe : le VERDICT si réglé, sinon la CONFIANCE % (discrète, verte) — user 2026-09-03,
-        # « je ne vois rien » : au moins un chiffre visible sur le combiné même avant règlement.
+            _tm_txt += f' <b class="h">{e(_lscore)}</b>'
+        # Métriques par jambe : confiance (+ edge/value dérivés de la cote) — même barème que la carte simple.
         _lp = l.get("prob")
         _lconf = (round(_lp * 100) if isinstance(_lp, (int, float)) and _lp <= 1
                   else (round(_lp) if isinstance(_lp, (int, float)) else None))
-        if _rrw:
-            _rr_h = f'<div class="rr {_rrc}">{e(_rrw)}</div>'
-        elif _lconf is not None:
-            _rr_h = f'<div class="rr conf">{_lconf}%</div>'
-        else:
-            _rr_h = ""
-        # EDGE / VALUE par jambe (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
-        # Discret : positif en vert (vraie value), négatif/neutre en gris (normal sur une double chance sûre).
-        _lc = l.get("cote")
-        _ev_bits = []
+        _le = _lv = None
         if _lconf is not None and isinstance(_lc, (int, float)) and _lc:
             try:
                 _le = round(_lconf - 100.0 / float(_lc)); _lv = round((_lconf / 100.0 * float(_lc) - 1) * 100)
-                _ev_bits.append(f'edge <b class="pos">+{_le}</b>' if _le > 0 else f'edge {_le:+d}')
-                _ev_bits.append(f'value <b class="pos">+{_lv}%</b>' if _lv >= 3 else f'value {_lv:+d}%')
             except (TypeError, ValueError, ZeroDivisionError):
-                _ev_bits = []
-        _ev_h = f'<div class="lev">{" · ".join(_ev_bits)}</div>' if _ev_bits else ""
-        _legs_html += (f'<div class="leg {_lcls}"><div class="num"><span class="n">{i}</span></div>'
-                       f'<div class="lb"><div class="lt"><div class="sel">{e(_lsel)}</div>{_rr_h}</div>'
-                       f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div>{_ev_h}</div></div>')
-    _odc = f'<div class="odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
-    # Cote affichée UNE seule fois = dans la colonne (.odc) ; retirée de l'en-tête pour éviter le doublon
-    # (user 2026-09-03). L'en-tête ne porte que le titre + l'état.
-    # « N jambes » retiré (user 2026-09-03) : redondant avec les pastilles numérotées 1/2/3.
-    _res_h = f'<span class="res {_sc}">{e(_sw)}</span>' if _sw else ""
-    _head = f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>{_res_h}</div></div>'
-    return (f'<div class="row pick mc ue ue-co{_rcls}">{_head}'
-            f'<div class="split"><div class="legs">{_legs_html}</div>{_odc}</div></div>')
+                _le = _lv = None
+        _mx = _ue_metrics_html(_lconf, _le, _lv)
+        _mx_h = f'<div class="ue-mx">{_mx}</div>' if _mx else ""
+        _legs_html += (f'<div class="ueg {_lcls}"><div class="ueg-n">{i}</div><div class="ueg-b">'
+                       f'<div class="ue-top"><div class="ue-pk">{e(_lsel)}</div>{_ue_cote_html(_lcote_txt)}</div>'
+                       f'<div class="ue-tm">{_tm_txt}</div>{_mx_h}</div></div>')
+    _ct = (f'<span class="cbo-ct"><i>COTE</i><b>{e(_cote_txt)}</b></span>' if _cote_txt else "")
+    _head = (f'<div class="mc-head"><div class="cbo-hd"><div class="cbo-ti">{e(title)}</div>{_ct}</div>'
+             f'{_legs_html}</div>')
+    return f'<div class="row pick mc ue cbo{_rcls}">{_head}</div>'
 
 
 def _sport_row(r: dict) -> str:
@@ -11351,15 +11338,7 @@ def _sport_row(r: dict) -> str:
         _uhome, _uaway = r.get("home", ""), r.get("away", "")
         _umatch = f"{_uhome} — {_uaway}" if (_uhome and _uaway) else (_uhome or _uaway or "")
         _uwhen = fmt_local(sdt, with_date=True) if sdt else (starthm or "")
-        _umeta = " · ".join(x for x in (_uwhen, " • ".join(_cparts)) if x)
-        if is_live:
-            _usw, _usc = "Live", "live"
-        elif is_finished:
-            _ures = (_pb or {}).get("result")
-            _usw, _usc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
-                          "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_ures, ("Terminé", ""))
-        else:
-            _usw, _usc = "", "soon"        # « À venir » retiré (user 2026-09-03) : état affiché seulement live/réglé
+        _uleague = " • ".join(_cparts)
         _ucf = _ue_confval(_pb)
         if _ucf is None and sport_key and _pmid:
             try:
@@ -11373,36 +11352,31 @@ def _sport_row(r: dict) -> str:
         _ucote_txt = f"{_ucote:g}" if isinstance(_ucote, (int, float)) and _ucote else ""
         _uscore = str(r.get("score") or "").strip()
         _uscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", _uscore).replace("-", " - ") if _uscore else ""
-        # Edge/Value REMIS discrètement (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
+        # Eyebrow DROITE : live -> « 🟢 Live » (or) ; terminé -> SCORE (gras) ; à venir -> date/heure.
+        # Le VERDICT (gagné/perdu) est porté par le rail gauche coloré (`_rcls`), pas de badge (user 2026-09-03).
+        if is_live:
+            _uright, _urcls = "🟢 Live", "live"
+        elif is_finished and any(ch.isdigit() for ch in _uscore):
+            _uright, _urcls = f'<b class="h">{e(_uscore)}</b>', ""
+        elif is_finished:
+            _uright, _urcls = "", ""
+        else:
+            _uright, _urcls = f'<span class="cd">{e(_uwhen)}</span>', ""
+        # Edge/Value discrets (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
+        # Masqués une fois le match terminé (le score prime alors dans l'eyebrow).
         _uedge = _uval = None
-        if _ucf_i is not None and isinstance(_ucote, (int, float)) and _ucote:
+        if (not is_finished) and _ucf_i is not None and isinstance(_ucote, (int, float)) and _ucote:
             try:
                 _uedge = round(_ucf_i - 100.0 / float(_ucote))
                 _uval = round((_ucf_i / 100.0 * float(_ucote) - 1) * 100)
             except (TypeError, ValueError, ZeroDivisionError):
                 _uedge = _uval = None
-        _ufl = _ufr = ""
-        if _ucf_i is not None:
-            _ufl = f'Confiance <span class="v c">{_ucf_i}%</span>'
-        if is_finished and any(ch.isdigit() for ch in _uscore):
-            _ufr = f'Score <span class="v">{e(_uscore)}</span>'          # terminé : le SCORE prime
-        elif (not is_finished) and (_uedge is not None or _uval is not None):
-            # DISCRET : le POSITIF pope en vert (vraie value) ; le négatif/neutre reste GRIS (un edge/value
-            # négatif sur un pari Confiance à cote courte est le profil NORMAL -> pas d'alarme rouge dans la liste).
-            _ev = []
-            if _uedge is not None:
-                _ev.append(f'edge <span class="v pos">+{_uedge}</span>' if _uedge > 0 else f'edge {_uedge:+d}')
-            if _uval is not None:
-                _ev.append(f'value <span class="v pos">+{_uval}%</span>' if _uval >= 3 else f'value {_uval:+d}%')
-            _ufr = " · ".join(_ev)
+        _umx = _ue_metrics_html(_ucf_i, _uedge, _uval)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
             _uehead = _ue_head_html(
-                # En-tête = TYPE de pari « Simple » (façon Unibet), pas le tier : la ZONE (Confiance/Value) porte
-                # déjà la catégorie -> plus de répétition (user 2026-09-03). La confiance reste au pied (métrique).
-                tier_label=("Simple" if _pb else "Analysé"), cote_txt=_ucote_txt, state_word=_usw,
-                state_cls=_usc, meta_txt=_umeta,
+                league=_uleague or _uwhen, right_html=_uright, right_cls=_urcls, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
-                match_txt=_umatch, foot_left=_ufl, foot_right=_ufr, chev=True, abst=(_pb is None))
+                match_txt=_umatch, metrics_html=_umx, chev=True, abst=(_pb is None))
             _uedetail = (f'<div class="mc-main">'
                          f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{comp_only}</span></div>'
                          f'<div class="mc-teams">{teams}</div>'
