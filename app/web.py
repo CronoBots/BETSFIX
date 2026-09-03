@@ -2208,15 +2208,17 @@ CSS = """
   .cbo-sub .st{font-weight:900;color:var(--gold)}
   .cbo-sub .st.won{color:var(--st-won)} .cbo-sub .st.lost{color:var(--st-lost)}
   .cbo-sub .st.push{color:var(--st-void)} .cbo-sub .st.live{color:var(--st-live)}
-  .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 76px;border-top:1px solid rgba(255,255,255,.08);margin-top:9px}
+  .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 58px;border-top:1px solid rgba(255,255,255,.08);margin-top:9px}
   .cbo-legs{min-width:0}
   .uel{display:flex;min-width:0}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}   /* même séparation entre jambes */
-  /* Fine gouttière de numéro (user 2026-09-03) : colonne étroite, petit numéro coloré par verdict, pas de pavé. */
+  /* Fine gouttière de numéro (user 2026-09-03) : colonne étroite, FOND = couleur du statut de la jambe,
+     chiffre en couleur du fond (foncé), centré. */
   .uel-n{flex:none;width:22px;display:grid;place-items:center;font-size:11px;font-weight:900;
-       color:var(--st-soon);font-variant-numeric:tabular-nums;border-right:1px solid rgba(255,255,255,.06)}
-  .uel.won .uel-n{color:var(--st-won)} .uel.lost .uel-n{color:var(--st-lost)}
-  .uel.push .uel-n,.uel.void .uel-n{color:var(--st-void)}
+       background:var(--st-soon);color:#04130a;font-variant-numeric:tabular-nums}
+  .uel.won .uel-n{background:var(--st-won);color:#04130a}
+  .uel.lost .uel-n{background:var(--st-lost);color:#2a0608}
+  .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void);color:#0d1420}
   .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
   .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
   .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
@@ -2231,8 +2233,8 @@ CSS = """
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
   .cbo-odc{border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;
        align-items:center;justify-content:center;gap:3px}
-  .cbo-odc i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
-  .cbo-odc b{font-size:22px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cbo-odc i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+  .cbo-odc b{font-size:19px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
