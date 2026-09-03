@@ -2201,6 +2201,7 @@ CSS = """
   .ue .mc-chev{position:absolute;right:11px;bottom:7px;color:#4d6076;font-size:13px;transition:transform .18s}
   .ue.mc-open .mc-chev{transform:rotate(180deg)}
   .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
+  .ue .ue-why{padding:0 15px 12px}   /* pli « Pourquoi ce pari » seul sous le résumé (carte plate) */
   .ue .mc-body{padding:2px 16px 15px 16px}
   .ue .mc-body>.cleg{border:none;background:transparent;padding:0}
   /* ===== Combiné E (user 2026-09-03) : COTE GLOBALE en COLONNE à droite (span toute la hauteur) + COTE PAR
@@ -11441,17 +11442,18 @@ def _sport_row(r: dict) -> str:
                 _uedge = _uval = None
         _umx = _ue_metrics_html(_ucf_i, _uedge, _uval)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
+            # DÉPLI = SEUL « 💡 Pourquoi ce pari » (user 2026-09-03 : « comme depuis des semaines »). Plus de
+            # scoreboard / pavé verdict / Mise / Les faits sous le pari : la carte repliée porte déjà tout le
+            # résumé, et le pli « Pourquoi » porte l'analyse. Carte PLATE + pli tappable ; chevron de carte retiré
+            # (le pli a le sien). Repli sur l'analyse (`ana`) si AUCUN « Pourquoi » n'est disponible.
             _uehead = _ue_head_html(
                 league=_uleague, when=_uwhen_disp, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
-                match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, chev=True, abst=(_pb is None))
-            # Ligne LIGUE du dépli RETIRÉE (user 2026-09-03) : doublon de l'eyebrow (lui-même supprimé) — le
-            # dépli = scoreboard + verdict/pourquoi + faits, sans re-répéter la ligue.
-            _uedetail = (f'<div class="mc-main">'
-                         f'<div class="mc-teams">{teams}</div>'
-                         f'<div class="mc-sub">{line3}</div></div>{body}')
+                match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, chev=bool(not _pwhy), abst=(_pb is None))
+            if _pwhy:
+                return f'<div class="row pick mc ue mc-flat{_rcls}">{_uehead}<div class="ue-why">{_pwhy}</div></div>'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
-                    f'<div class="mc-body" hidden>{_uedetail}</div></div>')
+                    f'<div class="mc-body" hidden>{ana}{linkshtml}</div></div>')
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'

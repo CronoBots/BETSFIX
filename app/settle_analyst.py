@@ -1952,7 +1952,11 @@ async def _settle_analyses_impl() -> int:
                 # Telegram = PARIS SIMPLES FOOT uniquement (user 2026-08-02) : un résultat n'est posté que
                 # pour un match FOOT dont le simple a été publié. Les simples non-foot sont réglés/comptés
                 # sur le SITE mais NON postés sur Telegram (flag figé -> pas de re-traitement).
-                _simple_shown = sport == "foot" and analyses.retained_bet(sport, mid) is not None
+                # « Un simple a-t-il été joué ? » : sur un match RÉGLÉ, `retained_bet` retombe à None (il ne
+                # reconstruit plus le pari mécanique une fois `stat_bet` figé) -> on teste AUSSI `stat_bet`, sinon
+                # une re-notification de correction est SAUTÉE à tort (bug user 2026-09-03, KAA Gent). Source = pari joué.
+                _simple_shown = sport == "foot" and (
+                    isinstance(d.get("stat_bet"), dict) or analyses.retained_bet(sport, mid) is not None)
                 if not _simple_shown:
                     d["notified_pick"] = True   # non affiché/non-foot -> rien à envoyer, on FIGE tout de suite
                 if _simple_shown:

@@ -1313,9 +1313,8 @@ def _structured(md: str, skip_verdict: bool = False, card_details: bool = False)
     # 2) LES FAITS — visibles (dépli classique) ou dans « 🔍 Voir les détails » (mode carte).
     if faits:
         (detail_parts if card_details else parts).append(_sec("📋 Les faits", _render_blocks(faits)))
-    # 3) MISE conseillée (Kelly) — TOUJOURS visible (actionnable), jamais repliée.
-    if mise:
-        parts.append(_sec("💰 Mise conseillée", _render_blocks(mise), " da-sec-mise"))
+    # 3) MISE conseillée (Kelly) : RETIRÉE de l'affichage (user 2026-09-03) — boilerplate « 1–2 % mise plate »
+    #    redondant avec « Pourquoi ce pari » (les sources restent via `linkshtml`). Section calculée mais non rendue.
     # 4) Toute autre section (séries/tendances Sportradar, H2H…) : à la suite (dépli) ou repliée (carte).
     known = {"", verdict, bets, faits, mise, combo, prov}
     for title, b in secs.items():
