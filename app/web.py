@@ -2201,13 +2201,11 @@ CSS = """
      équipes/heure · Confiance·Edge·Value. Classes DÉDIÉES `.uel*`/`.cbo*` (⚠️ jamais `.cleg*`/`.cnum` : déjà
      pris par `_leg_card` → collision CSS). ===== */
   .ue.cbo .mc-head{cursor:default;padding:12px 0 0}
-  .cbo-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:0 15px}
-  .cbo-l{min-width:0}
-  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere}
-  .cbo-sub{font-size:11.5px;color:#6f8299;font-weight:600;margin-top:3px}
-  .cbo-sub .st{font-weight:900;color:var(--gold)}
-  .cbo-sub .st.won{color:var(--st-won)} .cbo-sub .st.lost{color:var(--st-lost)}
-  .cbo-sub .st.push{color:var(--st-void)} .cbo-sub .st.live{color:var(--st-live)}
+  /* En-tête : nom du combiné à gauche, « N jambes » dans le COIN haut-droite (même ligne). Pas d'état
+     « À venir » (user 2026-09-03) — le résultat passe par le rail gauche + les marqueurs par jambe. */
+  .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:0 15px}
+  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere;min-width:0}
+  .cbo-nb{flex:none;font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
   .cbo-split{display:grid;grid-template-columns:minmax(0,1fr) 58px;border-top:1px solid rgba(255,255,255,.08);margin-top:9px}
   .cbo-legs{min-width:0}
   .uel{display:flex;min-width:0}
@@ -10869,15 +10867,15 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in legs)
     _any_settled = any(l.get("result") in ("won", "lost", "push", "void") for l in legs)
     if _res == "won":
-        _sw, _scls, _rcls = "Gagné", "won", " mc-r-won"
+        _rcls = " mc-r-won"
     elif _res == "lost":
-        _sw, _scls, _rcls = "Perdu", "lost", " mc-r-lost"
+        _rcls = " mc-r-lost"
     elif _res in ("void", "push"):
-        _sw, _scls, _rcls = "Remboursé", "push", " mc-r-push"
+        _rcls = " mc-r-push"
     elif _any_settled and not _all_done:
-        _sw, _scls, _rcls = "En cours", "live", " mc-r-live"
+        _rcls = " mc-r-live"
     else:
-        _sw, _scls, _rcls = "À venir", "", ""
+        _rcls = ""     # état porté par le rail gauche + marqueurs par jambe (plus de badge « À venir »)
     # Cote EFFECTIVE si une jambe est annulée/remboursée (elle sort du produit — même règle que _combo_tg_card).
     _cote = cb.get("cote")
     if any(l.get("result") in ("void", "push") for l in legs):
@@ -10929,13 +10927,12 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n">{i}</div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}</div>{_ct_h}</div>'
                        f'<div class="uel-sub">{_sub_txt}</div>{_mx_h}</div></div>')
-    _st = f'<span class="st {_scls}">{e(_sw)}</span>' if _sw else ""
+    # « N jambes » dans le coin haut-droite, même ligne que le nom du combiné (user 2026-09-03).
     _nb = f'{len(legs)} jambe{"s" if len(legs) > 1 else ""}'
-    _sub = f'<div class="cbo-sub">{_nb}{" · " + _st if _st else ""}</div>'
     # COTE GLOBALE en colonne à droite (span toute la hauteur) — user 2026-09-03.
     _odc = f'<div class="cbo-odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
     _head = (f'<div class="mc-head"><div class="cbo-hd">'
-             f'<div class="cbo-l"><div class="cbo-ti">{e(title)}</div>{_sub}</div></div>'
+             f'<div class="cbo-ti">{e(title)}</div><span class="cbo-nb">{_nb}</span></div>'
              f'<div class="cbo-split"><div class="cbo-legs">{_legs_html}</div>{_odc}</div></div>')
     return f'<div class="row pick mc ue cbo{_rcls}">{_head}</div>'
 
