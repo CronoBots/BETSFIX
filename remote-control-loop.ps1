@@ -146,9 +146,23 @@ Start-Job -Name "wd-$SessionName" -ArgumentList $SessionName, $logFile, $PID -Sc
         if ($p.ProcessId -eq $connectedPid) { $strikes = 0; continue }
         $strikes++
         if ($strikes -ge 9) {
-            "$(Get-Date -Format s) WATCHDOG: claude $session fige (jamais connecte ~180s, PID $($p.ProcessId)) -> kill" | Out-File -FilePath $log -Append -Encoding utf8
-            Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-            $strikes = 0
+            # Garde connectivite (2026-09-03) : ne PAS tuer si c'est le RESEAU qui
+            # est coupe (nuit / veille moderne du portable). Tuer un claude qui n'a
+            # jamais connecte alors que la machine ne joint meme pas Anthropic ne
+            # sert a rien : le suivant ne connectera pas non plus -> churn toutes
+            # les ~3 min (tempete vecue le 2026-09-02, 05h->06h44, ~30 kills). On ne
+            # tue QUE si le reseau repond mais que claude reste muet = vrai figeage
+            # onboarding. Reseau down -> on attend son retour, claude reprend seul.
+            $netOk = $false
+            try { $netOk = Test-NetConnection -ComputerName 'api.anthropic.com' -Port 443 -InformationLevel Quiet -WarningAction SilentlyContinue } catch { }
+            if ($netOk) {
+                "$(Get-Date -Format s) WATCHDOG: claude $session fige (jamais connecte ~180s, reseau OK, PID $($p.ProcessId)) -> kill" | Out-File -FilePath $log -Append -Encoding utf8
+                Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+                $strikes = 0
+            } else {
+                "$(Get-Date -Format s) WATCHDOG: claude $session 0 conn mais RESEAU DOWN (api.anthropic.com:443 injoignable) -> pas de kill (churn evite), PID $($p.ProcessId)" | Out-File -FilePath $log -Append -Encoding utf8
+                $strikes = 8   # reste au bord : re-teste dans 20s, kill des le retour reseau si toujours muet
+            }
         }
     }
 } | Out-Null
