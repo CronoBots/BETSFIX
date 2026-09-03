@@ -2229,8 +2229,10 @@ CSS = """
   .uel-mx{font-size:11px;font-weight:700;color:#61748b;margin-top:5px;font-variant-numeric:tabular-nums}
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
-  .cbo-odc{border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;
-       align-items:center;justify-content:center;gap:3px}
+  /* Colonne cote globale : léger fond « panneau » (user 2026-09-03, point 3) pour combler le vide vertical
+     et la lire comme un bloc volontaire, sans cadre lourd. */
+  .cbo-odc{border-left:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
   .cbo-odc i{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
   .cbo-odc b{font-size:19px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
@@ -10900,10 +10902,9 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
         _lc = l.get("cote")
         _lcote_txt = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
-        # Coin haut-droite de la jambe = COTE de jambe + marqueur de verdict (✓ / ✗ / = , une fois réglée,
-        # les numéros ayant disparu).
-        _vc, _vg = {"won": ("won", "✓"), "lost": ("lost", "✗"),
-                    "push": ("push", "="), "void": ("push", "=")}.get(_lr, ("", ""))
+        # Coin haut-droite de la jambe = COTE de jambe (+ marqueur ✗/= si perdue/remboursée). PAS de « ✓ » sur
+        # une jambe GAGNÉE (user 2026-09-03) : la pastille numéro VERTE le dit déjà (le « ✓ » faisait doublon).
+        _vc, _vg = {"lost": ("lost", "✗"), "push": ("push", "="), "void": ("push", "=")}.get(_lr, ("", ""))
         _v_h = f'<span class="uel-v {_vc}">{_vg}</span>' if _vg else ""
         _ct_h = (f'<div class="uel-ct"><b>{e(_lcote_txt)}</b>{_v_h}</div>'
                  if (_lcote_txt or _v_h) else "")
