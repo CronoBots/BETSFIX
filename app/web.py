@@ -2154,7 +2154,7 @@ CSS = """
   /* TOUTES les cartes de pari : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande user
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
      remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
-  .row.mc.mc-tg{background:#0f1c2c;
+  .row.mc.mc-tg{background:#12212f;
        border:1px solid var(--st-soon);   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
        box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
   .row.mc.mc-tg.mc-r-won{border-color:var(--st-won)}
@@ -2168,7 +2168,7 @@ CSS = """
   /* ===== STYLE E — liste plate façon Unibet (user 2026-09-03, flag BETSFIX_CARD_STYLE) =====
      Résumé compact : rail de statut à gauche, en-tête « Type @ cote · état », sélection en gras,
      match dessous, pied confiance/score. Le DÉTAIL riche (logos, barres, analyse) est dans .mc-body. */
-  .row.mc.ue{background:#0f1c2c;border:1px solid rgba(255,255,255,.08);
+  .row.mc.ue{background:#12212f;border:1px solid rgba(255,255,255,.08);
        border-left:5px solid var(--st-soon);border-radius:13px;overflow:hidden;
        box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0}
   .row.mc.ue.mc-r-won{border-left-color:var(--st-won)}
@@ -2188,7 +2188,7 @@ CSS = """
   .ue-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:12px;
        border-top:1px solid rgba(255,255,255,.08);padding-top:11px;font-size:12.5px;color:var(--muted);font-weight:700}
   .ue-foot .v{color:var(--text);font-weight:900;font-variant-numeric:tabular-nums}
-  .ue-foot .v.c{color:var(--st-won)} .ue-foot .v.neg{color:var(--st-lost)}
+  .ue-foot .v.c,.ue-foot .v.pos{color:var(--st-won)} .ue-foot .v.neg{color:var(--st-lost)}
   .ue .mc-chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:15px;transition:transform .18s}
   .ue.mc-open .mc-chev{transform:translateY(-50%) rotate(90deg)}
   .ue-abst .ue-sel{color:var(--muted);font-weight:800;font-size:14px}
@@ -10836,6 +10836,9 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     legs = cb.get("legs") or []
     if not legs:
         return ""
+    # Jambes dans l'ordre du MATCH (coup d'envoi croissant) — user 2026-09-03. Tri d'AFFICHAGE seulement
+    # (copie locale) : l'ordre stocké dans `cb["legs"]` et le règlement ne changent pas. ISO -> tri lexical = chrono.
+    legs = sorted(legs, key=lambda l: str(l.get("start") or "~"))
     _res = cb.get("result")
     _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in legs)
     _any_settled = any(l.get("result") in ("won", "lost", "push", "void") for l in legs)
@@ -10848,7 +10851,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     elif _any_settled and not _all_done:
         _sw, _sc, _rcls = "En cours", "live", " mc-r-live"
     else:
-        _sw, _sc, _rcls = "À venir", "soon", ""
+        _sw, _sc, _rcls = "", "soon", ""     # « À venir » retiré (user 2026-09-03) : état affiché seulement live/réglé
     # Cote EFFECTIVE si une jambe est annulée/remboursée (elle sort du produit — même règle que _combo_tg_card).
     _cote = cb.get("cote")
     if any(l.get("result") in ("void", "push") for l in legs):
@@ -10883,9 +10886,9 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     _odc = f'<div class="odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
     # Cote affichée UNE seule fois = dans la colonne (.odc) ; retirée de l'en-tête pour éviter le doublon
     # (user 2026-09-03). L'en-tête ne porte que le titre + l'état.
-    _head = (f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>'
-             f'<span class="res {_sc}">{e(_sw)}</span></div>'
-             f'<div class="ue-meta">{len(legs)} jambes</div></div>')
+    # « N jambes » retiré (user 2026-09-03) : redondant avec les pastilles numérotées 1/2/3.
+    _res_h = f'<span class="res {_sc}">{e(_sw)}</span>' if _sw else ""
+    _head = f'<div class="mc-head"><div class="ue-hd"><span>{e(title)}</span>{_res_h}</div></div>'
     return (f'<div class="row pick mc ue ue-co{_rcls}">{_head}'
             f'<div class="split"><div class="legs">{_legs_html}</div>{_odc}</div></div>')
 
@@ -11336,7 +11339,7 @@ def _sport_row(r: dict) -> str:
             _usw, _usc = {"won": ("Gagné", "won"), "lost": ("Perdu", "lost"),
                           "push": ("Remboursé", "push"), "void": ("Remboursé", "push")}.get(_ures, ("Terminé", ""))
         else:
-            _usw, _usc = "À venir", "soon"
+            _usw, _usc = "", "soon"        # « À venir » retiré (user 2026-09-03) : état affiché seulement live/réglé
         _ucf = _ue_confval(_pb)
         if _ucf is None and sport_key and _pmid:
             try:
@@ -11350,15 +11353,28 @@ def _sport_row(r: dict) -> str:
         _ucote_txt = f"{_ucote:g}" if isinstance(_ucote, (int, float)) and _ucote else ""
         _uscore = str(r.get("score") or "").strip()
         _uscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", _uscore).replace("-", " - ") if _uscore else ""
+        # Edge/Value REMIS discrètement (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
+        _uedge = _uval = None
+        if _ucf_i is not None and isinstance(_ucote, (int, float)) and _ucote:
+            try:
+                _uedge = round(_ucf_i - 100.0 / float(_ucote))
+                _uval = round((_ucf_i / 100.0 * float(_ucote) - 1) * 100)
+            except (TypeError, ValueError, ZeroDivisionError):
+                _uedge = _uval = None
         _ufl = _ufr = ""
         if _ucf_i is not None:
-            _ucc = f'<span class="v c">{_ucf_i}%</span>'
-            _ufl = (f'Confiance {_ucc}' if is_finished
-                    else f'Confiance {_ucc}' + (f' · {e(_ue_conf_qual(_ucf_i))}' if _ue_conf_qual(_ucf_i) else ''))
+            _ufl = f'Confiance <span class="v c">{_ucf_i}%</span>'
         if is_finished and any(ch.isdigit() for ch in _uscore):
-            _ufr = f'Score <span class="v">{e(_uscore)}</span>'
-        elif (not is_finished) and isinstance(_ucote, (int, float)) and _ucote:
-            _ufr = f'marché <span class="v">{round(100.0 / _ucote)}%</span>'
+            _ufr = f'Score <span class="v">{e(_uscore)}</span>'          # terminé : le SCORE prime
+        elif (not is_finished) and (_uedge is not None or _uval is not None):
+            # DISCRET : le POSITIF pope en vert (vraie value) ; le négatif/neutre reste GRIS (un edge/value
+            # négatif sur un pari Confiance à cote courte est le profil NORMAL -> pas d'alarme rouge dans la liste).
+            _ev = []
+            if _uedge is not None:
+                _ev.append(f'edge <span class="v pos">+{_uedge}</span>' if _uedge > 0 else f'edge {_uedge:+d}')
+            if _uval is not None:
+                _ev.append(f'value <span class="v pos">+{_uval}%</span>' if _uval >= 3 else f'value {_uval:+d}%')
+            _ufr = " · ".join(_ev)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
             _uehead = _ue_head_html(
                 tier_label=(_utier if _pb else "Analysé"), cote_txt=_ucote_txt, state_word=_usw,
