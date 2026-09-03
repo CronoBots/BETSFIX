@@ -344,8 +344,11 @@ def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
     if sig.get("sharp_conflict"):
         sources = "⚠️" if sources == "✅" else sources
         issues.append("SOURCES : ancre sharp REJETÉE (favori opposé au marché = résolution fausse → match différé)")
-    elif sig.get("sharp_cited") and sig.get("sharp_map_empty"):
-        sources = "❌"   # GRAVE : chiffre sharp inventé (la prose s'appuie sur une ancre qui n'existe pas)
+    elif sig.get("sharp_cited") and sig.get("sharp_map_empty") and rb and rb.get("sel"):
+        # GRAVE UNIQUEMENT sur un PARI RÉEL : chiffre sharp inventé pour justifier une EV. Sur une ABSTENTION,
+        # la fiche minimale ne persiste PAS `sharp_map` (comme l'omap avant le fix 2026-08-31) alors que le .md
+        # cite légitimement l'ancre du scan -> ne PAS crier « fabriqué » (faux positif, aucun pari en jeu).
+        sources = "❌"
         issues.append("SOURCES : l'analyse CITE un sharp INEXISTANT (aucune ancre `sharp_map` — chiffre fabriqué)")
     elif not sig["sharp_ok"]:
         sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : pas d'ancre sharp Pinnacle")
