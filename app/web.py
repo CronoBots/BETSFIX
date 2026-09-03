@@ -2213,6 +2213,7 @@ CSS = """
   .ue-co .lb .sel{font-size:13.5px;font-weight:900;line-height:1.25;color:var(--text)}
   .ue-co .lb .rr{flex:none;font-size:12px;font-weight:900}
   .ue-co .lb .rr.won{color:var(--st-won)} .ue-co .lb .rr.lost{color:var(--st-lost)} .ue-co .lb .rr.push{color:var(--st-void)}
+  .ue-co .lb .rr.conf{color:var(--st-won);font-weight:800;font-variant-numeric:tabular-nums}   /* confiance % par jambe (avant règlement) */
   .ue-co .lb .sub{font-size:11px;color:#8fa2b8;font-weight:600;margin-top:3px;line-height:1.45}
   .ue-co .odc{flex:0 0 74px;width:74px;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
   /* anti-débordement horizontal (mobile étroit) : chaque niveau flex peut rétrécir sous son contenu */
@@ -10879,7 +10880,17 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _subs = [x for x in (f"{_lh} — {_la}" if (_lh and _la) else "", _lwhen) if x]
         if _lscore and any(c.isdigit() for c in _lscore):
             _subs.append(f"Score {_lscore}")
-        _rr_h = f'<div class="rr {_rrc}">{e(_rrw)}</div>' if _rrw else ""
+        # à droite de la jambe : le VERDICT si réglé, sinon la CONFIANCE % (discrète, verte) — user 2026-09-03,
+        # « je ne vois rien » : au moins un chiffre visible sur le combiné même avant règlement.
+        _lp = l.get("prob")
+        _lconf = (round(_lp * 100) if isinstance(_lp, (int, float)) and _lp <= 1
+                  else (round(_lp) if isinstance(_lp, (int, float)) else None))
+        if _rrw:
+            _rr_h = f'<div class="rr {_rrc}">{e(_rrw)}</div>'
+        elif _lconf is not None:
+            _rr_h = f'<div class="rr conf">{_lconf}%</div>'
+        else:
+            _rr_h = ""
         _legs_html += (f'<div class="leg {_lcls}"><div class="num"><span class="n">{i}</span></div>'
                        f'<div class="lb"><div class="lt"><div class="sel">{e(_lsel)}</div>{_rr_h}</div>'
                        f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div></div></div>')
