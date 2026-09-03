@@ -566,7 +566,10 @@ CSS = """
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
   /* Cadre Live vide : REMPLIT la hauteur dispo jusqu'à la barre du bas, en laissant la place au « 18+ »
      (qui vit sous #panels dans .wrap) — user 2026-08-22. */
-  #pn-directs.on{display:flex;flex-direction:column}
+  /* Flex-column UNIQUEMENT à l'état VIDE (l'orbe « radar » doit remplir la hauteur). Avec des cartes, on
+     RESTE en `display:block` comme TOUS les autres onglets — sinon la non-fusion des marges + `flex:1 0 auto`
+     décalait le contenu du seul onglet Live (user 2026-09-03 : « décalage quand on va dessus, que cet onglet »). */
+  #pn-directs.on:has(.live-empty){display:flex;flex-direction:column}
   #pn-directs.on .live-empty{flex:1 1 auto}
   .le-orb{position:relative;width:62px;height:62px;display:flex;align-items:center;justify-content:center;
        margin-bottom:20px}
