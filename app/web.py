@@ -878,6 +878,12 @@ CSS = """
        text-overflow:clip;line-height:1.25}
   .mc-r-live .mc-line-c .mc-comp{padding:0 10px}
   .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
+  /* Ligue des cartes de PARI (Confiance/Value, à venir ET terminé, _sport_row) : calée EN HAUT À GAUCHE
+     et colorée comme les jambes de combiné (.cleg-comp #8fa2b8), au lieu du BLANC CENTRÉ (user 2026-09-03).
+     Modificateur scopé -> n'affecte PAS les autres cartes (programme .mc-tg, combiné, accueil). Le badge
+     décompte/résultat reste en absolu à droite (.mc-line-c .mc-badge). */
+  .mc-line-c.mc-lg-cleg{justify-content:flex-start}
+  .mc-line-c.mc-lg-cleg .mc-comp{flex:0 1 auto;text-align:left;padding:0 44px 0 0;color:#8fa2b8}
   .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
@@ -6711,7 +6717,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
         return (f'<div class="cleg {_state} cleg-res-live mc-prem">'
-                f'<div class="mc-line mc-line-c"><span class="mc-comp">{_comp_c}</span></div>'
+                f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{_comp_c}</span></div>'
                 f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
@@ -7101,7 +7107,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
                     '<span class="tm-fin">Terminé</span></span>')
         else:
             _ctr = ""                              # pas de score (à venir / indispo) -> équipes seules
-        out = (f'<div class="mc-line mc-line-c"><span class="mc-comp">{_comp_c}</span></div>'
+        out = (f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{_comp_c}</span></div>'
                f'<div class="mc-teams">{_teams_vs_html(home, away, _ctr)}</div><div class="mc-div"></div>')
     # SIMPLE retenu ADDITIONNEL (cas « carte multi-paris » : un match CdM peut porter un simple retenu ET
     # le combiné). On le montre en tête, présenté comme une carte de pari (pick gras + glose + verdict).
@@ -11048,7 +11054,7 @@ def _sport_row(r: dict) -> str:
     # calculée plus haut via `_live_pct`). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
     _chev = "" if (_no_expand or r.get("_compact")) else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable / compacte (prochains lives)
     head = (f'<div class="mc-head"><div class="mc-main">'
-            f'<div class="mc-line mc-line-c">'   # ligue CENTRÉE, SANS emoji (user 2026-08-15) ; décompte en absolu à droite
+            f'<div class="mc-line mc-line-c mc-lg-cleg">'   # ligue EN HAUT À GAUCHE + bleu jambes-combiné (#8fa2b8, user 2026-09-03) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
