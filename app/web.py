@@ -2211,7 +2211,8 @@ CSS = """
   .ue .mc-chev{position:absolute;right:11px;bottom:7px;color:#4d6076;font-size:13px;transition:transform .18s}
   .ue.mc-open .mc-chev{transform:rotate(180deg)}
   .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
-  .ue .ue-why{padding:0 15px 12px}   /* pli « Pourquoi ce pari » seul sous le résumé (carte plate) */
+  .ue .ue-why{padding:2px 0 2px}   /* « Pourquoi ce pari » SEUL dans le dépli de la carte (mc-body a déjà le padding) */
+  .ue .ue-why .why-h{font-size:12px;font-weight:900;color:#e7c877;letter-spacing:.01em;margin-bottom:2px}
   .ue .mc-body{padding:2px 16px 15px 16px}
   .ue .mc-body>.cleg{border:none;background:transparent;padding:0}
   /* ===== Combiné E (user 2026-09-03) : COTE GLOBALE en COLONNE à droite (span toute la hauteur) + COTE PAR
@@ -6133,17 +6134,21 @@ def _why_sentences(text: str) -> list[str]:
     return out
 
 
-def _why_fold(text: str, label: str = "Pourquoi ce choix") -> str:
+def _why_fold(text: str, label: str = "Pourquoi ce choix", bare: bool = False) -> str:
     """Pli TAPPABLE « 💡 <label> » — MÊME patron que le « 💡 Pourquoi cette jambe » des combinés
     (`.cleg-fold`), demande user 2026-07-20 : porter l'analyse appréciée des jambes sur TOUS les types
     de paris (simple retenu, provisoire). Porte l'analyse COMPLÈTE (déjà nettoyée), en PUCES (une par
     phrase) pour AÉRER — plus de pavé illisible (demande user 2026-07-20). '' si pas de texte. Le tap
-    ouvre/ferme le pli SANS replier la carte parente (`event.stopPropagation`)."""
+    ouvre/ferme le pli SANS replier la carte parente (`event.stopPropagation`).
+    `bare=True` (style E, user 2026-09-03) : rend juste le TITRE + les puces (SANS `<details>`) — la carte
+    elle-même est le déclencheur (tap sur la carte = déplie le « Pourquoi »)."""
     t = (text or "").strip()
     if not t:
         return ""
     _sents = _why_sentences(t) or [t]
     _lis = "".join(f"<li>{html.escape(s)}</li>" for s in _sents)
+    if bare:
+        return f'<div class="why-h">💡 {html.escape(label)}</div><ul class="why-ul">{_lis}</ul>'
     return ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" '
             'onclick="event.stopPropagation()">' + html.escape(label)
             + '<span class="cleg-chev">▾</span></summary>'
@@ -9211,7 +9216,9 @@ def _abstention_zone(sport: str = "foot") -> str:
     if not abst:
         # CACHÉE tant qu'il n'y a aucune abstention (user 2026-08-20) : plus d'en-tête vide.
         return ""
-    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst), collapsible=True)
+    # TOUJOURS REPLIÉE (user 2026-09-03) : les abstentions ne se voient qu'en dépliant la ligne (`open_=False`).
+    return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst),
+                 collapsible=True, open_=False)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
@@ -10875,7 +10882,16 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     _head = _ue_head_html(league=_league, when=_when_hm, sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
                           cote_txt=_cote_txt, match_txt=f"{_home} — {_away}",
                           metrics_html=_ue_metrics_html(_cf_i), score_txt=_score_txt, chev=True)
-    return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{rich_html}</div></div>'
+    # DÉPLI = SEUL « 💡 Pourquoi ce pari » (user 2026-09-03) — plus de scoreboard/verdict/faits. Repli sur le
+    # détail riche si aucun « Pourquoi ». S'ouvre au tap sur la carte (toggle mc-body standard).
+    _why_body = ""
+    try:
+        _why_body = _why_fold(_prov_why_snippet(sp, str(d.get("id") or ""), maxlen=100000, played=True),
+                              "Pourquoi ce pari", bare=True)
+    except Exception:
+        _why_body = ""
+    _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else rich_html
+    return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{_uedetail}</div></div>'
 
 
 def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
@@ -11447,19 +11463,24 @@ def _sport_row(r: dict) -> str:
                 _uedge = _uval = None
         _umx = _ue_metrics_html(_ucf_i, _uedge, _uval)
         if _pb is not None or (not is_finished and not is_live):     # pari, ou abstention à venir -> E ; sinon classique
-            # DÉPLI = SEUL « 💡 Pourquoi ce pari » (user 2026-09-03 : « comme depuis des semaines »). Plus de
-            # scoreboard / pavé verdict / Mise / Les faits sous le pari : la carte repliée porte déjà tout le
-            # résumé, et le pli « Pourquoi » porte l'analyse. Carte PLATE + pli tappable ; chevron de carte retiré
-            # (le pli a le sien). Repli sur l'analyse (`ana`) si AUCUN « Pourquoi » n'est disponible.
+            # DÉPLI = SEUL « 💡 Pourquoi ce pari » (user 2026-09-03). Plus de scoreboard / pavé verdict / Mise /
+            # Les faits sous le pari : la carte repliée porte déjà tout le résumé. Le pli s'ouvre au tap sur LA
+            # CARTE (chevron de carte + toggle mc-body standard). Repli sur l'analyse `ana` si aucun « Pourquoi ».
+            _why_body = ""
+            if _pmid:
+                try:
+                    _why_body = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True),
+                                          "Pourquoi ce pari", bare=True)
+                except Exception:
+                    _why_body = ""
             _uehead = _ue_head_html(
                 league=_uleague, when=_uwhen_disp, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                 match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, score_live=is_live,
-                chev=bool(not _pwhy), abst=(_pb is None))
-            if _pwhy:
-                return f'<div class="row pick mc ue mc-flat{_rcls}">{_uehead}<div class="ue-why">{_pwhy}</div></div>'
+                chev=True, abst=(_pb is None))
+            _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else f'{ana}{linkshtml}'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
-                    f'<div class="mc-body" hidden>{ana}{linkshtml}</div></div>')
+                    f'<div class="mc-body" hidden>{_uedetail}</div></div>')
     if _no_expand:
         return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'

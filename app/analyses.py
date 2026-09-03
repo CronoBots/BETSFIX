@@ -568,6 +568,13 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
                                                     _mtot.group(1).lower())
         _u = "buts" if _u.startswith("but") else ("points" if _u.startswith("point") else "jeux")
         return f"{_mtot.group(2).capitalize()} de {_mtot.group(3)} {_u}"
+    # TOTAL BUTS D'UNE ÉQUIPE : « Total Hearts Plus de 0.5 » -> « Hearts : Plus de 0.5 but » (user 2026-09-03) —
+    # « but » au singulier si seuil ≤ 1, « buts » au-delà. PUREMENT AFFICHAGE (le `sel` stocké reste intact).
+    _mteam = re.match(r"^(?:nombre\s+(?:total\s+)?de\s+buts?\s+(?:de|par)\s+|total\s+(?:buts?\s+)?)"
+                      r"(.+?)\s*[—–:\-]*\s+(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:buts?)?\s*$", s, re.I)
+    if _mteam and _mteam.group(1).strip().lower() not in ("de", "des", "buts", "but", "points", "jeux", "match", "du match"):
+        _unit = "buts" if float(_mteam.group(3)) > 1 else "but"
+        return f"{_mteam.group(1).strip()} : {_mteam.group(2).capitalize()} de {_mteam.group(3)} {_unit}"
     low = s.lower()
     # MARCHÉ DE PÉRIODE (mi-temps / quart) : ne JAMAIS le normaliser vers son équivalent MATCH ENTIER (audit
     # 2026-07-23 : « Double Chance - 1ère mi-temps X2 » devenait « Double chance X2 (<équipe> ou nul) » = une
