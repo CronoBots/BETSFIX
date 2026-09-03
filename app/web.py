@@ -2215,6 +2215,8 @@ CSS = """
   .ue-co .lb .rr.won{color:var(--st-won)} .ue-co .lb .rr.lost{color:var(--st-lost)} .ue-co .lb .rr.push{color:var(--st-void)}
   .ue-co .lb .rr.conf{color:var(--st-won);font-weight:800;font-variant-numeric:tabular-nums}   /* confiance % par jambe (avant règlement) */
   .ue-co .lb .sub{font-size:11px;color:#8fa2b8;font-weight:600;margin-top:3px;line-height:1.45}
+  .ue-co .lb .lev{font-size:10.5px;color:#61748b;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .ue-co .lb .lev b{font-weight:900;color:#8fa4bd} .ue-co .lb .lev b.pos{color:var(--st-won)}
   .ue-co .odc{flex:0 0 74px;width:74px;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
   /* anti-débordement horizontal (mobile étroit) : chaque niveau flex peut rétrécir sous son contenu */
   .row.mc.ue{box-sizing:border-box;max-width:100%}
@@ -10891,9 +10893,21 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
             _rr_h = f'<div class="rr conf">{_lconf}%</div>'
         else:
             _rr_h = ""
+        # EDGE / VALUE par jambe (user 2026-09-03) : edge = conf − proba implicite ; value = conf×cote − 1.
+        # Discret : positif en vert (vraie value), négatif/neutre en gris (normal sur une double chance sûre).
+        _lc = l.get("cote")
+        _ev_bits = []
+        if _lconf is not None and isinstance(_lc, (int, float)) and _lc:
+            try:
+                _le = round(_lconf - 100.0 / float(_lc)); _lv = round((_lconf / 100.0 * float(_lc) - 1) * 100)
+                _ev_bits.append(f'edge <b class="pos">+{_le}</b>' if _le > 0 else f'edge {_le:+d}')
+                _ev_bits.append(f'value <b class="pos">+{_lv}%</b>' if _lv >= 3 else f'value {_lv:+d}%')
+            except (TypeError, ValueError, ZeroDivisionError):
+                _ev_bits = []
+        _ev_h = f'<div class="lev">{" · ".join(_ev_bits)}</div>' if _ev_bits else ""
         _legs_html += (f'<div class="leg {_lcls}"><div class="num"><span class="n">{i}</span></div>'
                        f'<div class="lb"><div class="lt"><div class="sel">{e(_lsel)}</div>{_rr_h}</div>'
-                       f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div></div></div>')
+                       f'<div class="sub">{" · ".join(e(x) for x in _subs)}</div>{_ev_h}</div></div>')
     _odc = f'<div class="odc"><i>COTE</i><b>{e(_cote_txt)}</b></div>' if _cote_txt else ""
     # Cote affichée UNE seule fois = dans la colonne (.odc) ; retirée de l'en-tête pour éviter le doublon
     # (user 2026-09-03). L'en-tête ne porte que le titre + l'état.
