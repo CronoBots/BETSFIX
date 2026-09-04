@@ -67,7 +67,9 @@ def _tk_barcode(seed: str) -> str:
     for col, w in runs:
         segs.append(f"{col} {x}px,{col} {x + w}px")
         x += w
-    return f"background:linear-gradient(90deg,{','.join(segs)});width:{x}px"
+    # Motif TUILÉ (background-size + repeat-x) -> le code-barres remplit TOUTE la largeur de la ligne du bas
+    # (user 2026-09-04), quelle que soit la largeur de carte, sans étirer les barres.
+    return f"background:linear-gradient(90deg,{','.join(segs)});background-size:{x}px 100%;background-repeat:repeat-x"
 
 _TK_STATUS_WORD = {"soon": "À VENIR", "live": "EN DIRECT", "won": "GAGNÉ", "lost": "PERDU", "push": "REMBOURSÉ"}
 
@@ -83,12 +85,27 @@ def _tk_badge(kind: str, extra: str = "") -> str:
         word = f"{word} · {extra}"
     return f'<span class="tk-badge {kind}">{html.escape(word)}</span>'
 
-def _tk_foot(seed: str, right: str = "") -> str:
-    """Pied du ticket : code-barres discret (gauche) + à droite l'heure/date du match si fournie
-    (`right`), sinon le n° de ticket unique (déterministe)."""
-    _r = html.escape(right) if right else _tk_no(seed)
-    return (f'<div class="tk-foot"><span class="tk-bc" style="{_tk_barcode(seed)}"></span>'
-            f'<span class="tk-no">{_r}</span></div>')
+def _tk_datecode(value) -> str:
+    """Code NUMÉRIQUE « ticket » encodant la DATE et l'HEURE du match : « AAAA·MMJJ·HHMM » (que des chiffres,
+    façon code/numéro de ticket, mais porteur d'info). '' si pas de date exploitable (repli n° de ticket)."""
+    dt = to_local(value)
+    return dt.strftime("%Y·%m%d·%H%M") if dt is not None else ""
+
+def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
+    """Pied du ticket : CODE-BARRES PLEINE LARGEUR avec la DATE/HEURE (ou n° de ticket) écrite DEDANS. Si
+    `why_text` est fourni, un bandeau « 💡 Pourquoi ce pari » (flèche de déploiement dans le coin DROIT) est
+    posé SOUS le code-barres et développe l'explication au clic (user 2026-09-04)."""
+    _code = html.escape(right) if right else _tk_no(seed)
+    _bc = (f'<div class="tk-bc" style="{_tk_barcode(seed)}">'
+           f'<span class="tk-bc-code">{_code}</span></div>')
+    _sents = _why_sentences(why_text) if why_text else []
+    _why = ""
+    if _sents:
+        _ul = "".join(f"<li>{html.escape(s)}</li>" for s in _sents)
+        _why = ('<details class="tk-whyd"><summary class="tk-why-bar" onclick="event.stopPropagation()">'
+                '💡 Pourquoi ce pari<span class="tk-chev">▾</span></summary>'
+                f'<div class="tk-why"><ul>{_ul}</ul></div></details>')
+    return f'<div class="tk-foot">{_bc}{_why}</div>'
 
 def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
@@ -103,15 +120,16 @@ def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
 def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, sel_txt: str,
                  cote_txt: str, metrics_html: str = "", why_text: str = "", rcls: str = "",
                  is_live: bool = False, is_finished: bool = False, score_txt: str = "",
-                 abst: bool = False, seed: str = "") -> str:
+                 abst: bool = False, seed: str = "", start=None) -> str:
     """Carte PARI à-venir / live / réglée en TICKET « talon » (direction A validée). Layout UNIQUE : le talon
     (logo) et le badge de statut changent selon l'état ; chaque info tient sur une ligne (ellipsis)."""
     e = html.escape
     rk = ("won" if "mc-r-won" in rcls else "lost" if "mc-r-lost" in rcls
           else "push" if "mc-r-push" in rcls else "live" if is_live else "soon")
-    # Badge : « À VENIR · 21:00 » (heure dans le badge) ; live/réglé = mot seul. Sous-titre = DATE seule
+    # Badge : « À VENIR · 21:00 » (heure dans le badge) ou « EN DIRECT » (live). PAS de badge GAGNÉ/PERDU sur
+    # un ticket réglé (user 2026-09-04) : le talon coloré + le score l'indiquent déjà. Sous-titre = DATE seule
     # (à venir : l'heure est déjà dans le badge -> on retire le doublon) ; sinon date+heure complète.
-    badge = _tk_badge(rk, time_txt if (rk == "soon" and time_txt) else "")
+    badge = _tk_badge(rk, time_txt if (rk == "soon" and time_txt) else "") if rk in ("soon", "live") else ""
     sub = re.sub(r"\s*\d{1,2}:\d{2}$", "", when_txt).strip() if rk == "soon" else when_txt
     _eye = f'<span class="tk-eye tk-ell">{e(league)}</span>' if league else '<span class="tk-ell"></span>'
     _sub = f'<div class="tk-sub">{e(sub)}</div>' if sub else ""
@@ -119,20 +137,23 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
            if score_txt else "")
     _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx = f'<div class="tk-mx">{metrics_html}</div>' if metrics_html else ""
-    _why = _tk_why(why_text) if (why_text and not abst) else ""
     _sel_cls = " abst" if abst else ""
+    # Badge de SCORE sur la MÊME ligne que la ligue (en haut à droite) — user 2026-09-04. Le « Pourquoi ce
+    # pari » + le code date/heure vivent dans le pied (code-barres pleine largeur).
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{badge}</div>'
-            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
+            f'<div class="tk-row">{_eye}{badge}{_sc}</div>'
+            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'{_sub}<div class="tk-rule"></div>'
             f'<div class="tk-row"><span class="tk-sel tk-ell{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx}{_why}{_tk_foot(seed)}</div>')
+            f'{_mx}{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt: str,
-                    result: str, conf_i=None, score_txt: str = "", when_txt: str = "", seed: str = "") -> str:
-    """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge, score
-    coloré, et « Confiance X% · Edge +Y · Value +Z% » sous le pari (edge/value uniquement si POSITIFS)."""
+                    result: str, conf_i=None, score_txt: str = "", when_txt: str = "", seed: str = "",
+                    start=None) -> str:
+    """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge, badge
+    GAGNÉ/PERDU EN HAUT À DROITE, score coloré, « Confiance X% · Edge +Y · Value +Z% » (edge/value POSITIFS
+    seulement) sous le pari, et un CODE date/heure (AAAA·MMJJ·HHMM) en pied à droite."""
     e = html.escape
     rk = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(result, "push")
     try:
@@ -154,13 +175,14 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
     # Cote collée à droite du pari, MÊME taille de police que le pari joué (`tk-odds-sel`).
     _odds = f'<span class="tk-odds tk-odds-sel"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx_h = f'<div class="tk-mx">{_mx}</div>' if _mx else ""
-    # Pas de badge GAGNÉ/PERDU ni de ligne de date « Aujourd'hui » : redondants (talon coloré + jour courant).
+    # PAS de badge GAGNÉ/PERDU : le talon coloré (vert/rouge) + le score l'indiquent déjà (user 2026-09-04).
+    # Pas de ligne de date « Aujourd'hui » non plus : remplacée par le CODE date/heure (AAAA·MMJJ·HHMM) en pied.
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}</div>'
-            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
+            f'<div class="tk-row">{_eye}{_sc}</div>'
+            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'<div class="tk-rule"></div>'
             f'<div class="tk-row"><span class="tk-sel tk-ell">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx_h}{_tk_foot(seed, right=when_txt)}</div>')
+            f'{_mx_h}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
@@ -228,7 +250,7 @@ def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _sc_h = f'<span class="tk-chip {_sc_cls}">{e(_sc_txt)}</span>' if _sc_txt else ""
         _lmx_h = f'<div class="tk-leg-mx">{_lmx}</div>' if _lmx else ""
         _legs += (f'<div class="tk-leg {_lk}"><div class="tk-leg-h">'
-                  f'<span class="tk-leg-s tk-ell"><span class="tk-dot {_lk}"></span>{e(_lsel)}</span>{_lct_h}{_sc_h}</div>'
+                  f'<span class="tk-leg-s tk-ell">{e(_lsel)}</span>{_lct_h}{_sc_h}</div>'
                   f'<div class="tk-leg-sub tk-ell">{_sub}</div>{_lmx_h}</div>')
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
     # En-tête (user 2026-09-04) : « <nom> · N jambes » À GAUCHE + COTE tout à DROITE, MÊME ligne. La cote est
@@ -2505,7 +2527,7 @@ CSS = """
   .tk-push .tk-stub{background:linear-gradient(180deg,#b9c6d6,#8a9bb0)}
   /* Logo BLANC tourné, ABSOLU + centré (translate -50% puis rotate) — grand ; légère ombre portée pour rester
      net sur les talons CLAIRS (or/vert). */
-  .tk-stub .tk-logo{position:absolute;top:50%;left:50%;height:32px;width:auto;max-width:none;
+  .tk-stub .tk-logo{position:absolute;top:50%;left:50%;height:44px;width:auto;max-width:none;
        transform:translate(-50%,-50%) rotate(-90deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
   /* Perforation = CERCLES PLEINS répétés au CONTACT talon(couleur) ↔ ticket(corps) : chaque trou est à cheval
      sur le bord DROIT du talon (moitié dans la couleur, moitié dans le corps) = un cercle entier. PAS de
@@ -2522,27 +2544,29 @@ CSS = """
   .tk-badge{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.05em;
        text-transform:uppercase;padding:4px 10px;border-radius:99px;border:1px solid rgba(120,150,190,.32);
        color:#9db6d4;background:rgba(120,150,190,.08);white-space:nowrap}
-  .tk-badge.live{color:#ff8a8a;border-color:rgba(255,120,120,.5);background:rgba(255,120,120,.09)}
-  .tk-badge.live::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;animation:scpulse 1.4s ease-in-out infinite}
+  /* LIVE : pas de point clignotant — c'est le BADGE ENTIER qui clignote (user 2026-09-04). */
+  .tk-badge.live{color:#ff8a8a;border-color:rgba(255,120,120,.5);background:rgba(255,120,120,.09);animation:scpulse 1.4s ease-in-out infinite}
   .tk-badge.won{color:#7fe6ab;border-color:rgba(52,210,123,.5);background:rgba(52,210,123,.1)}
   .tk-badge.lost{color:#ff9d9d;border-color:rgba(255,120,120,.5);background:rgba(255,120,120,.1)}
   .tk-badge.push{color:#a7b4c4;border-color:rgba(167,180,196,.3)}
-  .tk-match{margin-top:8px;font-size:18px;font-weight:900;letter-spacing:-.02em;color:#eef4fb;line-height:1.2}
+  /* Hiérarchie : le PARI À JOUER (`.tk-sel`) ressort PLUS que le nom des équipes (`.tk-match`) — user 2026-09-04.
+     Équipes = contexte (plus petit, poids moindre, teinte douce) ; pari = héros (gros, blanc, lourd). */
+  .tk-match{margin-top:7px;font-size:15px;font-weight:700;letter-spacing:-.01em;color:#a9bccf;line-height:1.25}
   .tk-sub{margin-top:3px;font-size:12.5px;color:#8fa2b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-rule{height:1px;background:rgba(255,255,255,.09);margin:11px 0}
-  .tk-sel{font-size:16px;font-weight:900;color:#fff;line-height:1.2}
+  .tk-sel{font-size:19.5px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.2}
   .tk-sel.abst{color:var(--muted);font-weight:800;font-size:14.5px}
   .tk-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:#5fd0ff}
   .tk-odds i{font-style:normal;font-size:14px;font-weight:800;opacity:.8}
   .tk-odds b{font-size:24px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   /* Carte RÉSULTAT : cote collée à droite du pari, MÊME taille de police que le pari joué (user 2026-09-04). */
-  .tk-odds-sel i{font-size:12px} .tk-odds-sel b{font-size:16px}
+  .tk-odds-sel i{font-size:14px} .tk-odds-sel b{font-size:19.5px}
   .tk-score{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:7px;
        background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);font-size:13px;font-weight:900;
        color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.05em}
   .tk-score.won{color:#8fe6b0;box-shadow:inset 0 0 0 1px rgba(52,210,123,.34)}
   .tk-score.lost{color:#ff9d9d;box-shadow:inset 0 0 0 1px rgba(255,125,125,.32)}
-  .tk-score.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px rgba(255,200,80,.85);animation:scpulse 1.4s ease-in-out infinite}
+  /* Score live : plus de point clignotant sur le chip (seul le badge live clignote, user 2026-09-04). */
   .tk-mx{margin-top:8px;font-size:12px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-mx b{font-weight:900;color:#8fa4bd} .tk-mx b.c,.tk-mx b.pos{color:var(--st-won)} .tk-mx b.neg{color:var(--st-lost)} .tk-mx b.mut{color:#a7b4c4} .tk-mx .sep{color:#3a4a5e;margin:0 6px}
   .tk-why{margin-top:11px;padding-left:12px;border-left:2px solid #3a9fe0}
@@ -2553,9 +2577,16 @@ CSS = """
   .tk-why li{position:relative;padding-left:16px;margin:5px 0;font-size:12.5px;line-height:1.5;color:#c4d3e6;font-weight:500}
   .tk-why li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#3a9fe0}
   .tk-why li b{color:#eef4fb;font-weight:800}
-  .tk-foot{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
-  .tk-bc{flex:0 1 auto;min-width:0;height:30px;border-radius:2px;opacity:.85;overflow:hidden}
-  .tk-no{flex:none;margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;color:#6f8394;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap}
+  /* Pied : CODE-BARRES PLEINE LARGEUR (motif tuilé) avec la DATE/HEURE écrite DEDANS ; « Pourquoi ce pari »
+     posé DESSOUS, flèche de déploiement dans le coin DROIT (user 2026-09-04). */
+  .tk-foot{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
+  .tk-bc{position:relative;width:100%;height:26px;border-radius:3px;opacity:.9;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .tk-bc-code{position:relative;z-index:1;font-size:11px;font-weight:800;letter-spacing:.16em;color:#c7d4e6;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:rgba(10,20,31,.74);padding:2px 10px;border-radius:4px;white-space:nowrap}
+  .tk-whyd{margin-top:9px}
+  .tk-why-bar{display:flex;align-items:center;cursor:pointer;list-style:none;font-size:12.5px;font-weight:900;color:#5fb4ee}
+  .tk-why-bar::-webkit-details-marker{display:none}
+  .tk-why-bar .tk-chev{margin-left:auto;font-size:11px;transition:transform .18s}
+  .tk-whyd[open] .tk-why-bar .tk-chev{transform:rotate(180deg)}
   /* Combiné : en-tête « <nom> · N jambes » à gauche + COTE tout à droite (même ligne) ; jambes dessous. */
   /* En-tête combiné = 1er enfant du corps -> pas de marge/bordure/padding en HAUT (sinon ligne vide
      au-dessus du nom, user 2026-09-04). On garde juste le séparateur BAS avec les jambes. */
@@ -11257,7 +11288,8 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
         return _tk_result_card(league=_league, match_txt=f"{_home} — {_away}",
                                sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
                                cote=_cote, cote_txt=_cote_txt, result=_res, conf_i=_cf_i,
-                               score_txt=_score_txt, when_txt=_when, seed=str(d.get("id") or f"{_home}{_away}"))
+                               score_txt=_score_txt, when_txt=_when, start=d.get("start"),
+                               seed=str(d.get("id") or f"{_home}{_away}"))
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{_uedetail}</div></div>'
 
 
@@ -11857,7 +11889,7 @@ def _sport_row(r: dict) -> str:
                     sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                     cote_txt=_ucote_txt, metrics_html=_umx, why_text=_uwhy_text,
                     rcls=_rcls, is_live=is_live, is_finished=is_finished, score_txt=_uscore_txt,
-                    abst=(_pb is None), seed=str(_pmid or _umatch))
+                    abst=(_pb is None), seed=str(_pmid or _umatch), start=sdt)
             _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else f'{ana}{linkshtml}'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')
