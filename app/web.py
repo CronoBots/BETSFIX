@@ -2523,6 +2523,12 @@ CSS = """
      padding + bordure cyan -> le contenu se décollait du cadre). */
   .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;background:#0d1a27;
        box-sizing:border-box;max-width:100%;border:2px solid rgba(120,150,190,.22);box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
+  /* Contour TEINTÉ par le statut (accord avec le talon coloré ; rend le verdict scannable sans badge) — user 2026-09-05. */
+  .tk-card.tk-soon{border-color:rgba(90,182,240,.34)}
+  .tk-card.tk-live{border-color:rgba(246,161,30,.5)}
+  .tk-card.tk-won{border-color:rgba(52,210,123,.5)}
+  .tk-card.tk-lost{border-color:rgba(255,120,120,.5)}
+  .tk-card.tk-push{border-color:rgba(167,180,196,.42)}
   /* Talon = fond COLORÉ par le statut (derrière le logo). Logo en couleurs d'origine + ombre portée pour
      rester lisible sur la couleur. Encoches (perforation) au bord droit = séparation ticket. */
   .tk-stub{position:relative;flex:none;width:46px;background:linear-gradient(180deg,#5ab6f0,#2f7fc4);overflow:hidden}
