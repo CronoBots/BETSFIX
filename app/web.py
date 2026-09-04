@@ -123,10 +123,18 @@ def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     return (f'<details class="tk-why"><summary onclick="event.stopPropagation()">{html.escape(label)}'
             f'<span class="tk-chev">▾</span></summary><ul>{lis}</ul></details>')
 
+def _tk_gauge(conf_i) -> str:
+    """Jauge VISUELLE de confiance (barre remplie à conf %) — rend le % parlant et comble le vide avant le
+    code-barres (user 2026-09-05). '' si pas de confiance chiffrée."""
+    if not isinstance(conf_i, (int, float)):
+        return ""
+    w = max(0, min(100, int(round(conf_i))))
+    return f'<div class="tk-gauge"><span style="width:{w}%"></span></div>'
+
 def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, sel_txt: str,
                  cote_txt: str, metrics_html: str = "", why_text: str = "", rcls: str = "",
                  is_live: bool = False, is_finished: bool = False, score_txt: str = "",
-                 abst: bool = False, seed: str = "", start=None) -> str:
+                 abst: bool = False, seed: str = "", start=None, conf_i=None) -> str:
     """Carte PARI à-venir / live / réglée en TICKET « talon » (direction A validée). Layout UNIQUE : le talon
     (logo) et le badge de statut changent selon l'état ; chaque info tient sur une ligne (ellipsis)."""
     e = html.escape
@@ -144,14 +152,18 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
     _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx = f'<div class="tk-mx">{metrics_html}</div>' if metrics_html else ""
     _sel_cls = " abst" if abst else ""
+    # État du SCORE à droite de la ligne 1 : « FINAL » quand le match est terminé (le badge EN DIRECT porte
+    # déjà l'état live) — user 2026-09-05, pour savoir si le score est final ou en cours.
+    _state = '<span class="tk-state">FINAL</span>' if (is_finished and not is_live) else ""
     # Badge de SCORE sur la MÊME ligne que la ligue (en haut à droite) — user 2026-09-04. Le « Pourquoi ce
     # pari » + le code date/heure vivent dans le pied (code-barres pleine largeur).
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{badge}{_sc}</div>'
+            f'<div class="tk-row">{_eye}{badge}{_sc}{_state}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'{_sub}'
             f'<div class="tk-row tk-betrow"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx}{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
+            f'{_mx}{"" if abst else _tk_gauge(conf_i)}'
+            f'{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt: str,
@@ -181,13 +193,14 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
     # Cote collée à droite du pari, MÊME taille de police que le pari joué (`tk-odds-sel`).
     _odds = f'<span class="tk-odds tk-odds-sel"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx_h = f'<div class="tk-mx">{_mx}</div>' if _mx else ""
+    _state = '<span class="tk-state">FINAL</span>'   # une carte résultat est toujours un match TERMINÉ
     # PAS de badge GAGNÉ/PERDU : le talon coloré (vert/rouge) + le score l'indiquent déjà (user 2026-09-04).
     # Pas de ligne de date « Aujourd'hui » non plus : remplacée par le CODE date/heure (AAAA·MMJJ·HHMM) en pied.
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{_sc}</div>'
+            f'<div class="tk-row">{_eye}{_sc}{_state}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'<div class="tk-row tk-betrow"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx_h}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
+            f'{_mx_h}{_tk_gauge(conf_i)}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
@@ -2572,6 +2585,10 @@ CSS = """
   .tk-sub{margin-top:3px;font-size:12.5px;color:#8fa2b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-rule{height:1px;background:rgba(255,255,255,.09);margin:11px 0}
   .tk-betrow{margin-top:10px}   /* espacement à la place de l'ancien filet équipes/pari (retiré, user 2026-09-05) */
+  /* Jauge de confiance (barre) + état du score « FINAL » — user 2026-09-05. */
+  .tk-gauge{margin-top:8px;height:4px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+  .tk-gauge>span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#34d27b,#5be79b)}
+  .tk-state{flex:none;font-size:9px;font-weight:800;letter-spacing:.09em;color:#7d8ea3;text-transform:uppercase}
   /* `.tk-sel` NE grandit PAS (flex 0 1 auto) -> la cote reste COLLÉE au pari à jouer (user 2026-09-04)
      au lieu d'être poussée tout à droite ; ellipsis conservée si le pari est trop long. */
   .tk-sel{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -11911,7 +11928,7 @@ def _sport_row(r: dict) -> str:
                     sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                     cote_txt=_ucote_txt, metrics_html=_umx, why_text=_uwhy_text,
                     rcls=_rcls, is_live=is_live, is_finished=is_finished, score_txt=_uscore_txt,
-                    abst=(_pb is None), seed=str(_pmid or _umatch), start=sdt)
+                    abst=(_pb is None), seed=str(_pmid or _umatch), start=sdt, conf_i=_ucf_i)
             _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else f'{ana}{linkshtml}'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')
