@@ -258,9 +258,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   → `POST /auth/verify` (anti-force-brute email+IP, `ensure_user` crée le compte+essai, `email_verified=1`).
   ⚠️ SMS volontairement écarté (coût récurrent) : même UX, canal EMAIL gratuit. Mémoire `email-code-passwordless-auth`.
   **SMTP = Brevo BRANCHÉ** (2026-09-04) : identifiants dans `.env` (gitignoré), lus via `config.Settings`
-  (alias `BETSFIX_SMTP_*`) — PAS `os.environ` (invisible au SYSTEM). From = `BETSFIX <vincent-buron@hotmail.com>`.
-  Envoi réel vérifié (site → code par mail, plus de repli outbox). Free 300 mails/j. Domaine `@betsfix.com` à
-  authentifier (DNS) plus tard pour une meilleure délivrabilité + envoyer depuis `noreply@betsfix.com`.
+  (alias `BETSFIX_SMTP_*`) — PAS `os.environ` (invisible au SYSTEM). Free 300 mails/j.
+  **Domaine `betsfix.com` AUTHENTIFIÉ chez Brevo** (DKIM `brevo1/brevo2._domainkey` CNAME + `brevo-code` TXT +
+  `_dmarc` TXT, posés dans Cloudflare DNS en « DNS only »). Expéditeur = **`BETSFIX <noreply@betsfix.com>`**
+  (pas de boîte à créer, envoi seul). Envoi réel vérifié (site → code depuis noreply@betsfix.com, plus de repli
+  outbox). Le sous-domaine « branded » Brevo (tracking links) reste NON configuré = optionnel.
   **Reste à faire** : câbler Stripe aux tiers ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
   décidé 2026-09-04) : projet dédié **BETSFIX** `xlmahadeeodkkxlplgrw` (org WTF, eu-central-1) **préparé**, table
   `public.users` = miroir de userdb (RLS ON), à ACTIVER au déménagement hors-PC (free tier se met en pause si
