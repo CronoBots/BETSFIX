@@ -2171,6 +2171,8 @@ CSS = """
   /* ===== STYLE E — liste plate (user 2026-09-03, flag BETSFIX_CARD_STYLE). Structure demandée :
      ligue (eyebrow) · PARI + cote à droite · équipes + heure · Confiance·Edge·Value. Rail gauche = statut,
      pas de badge Gagné/Perdu. Combiné : chaque jambe = même structure + sa cote ; cote totale en en-tête. ===== */
+  /* Carte SIMPLE + 1re ligne (bandeau) du combiné = LÉGÈREMENT plus foncées que les jambes (#12212f) — user 2026-09-04. */
+  .row.mc.ue:not(.cbo){background:#0f1c28}
   .row.mc.ue{position:relative;background:#12212f;border:1px solid rgba(255,255,255,.08);border-radius:13px;
        overflow:hidden;box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0;box-sizing:border-box;max-width:100%}
   /* Colonne de STATUT à gauche (user 2026-09-03) : bande colorée par le résultat, PLUS un « bord » fin — même
@@ -2223,7 +2225,7 @@ CSS = """
   /* En-tête = BANDEAU : titre + « · N sélections » COLLÉ au titre à gauche, COTE TOTALE en haut à droite
      (plus de colonne cote — user 2026-09-03). Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
   .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-       padding:11px 15px;background:rgba(255,255,255,.035)}
+       padding:11px 15px;background:#0f1c28}   /* légèrement plus foncé que les jambes (#12212f) — user 2026-09-04 */
   .cbo-l{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
   .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
   .cbo-nb{font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
