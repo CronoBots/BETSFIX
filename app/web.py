@@ -95,14 +95,11 @@ def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
     """Pied du ticket, façon vrai ticket : CODE-BARRES pleine largeur (propre, sans texte dessus) + la DATE/HEURE
     lisible imprimée JUSTE EN DESSOUS, centrée (user 2026-09-05 : garder le code-barres ET la date/heure, mais
     SÉPARÉS). Si `why_text` est fourni, un bandeau « 💡 Pourquoi ce pari » (flèche coin DROIT) est posé dessous."""
+    # Ce sont les BARRES du code-barres qui donnent le cachet (user 2026-09-05) — PAS de chiffres de série. Sous
+    # les barres : juste l'HEURE lisible si fournie (l'idée date/heure validée), sinon les barres seules suffisent.
     _bc = f'<div class="tk-bc" style="{_tk_barcode(seed)}"></div>'
-    # Sous le code-barres : HEURE lisible (si fournie) + n° de série (chiffres) pour un code long, façon vrai ticket.
     _time = html.escape(right) if right else ""
-    _h = hashlib.md5((seed or "betsfix").encode("utf-8")).hexdigest()
-    _serial = f'{int(_h[0:5], 16) % 100000:05d} {int(_h[5:10], 16) % 100000:05d}'
-    _stamp = (f'<div class="tk-stamp">'
-              f'{f"<span class=tk-stamp-t>{_time}</span> · " if _time else ""}'
-              f'<span class="tk-stamp-n">{_serial}</span></div>')
+    _stamp = f'<div class="tk-stamp"><span class="tk-stamp-t">{_time}</span></div>' if _time else ""
     _sents = _why_sentences(why_text) if why_text else []
     _why = ""
     if _sents:
@@ -2521,14 +2518,17 @@ CSS = """
      à gauche / COTE à droite + jambes. Rien émis hors du flag. ===== */
   /* ⚠️ classe carte = `.tk-card` (PAS `.tkt` : collision avec le composant `.tkt-*` existant qui imposait
      padding + bordure cyan -> le contenu se décollait du cadre). */
-  .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;background:#0d1a27;
-       box-sizing:border-box;max-width:100%;border:2px solid rgba(120,150,190,.22);box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
-  /* Contour TEINTÉ par le statut (accord avec le talon coloré ; rend le verdict scannable sans badge) — user 2026-09-05. */
-  .tk-card.tk-soon{border-color:rgba(90,182,240,.34)}
-  .tk-card.tk-live{border-color:rgba(246,161,30,.5)}
-  .tk-card.tk-won{border-color:rgba(52,210,123,.5)}
-  .tk-card.tk-lost{border-color:rgba(255,120,120,.5)}
-  .tk-card.tk-push{border-color:rgba(167,180,196,.42)}
+  /* Contour = MÊME DÉGRADÉ que le talon (accord parfait ; verdict scannable sans badge) — user 2026-09-05.
+     Technique padding-box/border-box : le dégradé remplit le bord tout en respectant les coins arrondis
+     (impossible avec border-image + border-radius). Bord transparent + 2 couches de fond. */
+  .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;
+       box-sizing:border-box;max-width:100%;border:2px solid transparent;
+       background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5ab6f0,#2f7fc4) border-box;
+       box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
+  .tk-card.tk-live{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ffd66a,#f6a11e) border-box}
+  .tk-card.tk-won{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5be79b,#28b268) border-box}
+  .tk-card.tk-lost{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ff9d9d,#e14a4a) border-box}
+  .tk-card.tk-push{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#b9c6d6,#8a9bb0) border-box}
   /* Talon = fond COLORÉ par le statut (derrière le logo). Logo en couleurs d'origine + ombre portée pour
      rester lisible sur la couleur. Encoches (perforation) au bord droit = séparation ticket. */
   .tk-stub{position:relative;flex:none;width:46px;background:linear-gradient(180deg,#5ab6f0,#2f7fc4);overflow:hidden}
