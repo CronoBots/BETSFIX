@@ -83,10 +83,12 @@ def _tk_badge(kind: str, extra: str = "") -> str:
         word = f"{word} · {extra}"
     return f'<span class="tk-badge {kind}">{html.escape(word)}</span>'
 
-def _tk_foot(seed: str) -> str:
-    """Pied du ticket : code-barres discret (gauche) + n° de ticket unique (droite)."""
+def _tk_foot(seed: str, right: str = "") -> str:
+    """Pied du ticket : code-barres discret (gauche) + à droite l'heure/date du match si fournie
+    (`right`), sinon le n° de ticket unique (déterministe)."""
+    _r = html.escape(right) if right else _tk_no(seed)
     return (f'<div class="tk-foot"><span class="tk-bc" style="{_tk_barcode(seed)}"></span>'
-            f'<span class="tk-no">{_tk_no(seed)}</span></div>')
+            f'<span class="tk-no">{_r}</span></div>')
 
 def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
@@ -129,37 +131,36 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
 
 def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt: str,
                     result: str, conf_i=None, score_txt: str = "", when_txt: str = "", seed: str = "") -> str:
-    """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge + badge
-    GAGNÉ/PERDU, score coloré, et « Confiance X% · Résultat +/− u » sous le pari."""
+    """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge, score
+    coloré, et « Confiance X% · Edge +Y · Value +Z% » sous le pari (edge/value uniquement si POSITIFS)."""
     e = html.escape
     rk = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(result, "push")
     try:
         c = float(cote)
     except (TypeError, ValueError):
         c = None
-    if rk == "won" and c:
-        units, ucls = f"+{c - 1:.2f} u", "pos"
-    elif rk == "lost":
-        units, ucls = "−1.00 u", "neg"
-    else:
-        units, ucls = "0.00 u", "mut"
-    _mx_bits = []
-    if conf_i is not None:
-        _mx_bits.append(f'Confiance <b class="c">{conf_i}%</b>')
-    _mx_bits.append(f'Résultat <b class="{ucls}">{e(units)}</b>')
-    _mx = '<span class="sep">·</span>'.join(_mx_bits)
-    sub = re.sub(r"\s*\d{1,2}:\d{2}$", "", when_txt).strip() if when_txt else ""
+    # Sous le pari : Confiance + Edge/Value (uniquement positifs, comme sur le pari à venir) — plus le
+    # « Résultat en u », le verdict est déjà porté par le talon coloré + le score (user 2026-09-04).
+    _edge = _value = None
+    if conf_i is not None and c:
+        try:
+            _edge = round(conf_i - 100.0 / c)
+            _value = round((conf_i / 100.0 * c - 1) * 100)
+        except (TypeError, ValueError, ZeroDivisionError):
+            _edge = _value = None
+    _mx = _ue_metrics_html(conf_i, _edge, _value)
     _eye = f'<span class="tk-eye tk-ell">{e(league)}</span>' if league else '<span class="tk-ell"></span>'
-    _sub = f'<div class="tk-sub">{e(sub)}</div>' if sub else ""
     _sc = f'<span class="tk-score {rk}">{e(score_txt)}</span>' if score_txt else ""
-    _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
-    # Pas de badge GAGNÉ/PERDU : le talon coloré (vert/rouge) l'indique déjà (user 2026-09-04).
+    # Cote collée à droite du pari, MÊME taille de police que le pari joué (`tk-odds-sel`).
+    _odds = f'<span class="tk-odds tk-odds-sel"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
+    _mx_h = f'<div class="tk-mx">{_mx}</div>' if _mx else ""
+    # Pas de badge GAGNÉ/PERDU ni de ligne de date « Aujourd'hui » : redondants (talon coloré + jour courant).
     body = (f'<div class="tk-body">'
             f'<div class="tk-row">{_eye}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
-            f'{_sub}<div class="tk-rule"></div>'
+            f'<div class="tk-rule"></div>'
             f'<div class="tk-row"><span class="tk-sel tk-ell">{e(sel_txt)}</span>{_odds}</div>'
-            f'<div class="tk-mx">{_mx}</div>{_tk_foot(seed)}</div>')
+            f'{_mx_h}{_tk_foot(seed, right=when_txt)}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
@@ -2510,8 +2511,10 @@ CSS = """
      sur le bord DROIT du talon (moitié dans la couleur, moitié dans le corps) = un cercle entier. PAS de
      perforation à gauche (bord de carte). Portée par `.tk-card::after` (et non par le talon) pour ne PAS être
      clippée par l'overflow du talon -> le cercle reste ENTIER. `left` = largeur talon (46px) − rayon (5px). */
+  /* `0 center` (au lieu de `0 -5px`) : la trame de trous est ANCRÉE AU MILIEU puis répétée symétriquement
+     -> l'écart au bord HAUT du cadre = l'écart au bord BAS, quelle que soit la hauteur de carte (user 2026-09-04). */
   .tk-card::after{content:"";position:absolute;top:0;bottom:0;left:41px;width:10px;z-index:5;pointer-events:none;
-       background:radial-gradient(circle 5px at 5px 11px,var(--bg) 96%,transparent) 0 -5px/10px 22px repeat-y}
+       background:radial-gradient(circle 5px at 5px 11px,var(--bg) 96%,transparent) 0 center/10px 22px repeat-y}
   .tk-body{flex:1;min-width:0;padding:13px 16px 13px 17px}
   .tk-row{display:flex;align-items:center;gap:10px;min-width:0}
   .tk-ell{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2532,6 +2535,8 @@ CSS = """
   .tk-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:#5fd0ff}
   .tk-odds i{font-style:normal;font-size:14px;font-weight:800;opacity:.8}
   .tk-odds b{font-size:24px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  /* Carte RÉSULTAT : cote collée à droite du pari, MÊME taille de police que le pari joué (user 2026-09-04). */
+  .tk-odds-sel i{font-size:12px} .tk-odds-sel b{font-size:16px}
   .tk-score{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:7px;
        background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);font-size:13px;font-weight:900;
        color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.05em}
