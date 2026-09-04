@@ -8274,9 +8274,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_rec = None
     # ZONE COMBINÉ JUSTE SOUS VALUE (user 2026-08-20) : insérée à l'index 2 (après Confiance[0] + Value[1]),
     # AVANT Montante/Provisoire. TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
+    # `empty` conditionné à `_has_prog` (user 2026-09-04, comme Confiance/Value/Montante) : la zone Combiné VIDE
+    # ne s'affiche QUE tant qu'il reste des matchs à jouer. Programme pas encore établi (avant 10h) ou journée
+    # terminée -> pas d'en-tête « Combiné » orphelin.
     out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
                         collapsible=True, record=_combo_rec, waiting=_has_prog,
-                        empty="Aucun combiné du jour pour l'instant."))
+                        empty=("Aucun combiné du jour pour l'instant." if _has_prog else None)))
     # ABSTENTIONS RÉAFFICHÉES (user 2026-08-24) : les matchs analysés SANS pari retenu, en cartes, catégorie à
     # part (cachée s'il n'y en a aucune). On remontre ce qu'on a analysé mais pas jugé jouable.
     # ABSTENTIONS masquées quand le PROGRAMME est TERMINÉ (plus aucun match à jouer, user 2026-08-27) : une
