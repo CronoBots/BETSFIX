@@ -56,7 +56,14 @@ tournent en compte SYSTEM et sont INVISIBLES depuis une session non-admin**
 | API uvicorn `:8000` | au boot | ✅ oui | Tâche planifiée `BETSFIX-api` (User=SYSTEM, BootTrigger, auto-relance) → lance `deploy/api_service_loop.ps1` → `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000` |
 | Session Remote Control | à l'ouverture de session | ❌ (login requis) | Tâche planifiée `BETSFIX Remote Control` (User=vince, LogonTrigger) → lance `remote-control-loop.ps1` → `claude --remote-control BETSFIX --dangerously-skip-permissions` |
 
-- URL publique mobile : `https://api.betsfix.com` (le tunnel pointe sur `127.0.0.1:8000`).
+- URL publique = **`https://betsfix.com`** (+ `www`) depuis 2026-09-04, façade officielle. `api.betsfix.com`
+  et `origin.betsfix.com` restent des alias (mêmes routes tunnel → `localhost:8000`, gardés pour le failover
+  + scripts KV/deploy). Les 4 noms d'hôte sont des « routes d'application publiée » du MÊME tunnel (géré par
+  le dashboard Zero Trust, PAS de config.yml local). URL officielle dans le code = `config.Settings.public_url`
+  (env/.env `BETSFIX_PUBLIC_URL=https://betsfix.com`) → liens email + retours Stripe. ⚠️ Le worker failover
+  `betsfix-failover` est encore devant `api.betsfix.com` seulement → à étendre à `betsfix.com` plus tard
+  (sinon pas de filet quand le PC est down sur la façade betsfix.com). ⚠️ Ajouter le domaine racine déclenche
+  une réémission du certif SSL Cloudflare → TLS instable quelques minutes/≤1 h (normal, se stabilise seul).
 - `reconnexion.bat` = relance MANUELLE de secours (API + tunnel) si besoin.
 - Le PID de la boucle remote est dans `.remote-control.pid`.
 - Python utilisé : `C:\Users\vince\AppData\Local\Programs\Python\Python312\python.exe`
