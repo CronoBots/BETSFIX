@@ -153,8 +153,9 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
     _sub = f'<div class="tk-sub">{e(sub)}</div>' if sub else ""
     _sc = f'<span class="tk-score {rk}">{e(score_txt)}</span>' if score_txt else ""
     _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
+    # Pas de badge GAGNÉ/PERDU : le talon coloré (vert/rouge) l'indique déjà (user 2026-09-04).
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{_tk_badge(rk)}</div>'
+            f'<div class="tk-row">{_eye}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
             f'{_sub}<div class="tk-rule"></div>'
             f'<div class="tk-row"><span class="tk-sel tk-ell">{e(sel_txt)}</span>{_odds}</div>'
@@ -2551,8 +2552,10 @@ CSS = """
   .tk-bc{flex:0 1 auto;min-width:0;height:30px;border-radius:2px;opacity:.85;overflow:hidden}
   .tk-no{flex:none;margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;color:#6f8394;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap}
   /* Combiné : en-tête « <nom> · N jambes » à gauche + COTE tout à droite (même ligne) ; jambes dessous. */
-  .tk-cbo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 0;
-       border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
+  /* En-tête combiné = 1er enfant du corps -> pas de marge/bordure/padding en HAUT (sinon ligne vide
+     au-dessus du nom, user 2026-09-04). On garde juste le séparateur BAS avec les jambes. */
+  .tk-cbo{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 9px;
+       border-bottom:1px solid rgba(255,255,255,.07)}
   .tk-cbo-t{font-size:14.5px;font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .tk-cbo-n{color:#6f8299;font-weight:700}
   .tk-cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
