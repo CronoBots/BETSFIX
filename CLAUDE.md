@@ -272,10 +272,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   outbox). Le sous-domaine « branded » Brevo (tracking links) reste NON configuré = optionnel.
   **Stripe = MANAGED PAYMENTS** (décidé 2026-09-04, user « Stripe gère toute la TVA ») : Stripe = merchant of
   record, collecte+reverse+déclare la TVA (+3,5%/transaction) ; code prêt (`billing.py`, flag `managed_payments`
-  dans `data/stripe.json`), abo **9,99€/mois**, setup **sandbox EN COURS** (attend `sk_test_`/`price_`/`whsec_`
-  du user + activation MP + code taxe éligible). ⚠️ MP ne dispense PAS le user de déclarer son REVENU (fisc
-  belge + statut). Mémoire `stripe-billing-managed-payments`.
-  **Reste à faire** : finir Stripe (sandbox → live) ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
+  dans `data/stripe.json`), abo **9,99€/mois**. **CONFIGURÉ + TESTÉ E2E en SANDBOX (2026-09-04)** : produit/prix
+  (`price_1UC0rn…`, 9,99€ TVA incluse)/webhook créés par API, `/billing/subscribe`→checkout Managed Payments,
+  webhook→abonné. ⚠️ Stripe a 2 env de test (« Mode test » vide vs « BETSFIX sandbox » où tout vit — comptes
+  séparés). ⚠️ MP ne dispense PAS le user de déclarer son REVENU (fisc belge + statut). Mémoire `stripe-billing-managed-payments`.
+  **Reste à faire** : Stripe **LIVE** (clés prod + KYC + recréer produit/webhook en prod) ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
   décidé 2026-09-04) : projet dédié **BETSFIX** `xlmahadeeodkkxlplgrw` (org WTF, eu-central-1) **préparé**, table
   `public.users` = miroir de userdb (RLS ON), à ACTIVER au déménagement hors-PC (free tier se met en pause si
   inactif). Auth maison CONSERVÉE (pas de Supabase Auth). Mémoire `auth-subscription-scale-foundation`.
