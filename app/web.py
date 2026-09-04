@@ -86,17 +86,23 @@ def _tk_badge(kind: str, extra: str = "") -> str:
     return f'<span class="tk-badge {kind}">{html.escape(word)}</span>'
 
 def _tk_datecode(value) -> str:
-    """DATE + HEURE du match, LISIBLE (dans le code-barres du pied) : « 05/09/2026 · 21h00 » (user 2026-09-04 :
-    doit être compréhensible, pas un code opaque). '' si pas de date exploitable (repli n° de ticket)."""
+    """HEURE du match, LISIBLE (imprimée sous le code-barres) : « 21h00 » (user 2026-09-05 : pas besoin de la
+    DATE, juste l'heure ; les chiffres du n° de série allongent le code). '' si pas d'heure exploitable."""
     dt = to_local(value)
-    return dt.strftime("%d/%m/%Y · %Hh%M") if dt is not None else ""
+    return dt.strftime("%Hh%M") if dt is not None else ""
 
 def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
-    """Pied du ticket : HORODATAGE date/heure CENTRÉ, lisible (façon timestamp de ticket) — PLUS de code-barres
-    (user 2026-09-05 : l'idée date/heure est géniale, le code-barres non). Si `why_text` est fourni, un bandeau
-    « 💡 Pourquoi ce pari » (flèche dans le coin DROIT) est posé DESSOUS et développe l'explication au clic."""
-    _code = html.escape(right) if right else _tk_no(seed)
-    _stamp = f'<div class="tk-stamp">{_code}</div>' if _code else ""
+    """Pied du ticket, façon vrai ticket : CODE-BARRES pleine largeur (propre, sans texte dessus) + la DATE/HEURE
+    lisible imprimée JUSTE EN DESSOUS, centrée (user 2026-09-05 : garder le code-barres ET la date/heure, mais
+    SÉPARÉS). Si `why_text` est fourni, un bandeau « 💡 Pourquoi ce pari » (flèche coin DROIT) est posé dessous."""
+    _bc = f'<div class="tk-bc" style="{_tk_barcode(seed)}"></div>'
+    # Sous le code-barres : HEURE lisible (si fournie) + n° de série (chiffres) pour un code long, façon vrai ticket.
+    _time = html.escape(right) if right else ""
+    _h = hashlib.md5((seed or "betsfix").encode("utf-8")).hexdigest()
+    _serial = f'{int(_h[0:5], 16) % 100000:05d} {int(_h[5:10], 16) % 100000:05d}'
+    _stamp = (f'<div class="tk-stamp">'
+              f'{f"<span class=tk-stamp-t>{_time}</span> · " if _time else ""}'
+              f'<span class="tk-stamp-n">{_serial}</span></div>')
     _sents = _why_sentences(why_text) if why_text else []
     _why = ""
     if _sents:
@@ -104,7 +110,7 @@ def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
         _why = ('<details class="tk-whyd"><summary class="tk-why-bar" onclick="event.stopPropagation()">'
                 '💡 Pourquoi ce pari<span class="tk-chev">▾</span></summary>'
                 f'<div class="tk-why"><ul>{_ul}</ul></div></details>')
-    return f'<div class="tk-foot">{_stamp}{_why}</div>'
+    return f'<div class="tk-foot">{_bc}{_stamp}{_why}</div>'
 
 def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
@@ -2516,7 +2522,7 @@ CSS = """
   /* ⚠️ classe carte = `.tk-card` (PAS `.tkt` : collision avec le composant `.tkt-*` existant qui imposait
      padding + bordure cyan -> le contenu se décollait du cadre). */
   .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;background:#0d1a27;
-       box-sizing:border-box;max-width:100%;border:1px solid rgba(120,150,190,.16);box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
+       box-sizing:border-box;max-width:100%;border:2px solid rgba(120,150,190,.22);box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
   /* Talon = fond COLORÉ par le statut (derrière le logo). Logo en couleurs d'origine + ombre portée pour
      rester lisible sur la couleur. Encoches (perforation) au bord droit = séparation ticket. */
   .tk-stub{position:relative;flex:none;width:46px;background:linear-gradient(180deg,#5ab6f0,#2f7fc4);overflow:hidden}
@@ -2582,7 +2588,9 @@ CSS = """
   /* Pied : HORODATAGE date/heure CENTRÉ (lisible, façon timestamp de ticket — PLUS de code-barres, user
      2026-09-05) ; « Pourquoi ce pari » posé DESSOUS, flèche de déploiement dans le coin DROIT. */
   .tk-foot{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
-  .tk-stamp{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.18em;color:#93a8bf;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-stamp{text-align:center;margin-top:7px;font-size:12px;letter-spacing:.16em;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-stamp-t{color:#c7d4e6;font-weight:900}
+  .tk-stamp-n{color:#6f8394;font-weight:700}
   .tk-whyd{margin-top:9px}
   .tk-why-bar{display:flex;align-items:center;cursor:pointer;list-style:none;font-size:12.5px;font-weight:900;color:#5fb4ee}
   .tk-why-bar::-webkit-details-marker{display:none}
