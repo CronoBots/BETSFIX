@@ -373,6 +373,65 @@ def check_verify_token(token: str | None) -> str | None:
     return _read_token("verify", token, 7 * 24 * 3600, None)
 
 
+# --------------------------------------------------------------------------- code à 6 chiffres (email, sans mot de passe)
+# Flux « passwordless » : on envoie un code à 6 chiffres par EMAIL ; l'utilisateur le saisit -> compte créé
+# (avec essai s'il est nouveau) et session ouverte. STATELESS : le code n'est stocké NULLE PART côté
+# serveur — il est lié cryptographiquement au jeton (signé avec le secret + le code lui-même). Un attaquant
+# qui possède le jeton ne peut PAS retrouver ni vérifier le code sans le secret (HMAC). Le seul vecteur
+# restant (soumettre des codes à l'endpoint) est borné par le compteur anti-force-brute en mémoire.
+_CODE_TTL = 600                                # le code expire en 10 min
+_CODE_SEND_MAX = 5                             # 5 envois max par email / fenêtre (anti-mail-bombing)
+_CODE_SEND_WINDOW = 900                        # 15 min
+_code_sends: dict[str, list] = {}
+
+
+def make_login_code(email: str) -> tuple[str, str]:
+    """(code, token) pour une connexion par email. Le `code` (6 chiffres) part par email ; le `token`
+    voyage dans la page de saisie. Le code n'est PAS persisté : sa validité tient à la signature du token."""
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    token = _sign_token("logincode", _norm(email), extra_key=code.encode())
+    return code, token
+
+
+def check_login_code(token: str | None, code: str | None) -> str | None:
+    """Email si le code saisi correspond au jeton (et non expiré), sinon None."""
+    code = (code or "").strip()
+    if not (code.isdigit() and len(code) == 6):
+        return None
+    return _read_token("logincode", token, _CODE_TTL, lambda _em: code.encode())
+
+
+def code_send_allowed(email: str) -> bool:
+    """Anti-mail-bombing : au plus _CODE_SEND_MAX envois par email sur la fenêtre glissante."""
+    now = time.time()
+    key = _norm(email)
+    sends = [t for t in _code_sends.get(key, []) if now - t < _CODE_SEND_WINDOW]
+    _code_sends[key] = sends
+    return len(sends) < _CODE_SEND_MAX
+
+
+def note_code_sent(email: str) -> None:
+    _code_sends.setdefault(_norm(email), []).append(time.time())
+
+
+def ensure_user(email: str) -> bool:
+    """Garantit une ligne de compte (connexion sans mot de passe). Crée le compte + démarre l'essai s'il
+    est NOUVEAU. `pw=''` -> aucun login par mot de passe tant qu'il n'en définit pas un (via /forgot).
+    `email_verified=1` car la saisie du code prouve le contrôle de la boîte mail. True si compte créé."""
+    email = _norm(email)
+    if not valid_email(email):
+        return False
+    with _lock:
+        if userdb.exists(email):
+            return False
+        userdb.upsert(email, pw="", created=int(time.time()), plan="free",
+                      sub_active=0, sub_until=None, stripe_customer=None,
+                      stripe_sub=None, email_verified=1)
+        if TRIAL_ON_SIGNUP:
+            _start_trial_locked(email)
+    return True
+
+
 # --------------------------------------------------------------------------- aide requête (paywall)
 def _is_local(request) -> bool:
     """Requête locale du PROPRIÉTAIRE (machine) : pas de passage par Cloudflare. Toujours autorisée

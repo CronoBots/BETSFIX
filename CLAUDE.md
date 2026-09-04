@@ -251,6 +251,12 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API
   `app/accounts.py` (login anti brute-force, reset mdp `/forgot`+`/reset`, vérif email `/verify`),
   `app/mailer.py` (SMTP env `BETSFIX_SMTP_*`, repli `data/outbox`). Tiers free / trial(3j auto) / monthly.
+  **Connexion/inscription par CODE à 6 chiffres (email) = chemin par DÉFAUT** (`/login`,`/signup`,`/compte`
+  déconnecté → `_code_form` ; mot de passe conservé en repli via `?pw=1`). STATELESS : le code n'est PAS
+  stocké — lié au jeton signé (`accounts.make_login_code`/`check_login_code`, secret HMAC + code en
+  `extra_key`). `POST /auth/code` (envoie, throttle 5/15min) → page 6 cases (auto-avance/coller/auto-valide)
+  → `POST /auth/verify` (anti-force-brute email+IP, `ensure_user` crée le compte+essai, `email_verified=1`).
+  ⚠️ SMS volontairement écarté (coût récurrent) : même UX, canal EMAIL gratuit. Mémoire `email-code-passwordless-auth`.
   **Reste à faire** : câbler Stripe aux tiers, choisir un SMTP, héberger hors PC. Mémoire `auth-subscription-scale-foundation`.
 - **Filet de survie site** : Cloudflare Worker `betsfix-failover` devant `api.betsfix.com` sert un snapshot
   **KV** si le PC est down. `deploy/snapshot_to_kv.py` (tâche `BETSFIX-KV-Snapshot`, 30 min) + `deploy/worker/`.

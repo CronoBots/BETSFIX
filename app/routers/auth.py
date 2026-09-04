@@ -46,8 +46,96 @@ def _send_verify_email(request: Request, email: str) -> None:
 <p><a href="{link}" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Confirmer mon email</a></p></div>""",
                 text=f"Confirme ton email BETSFIX : {link}")
 
+
+def _send_code_email(request: Request, email: str, code: str) -> None:
+    """Envoie le code à 6 chiffres (connexion sans mot de passe). Le sujet PORTE le code -> visible dès
+    la notification, sans ouvrir l'email."""
+    mailer.send(email, f"{code} — ton code de connexion BETSFIX",
+                f"""<div style="font-family:system-ui,Arial;max-width:480px">
+<h2>Ton code de connexion</h2>
+<p>Entre ce code pour accéder à BETSFIX. Il expire dans 10 minutes.</p>
+<div style="font-size:34px;font-weight:800;letter-spacing:10px;background:#0f1720;color:#fff;
+padding:16px 20px;border-radius:12px;text-align:center;margin:14px 0">{_html.escape(code)}</div>
+<p style="color:#666;font-size:13px">Si tu n'es pas à l'origine de cette demande, ignore cet email.</p></div>""",
+                text=f"Ton code de connexion BETSFIX : {code} (valable 10 minutes).")
+
 # Le CSS du compte (scopé .acctwrap) est désormais GLOBAL dans web.py (toujours chargé) -> le contenu
 # marche aussi bien en page pleine qu'en FRAGMENT injecté dans le panneau SPA.
+
+# --------------------------------------------------------------------------- connexion par code (6 chiffres)
+_OTP_CSS = """<style>
+.acctwrap .otp-row{display:flex;gap:8px;justify-content:center;margin:8px 0 4px}
+.acctwrap .otp-b{width:46px;height:58px;flex:0 0 auto;text-align:center;font-size:26px;font-weight:800;
+ color:#eaf4ff;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:12px;
+ caret-color:#22b8ff;padding:0;margin:0}
+.acctwrap .otp-b:focus{outline:none;border-color:#22b8ff;box-shadow:0 0 0 3px rgba(34,184,255,.25)}
+.acctwrap .otp-b.filled{border-color:rgba(34,184,255,.55);background:rgba(34,184,255,.08)}
+.acctwrap .otp-tip{text-align:center;font-size:11px;color:#7c90ab;margin:8px 0 0}
+@media(max-width:360px){.acctwrap .otp-b{width:40px;height:52px;font-size:22px}}
+</style>"""
+
+_OTP_JS = """<script>(function(){
+var f=document.getElementById('otpf');if(!f)return;
+var bs=[].slice.call(f.querySelectorAll('.otp-b'));
+function upd(){for(var i=0;i<bs.length;i++)bs[i].classList.toggle('filled',!!bs[i].value);}
+function full(){return bs.every(function(b){return b.value.length===1;});}
+function trySubmit(){if(full()){upd();f.submit();}}
+bs.forEach(function(b,i){
+ b.addEventListener('input',function(){
+  b.value=b.value.replace(/[^0-9]/g,'').slice(0,1);
+  if(b.value&&i<bs.length-1)bs[i+1].focus();upd();trySubmit();});
+ b.addEventListener('keydown',function(ev){
+  if(ev.key==='Backspace'&&!b.value&&i>0){bs[i-1].focus();bs[i-1].value='';upd();ev.preventDefault();}
+  else if(ev.key==='ArrowLeft'&&i>0)bs[i-1].focus();
+  else if(ev.key==='ArrowRight'&&i<bs.length-1)bs[i+1].focus();});
+ b.addEventListener('paste',function(ev){
+  var t=((ev.clipboardData||window.clipboardData).getData('text')||'').replace(/[^0-9]/g,'').slice(0,6);
+  if(!t)return;ev.preventDefault();
+  for(var j=0;j<6;j++)bs[j].value=t[j]||'';
+  bs[Math.min(t.length,5)].focus();upd();trySubmit();});
+});
+})();</script>"""
+
+
+def _code_form(nxt: str = "/", err: str = "", email: str = "", frag: bool = False) -> str:
+    """Entrée du flux SANS mot de passe : email -> on envoie un code à 6 chiffres. Unifie connexion et
+    inscription (compte créé au 1er code validé)."""
+    e = _html.escape
+    err_html = f'<div class=err>{e(err)}</div>' if err else ""
+    return _page("Connexion", f"""<div class=acard><h1>Connexion / inscription</h1>
+<div class=sub>Entre ton email : on t'envoie un code à 6 chiffres, pas de mot de passe à retenir.
+Nouveau ? Ton compte est créé avec {accounts.TRIAL_DAYS} jours d'essai. Stats et résultats restent ouverts à tous.</div>
+{err_html}<form method=post action='/auth/code'>
+<input type=hidden name=next value='{e(nxt)}'>
+<label>Email</label><input name=email type=email autocomplete=email inputmode=email value='{e(email)}' required autofocus>
+<button type=submit>Recevoir mon code</button></form>
+<div class=alt><a href='/login?pw=1&next={e(nxt)}'>Utiliser un mot de passe</a></div></div>""", frag)
+
+
+def _otp_page(nxt: str, email: str, token: str, err: str = "", info: str = "") -> str:
+    """Saisie du code à 6 chiffres (auto-avance, coller pour tout remplir, auto-validation)."""
+    e = _html.escape
+    box = (f'<div class=err>{e(err)}</div>' if err
+           else f'<div class=ok>{e(info)}</div>' if info else "")
+    boxes = "".join(
+        f'<input class=otp-b name="c{i}" inputmode=numeric pattern="[0-9]*" maxlength=1 '
+        f'autocomplete="{"one-time-code" if i == 0 else "off"}" aria-label="chiffre {i + 1}"'
+        f'{" autofocus" if i == 0 else ""}>' for i in range(6))
+    body = f"""<div class=acard><h1>Entre ton code</h1>
+<div class=sub>On a envoyé un code à 6 chiffres à <b>{e(email)}</b>. Il expire dans 10 minutes.</div>
+{box}<form id=otpf method=post action='/auth/verify'>
+<input type=hidden name=next value='{e(nxt)}'>
+<input type=hidden name=email value='{e(email)}'>
+<input type=hidden name=token value='{e(token)}'>
+<div class=otp-row>{boxes}</div>
+<div class=otp-tip>Astuce : colle le code pour remplir toutes les cases d'un coup.</div>
+<button type=submit>Valider</button></form>
+<form method=post action='/auth/code' style='margin-top:2px'>
+<input type=hidden name=next value='{e(nxt)}'>
+<input type=hidden name=email value='{e(email)}'>
+<button class=ghost type=submit>Renvoyer un code</button></form>
+<div class=alt><a href='/login?next={e(nxt)}'>Changer d'email</a></div></div>{_OTP_CSS}{_OTP_JS}"""
+    return _page("Code de connexion", body)
 
 
 def _page(title: str, body: str, frag: bool = False) -> str:
@@ -103,10 +191,11 @@ def _signup_form(nxt: str = "/", err: str = "", email: str = "") -> str:
 
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
-async def login_page(request: Request, next: str = "/"):
+async def login_page(request: Request, next: str = "/", pw: int = 0):
     if accounts.session_email(request):
         return RedirectResponse(_safe_next(next), status_code=303)
-    return HTMLResponse(_login_form(_safe_next(next)))
+    nxt = _safe_next(next)
+    return HTMLResponse(_login_form(nxt) if pw else _code_form(nxt))
 
 
 @router.post("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -128,10 +217,56 @@ async def login_submit(request: Request, next: str = Form("/"), email: str = For
 
 
 @router.get("/signup", response_class=HTMLResponse, include_in_schema=False)
-async def signup_page(request: Request, next: str = "/"):
+async def signup_page(request: Request, next: str = "/", pw: int = 0):
     if accounts.session_email(request):
         return RedirectResponse(_safe_next(next), status_code=303)
-    return HTMLResponse(_signup_form(_safe_next(next)))
+    nxt = _safe_next(next)
+    return HTMLResponse(_signup_form(nxt) if pw else _code_form(nxt))
+
+
+# --------------------------------------------------------------------------- flux code (6 chiffres)
+@router.post("/auth/code", response_class=HTMLResponse, include_in_schema=False)
+async def auth_code(request: Request, next: str = Form("/"), email: str = Form(...)):
+    """Demande d'un code : valide l'email, l'envoie, puis affiche la page de saisie du code."""
+    nxt = _safe_next(next)
+    em = accounts._norm(email)
+    if not accounts.valid_email(em):
+        return HTMLResponse(_code_form(nxt, "Adresse email invalide.", email), status_code=400)
+    if not accounts.code_send_allowed(em):
+        return HTMLResponse(_code_form(nxt, "Trop de codes demandés. Réessaie dans quelques minutes.", email),
+                            status_code=429)
+    code, token = accounts.make_login_code(em)
+    try:
+        _send_code_email(request, em, code)        # best-effort : ne casse jamais le flux (repli outbox)
+    except Exception:
+        pass
+    accounts.note_code_sent(em)
+    return HTMLResponse(_otp_page(nxt, em, token, info="Code envoyé. Regarde tes emails (et les spams)."))
+
+
+@router.post("/auth/verify", response_class=HTMLResponse, include_in_schema=False)
+async def auth_verify(request: Request, next: str = Form("/"), email: str = Form(...),
+                      token: str = Form(...), c0: str = Form(""), c1: str = Form(""),
+                      c2: str = Form(""), c3: str = Form(""), c4: str = Form(""), c5: str = Form("")):
+    """Vérifie le code : compte créé (si nouveau) + session ouverte. Anti-force-brute par email+IP."""
+    nxt = _safe_next(next)
+    em = accounts._norm(email)
+    ip = request.client.host if request.client else "?"
+    key = f"code|{em}|{ip}"
+    if accounts.login_blocked(key):
+        return HTMLResponse(_otp_page(nxt, em, token, "Trop de tentatives. Redemande un code."),
+                            status_code=429)
+    code = (c0 + c1 + c2 + c3 + c4 + c5).strip()
+    verified = accounts.check_login_code(token, code)     # email de CONFIANCE (issu du jeton signé)
+    if not verified:
+        accounts.note_login_fail(key)
+        return HTMLResponse(_otp_page(nxt, em, token, "Code incorrect ou expiré. Réessaie."),
+                            status_code=401)
+    accounts.note_login_ok(key)
+    accounts.ensure_user(verified)                        # crée le compte + essai si nouveau
+    resp = RedirectResponse(nxt, status_code=303)
+    _set_cookie(resp, verified)
+    return resp
 
 
 @router.post("/signup", response_class=HTMLResponse, include_in_schema=False)
@@ -236,8 +371,8 @@ async def verify_email(token: str = ""):
 @router.get("/compte", response_class=HTMLResponse, include_in_schema=False)
 async def account_page(request: Request, frag: int = 0):
     email = accounts.session_email(request)
-    if not email:                                  # non connecté -> formulaire de connexion dans l'onglet
-        return HTMLResponse(_login_form("/compte", frag=bool(frag)))
+    if not email:                                  # non connecté -> flux code (sans mot de passe) dans l'onglet
+        return HTMLResponse(_code_form("/compte", frag=bool(frag)))
     e = _html.escape
     sub = accounts.is_subscriber(email)
     plan = accounts.plan_of(email)
