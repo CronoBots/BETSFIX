@@ -295,6 +295,12 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».
+- **CARTES = style « TICKET » (direction A) EN LIGNE par défaut** (2026-09-04, `CARD_STYLE` unibet→ticket dans
+  `app/web.py`) : talon vertical coloré par statut + **logo blanc** (`static/wordmark-white.png`) + perforation en
+  cercles au contact talon↔ticket + une info/ligne. ⛔ Classe carte = **`.tk-card`** (jamais `.tkt` = collision).
+  **Revenir en arrière** = env **`BETSFIX_CARD_STYLE=unibet`** (style E plat) ou **`=classic`** + redémarrer l'API.
+  Reste à faire : compact (D) + porter le ticket sur **Telegram** (`tools/card_image.py`, chaîne image séparée).
+  Mémoire [[ticket-card-style]].
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
