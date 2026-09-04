@@ -2522,7 +2522,7 @@ CSS = """
      Technique padding-box/border-box : le dégradé remplit le bord tout en respectant les coins arrondis
      (impossible avec border-image + border-radius). Bord transparent + 2 couches de fond. */
   .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;
-       box-sizing:border-box;max-width:100%;border:2px solid transparent;
+       box-sizing:border-box;max-width:100%;border:1.5px solid transparent;
        background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5ab6f0,#2f7fc4) border-box;
        box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
   .tk-card.tk-live{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ffd66a,#f6a11e) border-box}
@@ -2591,9 +2591,10 @@ CSS = """
   .tk-why li{position:relative;padding-left:16px;margin:5px 0;font-size:12.5px;line-height:1.5;color:#c4d3e6;font-weight:500}
   .tk-why li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#3a9fe0}
   .tk-why li b{color:#eef4fb;font-weight:800}
-  /* Pied : HORODATAGE date/heure CENTRÉ (lisible, façon timestamp de ticket — PLUS de code-barres, user
-     2026-09-05) ; « Pourquoi ce pari » posé DESSOUS, flèche de déploiement dans le coin DROIT. */
+  /* Pied : BARRES du code-barres (le cachet, user 2026-09-05) pleine largeur + HEURE lisible dessous ;
+     « Pourquoi ce pari » posé DESSOUS, flèche de déploiement dans le coin DROIT. */
   .tk-foot{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
+  .tk-bc{width:100%;height:26px;border-radius:3px;opacity:.9;overflow:hidden}
   .tk-stamp{text-align:center;margin-top:7px;font-size:12px;letter-spacing:.16em;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-stamp-t{color:#c7d4e6;font-weight:900}
   .tk-stamp-n{color:#6f8394;font-weight:700}
