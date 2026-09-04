@@ -86,10 +86,10 @@ def _tk_badge(kind: str, extra: str = "") -> str:
     return f'<span class="tk-badge {kind}">{html.escape(word)}</span>'
 
 def _tk_datecode(value) -> str:
-    """Code NUMÉRIQUE « ticket » encodant la DATE et l'HEURE du match : « AAAA·MMJJ·HHMM » (que des chiffres,
-    façon code/numéro de ticket, mais porteur d'info). '' si pas de date exploitable (repli n° de ticket)."""
+    """DATE + HEURE du match, LISIBLE (dans le code-barres du pied) : « 05/09/2026 · 21h00 » (user 2026-09-04 :
+    doit être compréhensible, pas un code opaque). '' si pas de date exploitable (repli n° de ticket)."""
     dt = to_local(value)
-    return dt.strftime("%Y·%m%d·%H%M") if dt is not None else ""
+    return dt.strftime("%d/%m/%Y · %Hh%M") if dt is not None else ""
 
 def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
     """Pied du ticket : CODE-BARRES PLEINE LARGEUR avec la DATE/HEURE (ou n° de ticket) écrite DEDANS. Si
@@ -144,7 +144,7 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
             f'<div class="tk-row">{_eye}{badge}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'{_sub}<div class="tk-rule"></div>'
-            f'<div class="tk-row"><span class="tk-sel tk-ell{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
+            f'<div class="tk-row"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
             f'{_mx}{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
@@ -181,7 +181,7 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
             f'<div class="tk-row">{_eye}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'<div class="tk-rule"></div>'
-            f'<div class="tk-row"><span class="tk-sel tk-ell">{e(sel_txt)}</span>{_odds}</div>'
+            f'<div class="tk-row"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
             f'{_mx_h}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
@@ -2554,7 +2554,10 @@ CSS = """
   .tk-match{margin-top:7px;font-size:15px;font-weight:700;letter-spacing:-.01em;color:#a9bccf;line-height:1.25}
   .tk-sub{margin-top:3px;font-size:12.5px;color:#8fa2b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-rule{height:1px;background:rgba(255,255,255,.09);margin:11px 0}
-  .tk-sel{font-size:19.5px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.2}
+  /* `.tk-sel` NE grandit PAS (flex 0 1 auto) -> la cote reste COLLÉE au pari à jouer (user 2026-09-04)
+     au lieu d'être poussée tout à droite ; ellipsis conservée si le pari est trop long. */
+  .tk-sel{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+       font-size:19.5px;font-weight:900;color:#fff;letter-spacing:-.01em;line-height:1.2}
   .tk-sel.abst{color:var(--muted);font-weight:800;font-size:14.5px}
   .tk-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:#5fd0ff}
   .tk-odds i{font-style:normal;font-size:14px;font-weight:800;opacity:.8}
