@@ -8177,17 +8177,20 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _conf_rec = _tier_rec(play_conf, "confiance")
     # CONFIANCE + VALUE TOUJOURS AFFICHÉES (user 2026-08-17), même vides -> la catégorie reste visible (message
     # d'état honnête à la place des cartes). Les autres zones n'apparaissent que si elles ont du contenu.
+    # `empty` conditionné à `_has_prog` (user 2026-09-04) : tant qu'il reste des matchs à jouer, la catégorie VIDE
+    # reste visible (« en attente ») ; une fois le PROGRAMME DU JOUR TERMINÉ, un type SANS aucun pari est MASQUÉ
+    # (on ne garde que les types qui ont eu un match/pari ce jour-là). Un type avec des paris (même réglés) reste.
     out.append(_zone("play", _plur(len(play_conf) + len(_res_conf), "Confiance"), "",
                      len(play_conf) + len(_res_conf), _conf_html,
                      collapsible=True, record=_conf_rec if _conf_rec[0] else None, waiting=_has_prog,
-                     empty="Aucune sélection à haute confiance pour l'instant."))
+                     empty=("Aucune sélection à haute confiance pour l'instant." if _has_prog else None)))
     # ZONE VALUE — toujours affichée (user 2026-08-17).
     _value_html = _MC_SEP.join([h for h in (_rows_by_day(play_value), _MC_SEP.join(_res_value)) if h])
     _value_rec = _tier_rec(play_value, "value")
     out.append(_zone("value", _plur(len(play_value) + len(_res_value), "Value"), "",
                      len(play_value) + len(_res_value), _value_html,
                      collapsible=True, record=_value_rec if _value_rec[0] else None, waiting=_has_prog,
-                     empty="Aucun pari de value détecté pour l'instant."))
+                     empty=("Aucun pari de value détecté pour l'instant." if _has_prog else None)))
     # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
     # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
     _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
@@ -8205,7 +8208,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     out.append(_zone("mont", _mt_split[0], "", len(play_mont), _mont_html,
                      collapsible=True, record=_mont_rec if _mont_rec[0] else None, waiting=_has_prog,
                      subtitle=(_mt_split[1] if len(_mt_split) > 1 else ""),
-                     empty="Aucun palier engagé pour l'instant."))
+                     empty=("Aucun palier engagé pour l'instant." if _has_prog else None)))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
