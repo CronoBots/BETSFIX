@@ -2210,6 +2210,10 @@ CSS = """
   .ue-score.live::before,.uel-score.live::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;
        background:var(--gold);box-shadow:0 0 6px rgba(255,200,80,.85);animation:scpulse 1.5s ease-in-out infinite}
   @keyframes scpulse{0%,100%{opacity:1}50%{opacity:.3}}
+  /* Score TEINTÉ par le résultat (user 2026-09-04) — chip vert (gagné) / rouge (perdu) ; combiné + simple. */
+  .uel-score.won,.mc-r-won .ue-score{color:#8fe6b0;background:rgba(52,210,123,.10);box-shadow:inset 0 0 0 1px rgba(52,210,123,.34)}
+  .uel-score.lost,.mc-r-lost .ue-score{color:#ff9d9d;background:rgba(255,125,125,.10);box-shadow:inset 0 0 0 1px rgba(255,125,125,.32)}
+  .uel-score.push,.uel-score.void,.mc-r-push .ue-score{color:#a7b4c4}
   .ue .mc-chev{position:absolute;right:11px;bottom:7px;color:#4d6076;font-size:13px;transition:transform .18s}
   .ue.mc-open .mc-chev{transform:rotate(180deg)}
   .ue-abst .ue-pk{color:var(--muted);font-weight:800;font-size:14px}
@@ -2229,9 +2233,15 @@ CSS = """
   .cbo-l{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
   .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
   .cbo-nb{font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
+  /* COTE totale : accent CYAN unifié avec les cotes de jambe (user 2026-09-04). Se colore vert/rouge + ✓/✗
+     dès que le combiné est réglé (verdict global d'un coup d'œil). */
   .cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
-  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
-  .cbo-ct b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:#5b7fa0;text-transform:uppercase}
+  .cbo-ct b{font-size:18px;font-weight:900;color:#5fd0ff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cbo-v{font-size:14px;font-weight:900;margin-left:1px}
+  .cbo-ct.won b,.cbo-ct.won .cbo-v{color:var(--st-won)} .cbo-ct.won i{color:rgba(84,217,140,.7)}
+  .cbo-ct.lost b,.cbo-ct.lost .cbo-v{color:var(--st-lost)} .cbo-ct.lost i{color:rgba(255,125,125,.7)}
+  .cbo-ct.push b,.cbo-ct.push .cbo-v{color:var(--st-void)}
   .cbo-legs{min-width:0;border-top:1px solid rgba(255,255,255,.08)}
   .uel{display:flex;min-width:0}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}   /* même séparation entre jambes */
@@ -2240,7 +2250,7 @@ CSS = """
   .uel.won .uel-n{background:var(--st-won)}
   .uel.lost .uel-n{background:var(--st-lost)}
   .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void)}
-  .uel-b{flex:1;min-width:0;padding:10px 12px 11px}
+  .uel-b{flex:1;min-width:0;padding:8px 12px 9px}   /* jambes plus DENSES (user 2026-09-04) */
   .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
   .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
   .uel.lost .uel-sel{color:var(--muted)}
@@ -11009,16 +11019,23 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _mx = _ue_metrics_html(_lconf, _le, _lv)
         _sub_h = f'<div class="uel-sub">{_sub_txt}</div>' if _sub_txt else ""
         _mx_h = f'<div class="uel-mx">{_mx}</div>' if _mx else ""
-        # SCORE dans le coin HAUT-DROITE de la jambe (chip) — LIVE (match en cours) avec point pulsé.
-        _score_h = (f'<span class="uel-score{" live" if _live_leg else ""}">{e(_score_txt)}</span>'
-                    if _score_txt else "")
+        # SCORE dans le coin HAUT-DROITE de la jambe (chip). LIVE (match en cours) -> point OR pulsé ; sinon
+        # TEINTÉ par le résultat de la jambe (vert gagnée / rouge perdue) — user 2026-09-04.
+        _sc_cls = "live" if _live_leg else (_lr if _lr in ("won", "lost", "push", "void") else "")
+        _score_h = (f'<span class="uel-score {_sc_cls}">{e(_score_txt)}</span>' if _score_txt else "")
         _legs_html += (f'<div class="uel {_lcls}"><div class="uel-n"></div><div class="uel-b">'
                        f'<div class="uel-h"><div class="uel-sel">{e(_lsel)}{(" " + _ct_h) if _ct_h else ""}</div>'
                        f'{_score_h}</div>{_sub_h}{_mx_h}</div></div>')
     # « N sélections » COLLÉ au nom du combiné (gauche) ; COTE TOTALE en HAUT À DROITE — plus de colonne cote
     # (user 2026-09-03). Les jambes prennent toute la largeur.
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
-    _ct = f'<span class="cbo-ct"><i>COTE</i><b>{e(_cote_txt)}</b></span>' if _cote_txt else ""
+    # VERDICT GLOBAL dans l'en-tête (user 2026-09-04) : la COTE se colore + ✓/✗ dès que le combiné est réglé
+    # (vert gagné / rouge perdu / = remboursé). Lecture du résultat d'un coup d'œil, sans scanner les jambes.
+    _cv_cls, _cv_mk = {"won": ("won", "✓"), "lost": ("lost", "✗"),
+                       "push": ("push", "="), "void": ("push", "=")}.get(_res, ("", ""))
+    _cv_h = f'<span class="cbo-v">{_cv_mk}</span>' if _cv_mk else ""
+    _ct = (f'<span class="cbo-ct {_cv_cls}"><i>COTE</i><b>{e(_cote_txt)}</b>{_cv_h}</span>'
+           if _cote_txt else "")
     _head = (f'<div class="mc-head"><div class="cbo-hd">'
              f'<div class="cbo-l"><span class="cbo-ti">{e(title)}</span><span class="cbo-nb">· {_nb}</span></div>'
              f'{_ct}</div>'
