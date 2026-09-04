@@ -131,10 +131,40 @@ def _tk_gauge(conf_i) -> str:
     w = max(0, min(100, int(round(conf_i))))
     return f'<div class="tk-gauge"><span style="width:{w}%"></span></div>'
 
+def _form_pills(forme: str, fr: bool = True) -> str:
+    """5 pastilles de forme (V vert / N gris / D rouge) depuis une chaîne « VNVDD » (fr) ou « WDWLL » (en)."""
+    out = []
+    for ch in (forme or "")[:6]:
+        k = ({"V": "w", "N": "d", "D": "l"} if fr else {"W": "w", "D": "d", "L": "l"}).get(ch.upper())
+        if not k:
+            continue
+        out.append(f'<i class="fp fp-{k}">{ {"w": "V", "d": "N", "l": "D"}[k] }</i>')
+    return "".join(out)
+
+def _tk_form(sport: str, fid, home: str, away: str) -> str:
+    """Forme récente (5 derniers) des 2 équipes depuis le sidecar STRUCTURÉ `meta["form"] = {"home":"VNVVN",
+    "away":"DVNNV"}` (V/N/D fr ou W/D/L en). '' tant que la forme n'est pas persistée au scan (à brancher côté
+    `generate_analyses`). ⚠️ NE PAS parser le .md : la forme y est en prose, captée <5 % du temps (mesuré 2026-09-05)."""
+    try:
+        f = (analyses.meta(sport, str(fid)) or {}).get("form") or {}
+    except Exception:
+        return ""
+    hf, af = str(f.get("home") or "").strip(), str(f.get("away") or "").strip()
+    if not hf and not af:
+        return ""
+    fr = not any(c in (hf + af).upper() for c in "WL")
+    rows = ""
+    for name, ff in ((home, hf), (away, af)):
+        if not ff:
+            continue
+        rows += (f'<div class="tk-form-r"><span class="tk-form-n tk-ell">{html.escape(name)}</span>'
+                 f'<span class="tk-form-p">{_form_pills(ff, fr)}</span></div>')
+    return f'<div class="tk-form">{rows}</div>' if rows else ""
+
 def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, sel_txt: str,
                  cote_txt: str, metrics_html: str = "", why_text: str = "", rcls: str = "",
                  is_live: bool = False, is_finished: bool = False, score_txt: str = "",
-                 abst: bool = False, seed: str = "", start=None, conf_i=None) -> str:
+                 abst: bool = False, seed: str = "", start=None, conf_i=None, form_html: str = "") -> str:
     """Carte PARI à-venir / live / réglée en TICKET « talon » (direction A validée). Layout UNIQUE : le talon
     (logo) et le badge de statut changent selon l'état ; chaque info tient sur une ligne (ellipsis)."""
     e = html.escape
@@ -159,13 +189,13 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'{_sub}'
             f'<div class="tk-row tk-betrow"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx}{"" if abst else _tk_gauge(conf_i)}'
+            f'{_mx}{"" if abst else _tk_gauge(conf_i)}{"" if abst else form_html}'
             f'{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt: str,
                     result: str, conf_i=None, score_txt: str = "", when_txt: str = "", seed: str = "",
-                    start=None) -> str:
+                    start=None, form_html: str = "") -> str:
     """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge, badge
     GAGNÉ/PERDU EN HAUT À DROITE, score coloré, « Confiance X% · Edge +Y · Value +Z% » (edge/value POSITIFS
     seulement) sous le pari, et un CODE date/heure (AAAA·MMJJ·HHMM) en pied à droite."""
@@ -196,7 +226,7 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
             f'<div class="tk-row">{_eye}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'<div class="tk-row tk-betrow"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
-            f'{_mx_h}{_tk_gauge(conf_i)}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
+            f'{_mx_h}{_tk_gauge(conf_i)}{form_html}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
 def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
@@ -2590,6 +2620,13 @@ CSS = """
   .tk-lost .tk-gauge>span{background:linear-gradient(90deg,#e14a4a,#ff9d9d)}
   .tk-push .tk-gauge>span{background:linear-gradient(90deg,#8a9bb0,#b9c6d6)}
   .tk-state{flex:none;font-size:9px;font-weight:800;letter-spacing:.09em;color:#7d8ea3;text-transform:uppercase}
+  /* Forme récente (5 derniers) des 2 équipes en pastilles V/N/D — user 2026-09-05. */
+  .tk-form{margin-top:10px;display:flex;flex-direction:column;gap:5px}
+  .tk-form-r{display:flex;align-items:center;gap:7px;min-width:0}
+  .tk-form-n{flex:1;min-width:0;font-size:11px;font-weight:700;color:#8fa2b8}
+  .tk-form-p{flex:none;display:inline-flex;gap:3px}
+  .fp{flex:none;width:16px;height:16px;border-radius:4px;font-size:9px;font-weight:900;font-style:normal;display:inline-flex;align-items:center;justify-content:center;color:#0a0e14}
+  .fp-w{background:#34d27b}.fp-d{background:#8a9bb0}.fp-l{background:#ff7b7b}
   /* `.tk-sel` NE grandit PAS (flex 0 1 auto) -> la cote reste COLLÉE au pari à jouer (user 2026-09-04)
      au lieu d'être poussée tout à droite ; ellipsis conservée si le pari est trop long. */
   .tk-sel{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -11329,7 +11366,8 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
                                sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
                                cote=_cote, cote_txt=_cote_txt, result=_res, conf_i=_cf_i,
                                score_txt=_score_txt, when_txt=_when, start=d.get("start"),
-                               seed=str(d.get("id") or f"{_home}{_away}"))
+                               seed=str(d.get("id") or f"{_home}{_away}"),
+                               form_html=_tk_form(sp, d.get("id"), _home, _away))
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{_uedetail}</div></div>'
 
 
@@ -11929,7 +11967,8 @@ def _sport_row(r: dict) -> str:
                     sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                     cote_txt=_ucote_txt, metrics_html=_umx, why_text=_uwhy_text,
                     rcls=_rcls, is_live=is_live, is_finished=is_finished, score_txt=_uscore_txt,
-                    abst=(_pb is None), seed=str(_pmid or _umatch), start=sdt, conf_i=_ucf_i)
+                    abst=(_pb is None), seed=str(_pmid or _umatch), start=sdt, conf_i=_ucf_i,
+                    form_html=(_tk_form(sport_key, _pmid, _uhome, _uaway) if _pmid else ""))
             _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else f'{ana}{linkshtml}'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')
