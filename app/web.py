@@ -6,6 +6,7 @@ détail/analyse d'un match. Thème sombre, nav commune. Aucun JS requis.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import os
 import re
@@ -21,12 +22,221 @@ _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # ⚙️ STYLE DES CARTES (user 2026-09-03) : "unibet" = liste plate façon Unibet (rail de statut à gauche,
 # en-tête « Type @ cote · état », sélection en gras, match dessous, résumé compact ; le DÉTAIL riche
-# — logos, barres, analyse — s'affiche au dépli). "classic" = ancien design (logos + grille au repli).
+# — logos, barres, analyse — s'affiche au dépli). "ticket" = MÊME base E, ENVELOPPÉE dans une signature
+# « ticket de paris » (en-tête BETSFIX + statut, perforations à encoches, code-barres unique, n° de ticket,
+# tampon néon GAGNÉ/PERDU sur les cartes réglées). "classic" = ancien design (logos + grille au repli).
 # ⛔ REVENIR À L'ANCIEN STYLE = poser la variable d'env `BETSFIX_CARD_STYLE=classic` (rien d'autre à toucher :
-# toutes les branches classiques sont conservées intactes). Mémoire `card-style-unibet-flag`.
-CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "unibet").strip().lower()
+# toutes les branches classiques sont conservées intactes) · `=unibet` = E sans le cadre ticket. Mémoire `card-style-unibet-flag`.
+CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "ticket").strip().lower()
 def _e_style() -> bool:
-    return CARD_STYLE == "unibet"
+    # Le style « ticket » réutilise INTÉGRALEMENT le rendu E (liste plate) puis l'habille -> il active E aussi.
+    return CARD_STYLE in ("unibet", "ticket")
+def _ticket_style() -> bool:
+    return CARD_STYLE == "ticket"
+
+# ===== TICKET DE PARIS — direction A « talon » (validée user 2026-09-04, flag BETSFIX_CARD_STYLE=ticket) =====
+# LAYOUT UNIQUE tous états (à-venir/live/gagné/perdu/combiné) : talon vertical gauche = LOGO BETSFIX (wordmark
+# `/static/wordmark.png` tourné), fond coloré par le statut ; corps = eyebrow ligue + badge, équipes+score,
+# filet, pari @cote, métriques (Confiance·Edge+·Value+, positifs seuls), « Pourquoi » repliable, pied
+# code-barres+n°. Chaque info sur UNE ligne (ellipsis). Combiné = « <nom> · N jambes » à gauche / COTE à droite
+# + jambes (pari@cote·score·équipes·confiance). Rendus DÉDIÉS (pas un habillage). Rien émis hors du flag.
+
+def _tk_no(seed: str) -> str:
+    """N° de ticket LISIBLE, STABLE (déterministe) — 3 groupes de 4 chiffres façon « BX·2026·0904·8842 »."""
+    h = hashlib.md5((seed or "betsfix").encode("utf-8")).hexdigest()
+    a, b, c = int(h[0:6], 16) % 10000, int(h[6:12], 16) % 10000, int(h[12:18], 16) % 10000
+    return f"BX·{a:04d}·{b:04d}·{c:04d}"
+
+def _tk_barcode(seed: str) -> str:
+    """`background`+`width` inline d'un code-barres DISCRET et UNIQUE par ticket (largeurs de barres dérivées
+    du hash, barres gris clair sur fond sombre — comme les maquettes). Valeur CSS prête pour `style=`."""
+    h = hashlib.md5((seed or "betsfix").encode("utf-8")).hexdigest() * 5
+    runs, pos = [], 0
+    for ch in h:
+        v = int(ch, 16)
+        w = 1 + (v % 4)
+        col = "rgba(158,176,200,.55)" if (v % 2 == 0) else "transparent"
+        if runs and runs[-1][0] == col:
+            runs[-1][1] += w
+        else:
+            runs.append([col, w])
+        pos += w
+        if pos >= 150:
+            break
+    segs, x = [], 0
+    for col, w in runs:
+        segs.append(f"{col} {x}px,{col} {x + w}px")
+        x += w
+    return f"background:linear-gradient(90deg,{','.join(segs)});width:{x}px"
+
+_TK_STATUS_WORD = {"soon": "À VENIR", "live": "EN DIRECT", "won": "GAGNÉ", "lost": "PERDU", "push": "REMBOURSÉ"}
+
+def _tk_stub() -> str:
+    """Talon vertical gauche = LOGO BETSFIX BLANC (wordmark-white, tourné) — ressort sur les talons colorés.
+    Fond du talon = couleur du statut (CSS)."""
+    return '<div class="tk-stub"><img class="tk-logo" src="/static/wordmark-white.png" alt="BETSFIX"></div>'
+
+def _tk_badge(kind: str, extra: str = "") -> str:
+    """Pastille de statut (À venir/En direct/Gagné/Perdu…). `extra` = complément collé (ex. l'heure)."""
+    word = _TK_STATUS_WORD.get(kind, "À VENIR")
+    if extra:
+        word = f"{word} · {extra}"
+    return f'<span class="tk-badge {kind}">{html.escape(word)}</span>'
+
+def _tk_foot(seed: str) -> str:
+    """Pied du ticket : code-barres discret (gauche) + n° de ticket unique (droite)."""
+    return (f'<div class="tk-foot"><span class="tk-bc" style="{_tk_barcode(seed)}"></span>'
+            f'<span class="tk-no">{_tk_no(seed)}</span></div>')
+
+def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
+    """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    sents = _why_sentences(t) or [t]
+    lis = "".join(f"<li>{html.escape(s)}</li>" for s in sents)
+    return (f'<details class="tk-why"><summary onclick="event.stopPropagation()">{html.escape(label)}'
+            f'<span class="tk-chev">▾</span></summary><ul>{lis}</ul></details>')
+
+def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, sel_txt: str,
+                 cote_txt: str, metrics_html: str = "", why_text: str = "", rcls: str = "",
+                 is_live: bool = False, is_finished: bool = False, score_txt: str = "",
+                 abst: bool = False, seed: str = "") -> str:
+    """Carte PARI à-venir / live / réglée en TICKET « talon » (direction A validée). Layout UNIQUE : le talon
+    (logo) et le badge de statut changent selon l'état ; chaque info tient sur une ligne (ellipsis)."""
+    e = html.escape
+    rk = ("won" if "mc-r-won" in rcls else "lost" if "mc-r-lost" in rcls
+          else "push" if "mc-r-push" in rcls else "live" if is_live else "soon")
+    # Badge : « À VENIR · 21:00 » (heure dans le badge) ; live/réglé = mot seul. Sous-titre = DATE seule
+    # (à venir : l'heure est déjà dans le badge -> on retire le doublon) ; sinon date+heure complète.
+    badge = _tk_badge(rk, time_txt if (rk == "soon" and time_txt) else "")
+    sub = re.sub(r"\s*\d{1,2}:\d{2}$", "", when_txt).strip() if rk == "soon" else when_txt
+    _eye = f'<span class="tk-eye tk-ell">{e(league)}</span>' if league else '<span class="tk-ell"></span>'
+    _sub = f'<div class="tk-sub">{e(sub)}</div>' if sub else ""
+    _sc = (f'<span class="tk-score {rk if rk in ("won","lost","push") else ""}{" live" if is_live else ""}">{e(score_txt)}</span>'
+           if score_txt else "")
+    _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
+    _mx = f'<div class="tk-mx">{metrics_html}</div>' if metrics_html else ""
+    _why = _tk_why(why_text) if (why_text and not abst) else ""
+    _sel_cls = " abst" if abst else ""
+    body = (f'<div class="tk-body">'
+            f'<div class="tk-row">{_eye}{badge}</div>'
+            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
+            f'{_sub}<div class="tk-rule"></div>'
+            f'<div class="tk-row"><span class="tk-sel tk-ell{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
+            f'{_mx}{_why}{_tk_foot(seed)}</div>')
+    return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
+
+def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt: str,
+                    result: str, conf_i=None, score_txt: str = "", when_txt: str = "", seed: str = "") -> str:
+    """Carte RÉSULTAT en TICKET « talon » (direction A) : MÊME layout que le pari, talon vert/rouge + badge
+    GAGNÉ/PERDU, score coloré, et « Confiance X% · Résultat +/− u » sous le pari."""
+    e = html.escape
+    rk = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(result, "push")
+    try:
+        c = float(cote)
+    except (TypeError, ValueError):
+        c = None
+    if rk == "won" and c:
+        units, ucls = f"+{c - 1:.2f} u", "pos"
+    elif rk == "lost":
+        units, ucls = "−1.00 u", "neg"
+    else:
+        units, ucls = "0.00 u", "mut"
+    _mx_bits = []
+    if conf_i is not None:
+        _mx_bits.append(f'Confiance <b class="c">{conf_i}%</b>')
+    _mx_bits.append(f'Résultat <b class="{ucls}">{e(units)}</b>')
+    _mx = '<span class="sep">·</span>'.join(_mx_bits)
+    sub = re.sub(r"\s*\d{1,2}:\d{2}$", "", when_txt).strip() if when_txt else ""
+    _eye = f'<span class="tk-eye tk-ell">{e(league)}</span>' if league else '<span class="tk-ell"></span>'
+    _sub = f'<div class="tk-sub">{e(sub)}</div>' if sub else ""
+    _sc = f'<span class="tk-score {rk}">{e(score_txt)}</span>' if score_txt else ""
+    _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
+    body = (f'<div class="tk-body">'
+            f'<div class="tk-row">{_eye}{_tk_badge(rk)}</div>'
+            f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span>{_sc}</div>'
+            f'{_sub}<div class="tk-rule"></div>'
+            f'<div class="tk-row"><span class="tk-sel tk-ell">{e(sel_txt)}</span>{_odds}</div>'
+            f'<div class="tk-mx">{_mx}</div>{_tk_foot(seed)}</div>')
+    return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
+
+def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") -> str:
+    """Combiné en TICKET « talon » (direction A) : talon logo coloré par statut + en-tête « <nom> · N jambes »
+    à GAUCHE et COTE tout à DROITE sur la MÊME ligne, puis les jambes (pari @cote · score · équipes · confiance)."""
+    e = html.escape
+    legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "~"))
+    if not legs:
+        return ""
+    _res = cb.get("result")
+    _all_done = all(l.get("result") in ("won", "lost", "push", "void") for l in legs)
+    _any = any(l.get("result") in ("won", "lost", "push", "void") for l in legs)
+    rk = ("won" if _res == "won" else "lost" if _res == "lost"
+          else "push" if _res in ("void", "push") else "live" if (_any and not _all_done) else "soon")
+    # Cote effective (jambe annulée sort du produit) — même règle que la carte plate.
+    _cote = cb.get("cote")
+    if any(l.get("result") in ("void", "push") for l in legs):
+        _ec, _ok = 1.0, True
+        for l in legs:
+            if l.get("result") in ("void", "push"):
+                continue
+            try:
+                _ec *= float(l.get("cote"))
+            except (TypeError, ValueError):
+                _ok = False
+        if _ok and _ec > 1:
+            _cote = round(_ec, 2)
+    _cote_txt = f"{round(_cote, 2):g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _legs = ""
+    for l in legs:
+        _lr = l.get("result")
+        _lk = _lr if _lr in ("won", "lost", "push", "void") else "soon"
+        _lk = "push" if _lk == "void" else _lk
+        _lh, _la = l.get("home", ""), l.get("away", "")
+        _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
+        _lwhen = fmt_local(l.get("start"), with_date=False)
+        _lc = l.get("cote")
+        _lct = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
+        _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
+        _live = False
+        try:
+            _lsp = l.get("sport") or sport
+            _lf = live_fields(match_select.live_state_for(_lsp, _lh, _la), _lsp)
+            if str(_lf.get("score") or "").strip() and "-" in str(_lf.get("score")) and _lf.get("live_time"):
+                _lscore, _live = str(_lf["score"]).replace("-", " - "), True
+        except Exception:
+            pass
+        _lp = l.get("prob")
+        _lconf = (round(_lp * 100) if isinstance(_lp, (int, float)) and _lp <= 1
+                  else (round(_lp) if isinstance(_lp, (int, float)) else None))
+        _le = _lv = None
+        if _lconf is not None and isinstance(_lc, (int, float)) and _lc:
+            try:
+                _le = round(_lconf - 100.0 / float(_lc))
+                _lv = round((_lconf / 100.0 * float(_lc) - 1) * 100)
+            except (TypeError, ValueError, ZeroDivisionError):
+                _le = _lv = None
+        _lmx = _ue_metrics_html(_lconf, _le, _lv)
+        _lct_h = f'<span class="tk-leg-o"><i>@</i>{e(_lct)}</span>' if _lct else ""
+        _sub = e(f"{_lh} — {_la}") if (_lh and _la) else ""
+        if _lwhen:
+            _sub += (" · " if _sub else "") + e(_lwhen)
+        _sc_txt = _lscore if (_lscore and any(ch.isdigit() for ch in _lscore)) else ""
+        _sc_cls = "live" if _live else (_lk if _lk in ("won", "lost", "push") else "")
+        _sc_h = f'<span class="tk-chip {_sc_cls}">{e(_sc_txt)}</span>' if _sc_txt else ""
+        _lmx_h = f'<div class="tk-leg-mx">{_lmx}</div>' if _lmx else ""
+        _legs += (f'<div class="tk-leg {_lk}"><div class="tk-leg-h">'
+                  f'<span class="tk-leg-s tk-ell"><span class="tk-dot {_lk}"></span>{e(_lsel)}</span>{_lct_h}{_sc_h}</div>'
+                  f'<div class="tk-leg-sub tk-ell">{_sub}</div>{_lmx_h}</div>')
+    _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
+    # En-tête (user 2026-09-04) : « <nom> · N jambes » À GAUCHE + COTE tout à DROITE, MÊME ligne. La cote est
+    # teintée par le statut (vert gagné / rouge perdu) ; le talon coloré porte aussi l'état -> pas de badge ici.
+    _ct = f'<span class="tk-cbo-ct {rk}"><i>COTE</i><b>{e(_cote_txt)}</b></span>' if _cote_txt else ""
+    _bar = (f'<div class="tk-cbo"><span class="tk-cbo-t tk-ell">{e(title)}'
+            f'<span class="tk-cbo-n"> · {_nb}</span></span>{_ct}</div>')
+    _seed = f'{title}|{sport}|{_cote_txt}|{len(legs)}'
+    return (f'<div class="tk-card tk-{rk}">{_tk_stub()}<div class="tk-body">{_bar}'
+            f'<div class="tk-legs">{_legs}</div>{_tk_foot(_seed)}</div></div>')
 
 def _bets_for_url(url: str, compact: bool = False) -> str:
     """Cadres « paris à jouer » d'un match (sous les barres %, HORS analyse), depuis son URL de fiche.
@@ -2274,6 +2484,98 @@ CSS = """
   .uel-mx{min-width:0;margin-top:3px;font-size:11px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums}
   .uel-mx b{font-weight:900;color:#8fa4bd} .uel-mx b.c{color:var(--st-won)} .uel-mx b.pos{color:var(--st-won)}
   .uel-mx .sep{color:#3a4a5e;margin:0 4px}
+  /* ===== TICKET DE PARIS — direction A « talon » (user 2026-09-04, flag BETSFIX_CARD_STYLE=ticket).
+     Layout UNIQUE tous états : talon vertical gauche = LOGO BETSFIX (wordmark tourné), fond coloré par le
+     statut (cyan à venir · or live · vert gagné · rouge perdu) ; corps = eyebrow ligue + badge, équipes héros
+     + score, filet, pari @cote cyan, métriques (Confiance·Edge+·Value+), « Pourquoi » repliable, pied
+     code-barres + n°. CHAQUE info sur UNE ligne (ellipsis). Combiné = même cadre + en-tête « <nom> · N jambes »
+     à gauche / COTE à droite + jambes. Rien émis hors du flag. ===== */
+  /* ⚠️ classe carte = `.tk-card` (PAS `.tkt` : collision avec le composant `.tkt-*` existant qui imposait
+     padding + bordure cyan -> le contenu se décollait du cadre). */
+  .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;background:#0d1a27;
+       box-sizing:border-box;max-width:100%;border:1px solid rgba(120,150,190,.16);box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
+  /* Talon = fond COLORÉ par le statut (derrière le logo). Logo en couleurs d'origine + ombre portée pour
+     rester lisible sur la couleur. Encoches (perforation) au bord droit = séparation ticket. */
+  .tk-stub{position:relative;flex:none;width:46px;background:linear-gradient(180deg,#5ab6f0,#2f7fc4);overflow:hidden}
+  .tk-live .tk-stub{background:linear-gradient(180deg,#ffd66a,#f6a11e)}
+  .tk-won  .tk-stub{background:linear-gradient(180deg,#5be79b,#28b268)}
+  .tk-lost .tk-stub{background:linear-gradient(180deg,#ff9d9d,#e14a4a)}
+  .tk-push .tk-stub{background:linear-gradient(180deg,#b9c6d6,#8a9bb0)}
+  /* Logo BLANC tourné, ABSOLU + centré (translate -50% puis rotate) — grand ; légère ombre portée pour rester
+     net sur les talons CLAIRS (or/vert). */
+  .tk-stub .tk-logo{position:absolute;top:50%;left:50%;height:32px;width:auto;max-width:none;
+       transform:translate(-50%,-50%) rotate(-90deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+  /* Perforation = CERCLES PLEINS répétés au CONTACT talon(couleur) ↔ ticket(corps) : chaque trou est à cheval
+     sur le bord DROIT du talon (moitié dans la couleur, moitié dans le corps) = un cercle entier. PAS de
+     perforation à gauche (bord de carte). Portée par `.tk-card::after` (et non par le talon) pour ne PAS être
+     clippée par l'overflow du talon -> le cercle reste ENTIER. `left` = largeur talon (46px) − rayon (5px). */
+  .tk-card::after{content:"";position:absolute;top:0;bottom:0;left:41px;width:10px;z-index:5;pointer-events:none;
+       background:radial-gradient(circle 5px at 5px 11px,var(--bg) 96%,transparent) 0 -5px/10px 22px repeat-y}
+  .tk-body{flex:1;min-width:0;padding:13px 16px 13px 17px}
+  .tk-row{display:flex;align-items:center;gap:10px;min-width:0}
+  .tk-ell{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-eye{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .tk-badge{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.05em;
+       text-transform:uppercase;padding:4px 10px;border-radius:99px;border:1px solid rgba(120,150,190,.32);
+       color:#9db6d4;background:rgba(120,150,190,.08);white-space:nowrap}
+  .tk-badge.live{color:#ff8a8a;border-color:rgba(255,120,120,.5);background:rgba(255,120,120,.09)}
+  .tk-badge.live::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;animation:scpulse 1.4s ease-in-out infinite}
+  .tk-badge.won{color:#7fe6ab;border-color:rgba(52,210,123,.5);background:rgba(52,210,123,.1)}
+  .tk-badge.lost{color:#ff9d9d;border-color:rgba(255,120,120,.5);background:rgba(255,120,120,.1)}
+  .tk-badge.push{color:#a7b4c4;border-color:rgba(167,180,196,.3)}
+  .tk-match{margin-top:8px;font-size:18px;font-weight:900;letter-spacing:-.02em;color:#eef4fb;line-height:1.2}
+  .tk-sub{margin-top:3px;font-size:12.5px;color:#8fa2b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-rule{height:1px;background:rgba(255,255,255,.09);margin:11px 0}
+  .tk-sel{font-size:16px;font-weight:900;color:#fff;line-height:1.2}
+  .tk-sel.abst{color:var(--muted);font-weight:800;font-size:14.5px}
+  .tk-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:#5fd0ff}
+  .tk-odds i{font-style:normal;font-size:14px;font-weight:800;opacity:.8}
+  .tk-odds b{font-size:24px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .tk-score{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:7px;
+       background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);font-size:13px;font-weight:900;
+       color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.05em}
+  .tk-score.won{color:#8fe6b0;box-shadow:inset 0 0 0 1px rgba(52,210,123,.34)}
+  .tk-score.lost{color:#ff9d9d;box-shadow:inset 0 0 0 1px rgba(255,125,125,.32)}
+  .tk-score.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px rgba(255,200,80,.85);animation:scpulse 1.4s ease-in-out infinite}
+  .tk-mx{margin-top:8px;font-size:12px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-mx b{font-weight:900;color:#8fa4bd} .tk-mx b.c,.tk-mx b.pos{color:var(--st-won)} .tk-mx b.neg{color:var(--st-lost)} .tk-mx b.mut{color:#a7b4c4} .tk-mx .sep{color:#3a4a5e;margin:0 6px}
+  .tk-why{margin-top:11px;padding-left:12px;border-left:2px solid #3a9fe0}
+  .tk-why>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:900;color:#5fb4ee;white-space:nowrap}
+  .tk-why>summary::-webkit-details-marker{display:none}
+  .tk-chev{font-size:11px;transition:transform .18s} .tk-why[open] .tk-chev{transform:rotate(180deg)}
+  .tk-why ul{margin:7px 0 2px;padding:0;list-style:none}
+  .tk-why li{position:relative;padding-left:16px;margin:5px 0;font-size:12.5px;line-height:1.5;color:#c4d3e6;font-weight:500}
+  .tk-why li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#3a9fe0}
+  .tk-why li b{color:#eef4fb;font-weight:800}
+  .tk-foot{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
+  .tk-bc{flex:0 1 auto;min-width:0;height:30px;border-radius:2px;opacity:.85;overflow:hidden}
+  .tk-no{flex:none;margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.06em;color:#6f8394;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap}
+  /* Combiné : en-tête « <nom> · N jambes » à gauche + COTE tout à droite (même ligne) ; jambes dessous. */
+  .tk-cbo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;padding:9px 0;
+       border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
+  .tk-cbo-t{font-size:14.5px;font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .tk-cbo-n{color:#6f8299;font-weight:700}
+  .tk-cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
+  .tk-cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
+  .tk-cbo-ct b{font-size:19px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .tk-cbo-ct.won b{color:#8fe6b0} .tk-cbo-ct.lost b{color:#ff9d9d}
+  .tk-legs{min-width:0}
+  .tk-leg{padding:8px 0} .tk-leg+.tk-leg{border-top:1px dashed rgba(255,255,255,.1)}
+  .tk-leg-h{display:flex;align-items:center;gap:9px;min-width:0}
+  .tk-leg-s{font-size:13.5px;font-weight:900;color:var(--text)}
+  .tk-leg.lost .tk-leg-s{color:var(--muted)}
+  .tk-dot{flex:none;width:7px;height:7px;border-radius:50%;margin-right:7px;background:#3a9fe0;display:inline-block;vertical-align:middle}
+  .tk-dot.won{background:var(--st-won)} .tk-dot.lost{background:var(--st-lost)} .tk-dot.push{background:var(--st-void)}
+  .tk-leg-o{flex:none;display:inline-flex;align-items:baseline;gap:1px;color:#5fd0ff;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tk-leg-o i{font-style:normal;opacity:.75;font-weight:800;font-size:11px}
+  .tk-leg-sub{margin-top:2px;font-size:11.5px;color:#8fa2b8;font-weight:600}
+  .tk-leg-mx{margin-top:2px;font-size:11px;font-weight:700;color:#61748b;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tk-leg-mx b{font-weight:900;color:#8fa4bd} .tk-leg-mx b.c,.tk-leg-mx b.pos{color:var(--st-won)} .tk-leg-mx .sep{color:#3a4a5e;margin:0 5px}
+  .tk-chip{flex:none;display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:900;
+       background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09);color:var(--text);font-variant-numeric:tabular-nums}
+  .tk-chip.won{background:rgba(52,210,123,.1);color:#8fe6b0;box-shadow:inset 0 0 0 1px rgba(52,210,123,.34)}
+  .tk-chip.lost{background:rgba(255,125,125,.1);color:#ff9d9d;box-shadow:inset 0 0 0 1px rgba(255,125,125,.32)}
+  .tk-chip.live::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px rgba(255,200,80,.85);animation:scpulse 1.4s ease-in-out infinite;margin-right:4px}
   .mc-dash{color:#5f7a97;font-weight:600;margin:0 4px}
   /* Équipes = HÉROS de la carte (demande user 2026-07-14) : plus GRANDES (16 px) que le pari (14 px). */
   .mc-tg .mc-teams{font-size:15px;font-weight:800;color:#eef4fb;line-height:1.26;margin-top:10px;
@@ -10943,6 +11245,11 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     except Exception:
         _why_body = ""
     _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else rich_html
+    if _ticket_style():        # carte RÉSULTAT « néon premium » (maquette C validée) — cote encaissée centrée + tampon
+        return _tk_result_card(league=_league, match_txt=f"{_home} — {_away}",
+                               sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
+                               cote=_cote, cote_txt=_cote_txt, result=_res, conf_i=_cf_i,
+                               score_txt=_score_txt, when_txt=_when, seed=str(d.get("id") or f"{_home}{_away}"))
     return f'<div class="row pick mc ue{_rcls}">{_head}<div class="mc-body" hidden>{_uedetail}</div></div>'
 
 
@@ -10954,6 +11261,8 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     legs = cb.get("legs") or []
     if not legs:
         return ""
+    if _ticket_style():        # combiné en TICKET (signature BETSFIX + jambes en mini-tickets) — maquette E étendue
+        return _tk_combo_card(cb, title=title, sport=sport)
     # Jambes dans l'ordre du MATCH (coup d'envoi croissant) — user 2026-09-03. Tri d'AFFICHAGE seulement
     # (copie locale) : l'ordre stocké dans `cb["legs"]` et le règlement ne changent pas. ISO -> tri lexical = chrono.
     legs = sorted(legs, key=lambda l: str(l.get("start") or "~"))
@@ -11522,17 +11831,25 @@ def _sport_row(r: dict) -> str:
             # Les faits sous le pari : la carte repliée porte déjà tout le résumé. Le pli s'ouvre au tap sur LA
             # CARTE (chevron de carte + toggle mc-body standard). Repli sur l'analyse `ana` si aucun « Pourquoi ».
             _why_body = ""
+            _uwhy_text = ""
             if _pmid:
                 try:
-                    _why_body = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True),
-                                          "Pourquoi ce pari", bare=True)
+                    _uwhy_text = _prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)
+                    _why_body = _why_fold(_uwhy_text, "Pourquoi ce pari", bare=True)
                 except Exception:
-                    _why_body = ""
+                    _why_body = _uwhy_text = ""
             _uehead = _ue_head_html(
                 league=_uleague, when=_uwhen_disp, cote_txt=_ucote_txt,
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                 match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, score_live=is_live,
                 chev=True, abst=(_pb is None))
+            if _ticket_style():        # carte À VENIR / LIVE en TICKET (maquette E validée) — dédiée
+                return _tk_bet_card(
+                    league=_uleague, match_txt=_umatch, when_txt=_uwhen, time_txt=_uwhen_hm,
+                    sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
+                    cote_txt=_ucote_txt, metrics_html=_umx, why_text=_uwhy_text,
+                    rcls=_rcls, is_live=is_live, is_finished=is_finished, score_txt=_uscore_txt,
+                    abst=(_pb is None), seed=str(_pmid or _umatch))
             _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else f'{ana}{linkshtml}'
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')

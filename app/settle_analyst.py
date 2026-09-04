@@ -1932,11 +1932,28 @@ async def _settle_analyses_impl() -> int:
             _match = f"{d.get('home', '')} - {d.get('away', '')}"
             _sc = (d.get("result") or {}).get("score") or ""
             new_pick = (d.get("result") or {}).get("pick_result")
-            # ⚠️ VERDICT NOTIFIÉ = résultat du PARI JOUÉ (stat_bet via played_result), JAMAIS `pick_result`
-            # (résultat du pick BRUT de Claude, souvent un AUTRE marché — bug #1 récurrent : KAA Gent ou nul 1X
-            # GAGNÉ posté « CONFIANCE PERDUE » car pick_result notait un marché perdant, user 2026-09-03).
-            # `new_pick` reste le SIGNAL « match réglé » (déclencheur/flags) ; le MARK affiché suit le pari joué.
-            _played_mk = analyses.played_result(d) or new_pick
+            # ⚠️ VERDICT NOTIFIÉ = résultat du PARI JOUÉ SEULEMENT. ⛔ JAMAIS de repli sur `pick_result` (résultat
+            # du pick BRUT de Claude, souvent un AUTRE marché). `played_result` retombe INTERNEMENT sur pick_result
+            # tant que `stat_bet` n'est pas figé -> au moment du règlement, si le pari mécanique n'est pas ENCORE
+            # résolu, on postait l'INVERSE sur Telegram puis on figeait `notified_pick` (jamais corrigé) : le site
+            # lisait ensuite le `stat_bet` figé = l'autre verdict (bug user 2026-09-04, « Double chance Liverpool ou
+            # nul » GAGNÉ posté « CONFIANCE PERDUE » ; pick brut « Plus de 2.5 buts » = perdu).
+            # -> On lit le verdict du pari JOUÉ : `stat_bet` figé, sinon la sélection mécanique retrouvée dans les
+            # bets fraîchement réglés (`bets_out`). None => verdict du pari joué PAS ENCORE connu -> on NE POSTE PAS
+            # ce passage (ni flag figé) -> re-tenté automatiquement quand le pari mécanique se résout. `new_pick`
+            # reste le SIGNAL « match réglé » (déclencheur), mais NE dicte PLUS le verdict affiché.
+            if (d.get("combo") or {}).get("legs"):
+                _played_mk = (d.get("combo") or {}).get("result")   # combiné : verdict global (comme played_result)
+            else:
+                _sb_now = d.get("stat_bet") if isinstance(d.get("stat_bet"), dict) else None
+                if _sb_now and _sb_now.get("result") in ("won", "lost", "push", "void"):
+                    _played_mk = _sb_now.get("result")
+                else:
+                    _pbx = analyses.retained_bet(sport, mid, for_history=True) or {}
+                    _psel = analyses._norm_sel(_pbx.get("sel", "")) if _pbx else ""
+                    _played_mk = next((bb.get("result") for bb in bets_out
+                                       if _psel and analyses._norm_sel(bb.get("sel", "")) == _psel
+                                       and bb.get("result") in ("won", "lost", "push", "void")), None)
             new_combo = (d.get("combo") or {}).get("result")
             _parts = []
             _card_simple = _card_combo = None   # données carte image (résultat simple / combiné)
@@ -1959,8 +1976,10 @@ async def _settle_analyses_impl() -> int:
                     isinstance(d.get("stat_bet"), dict) or analyses.retained_bet(sport, mid) is not None)
                 if not _simple_shown:
                     d["notified_pick"] = True   # non affiché/non-foot -> rien à envoyer, on FIGE tout de suite
-                if _simple_shown:
-                    _flags_to_set.append("notified_pick")   # affiché -> figé APRÈS envoi réussi
+                elif _played_mk is None:
+                    pass   # verdict du pari JOUÉ pas encore connu -> on NE POSTE PAS et on NE FIGE PAS -> retry auto
+                if _simple_shown and _played_mk is not None:
+                    _flags_to_set.append("notified_pick")   # affiché + verdict du pari joué connu -> figé APRÈS envoi
                     _m = _MARK.get(_played_mk, "")   # ✅/❌ du PARI JOUÉ (played_result), pas du pick brut
                     _raw = (d.get("pick") or "").strip()
                     # LIBELLÉ + COTE = pari MÉCANIQUE JOUÉ (stat_bet figé / retained), PAS le pick brut de
