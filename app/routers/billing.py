@@ -43,9 +43,11 @@ def _config() -> dict:
     from app.config import get_settings
     pub = (os.environ.get("BETSFIX_PUBLIC_URL") or cfg.get("public_url")
            or get_settings().public_url or "https://api.betsfix.com")
+    mp = os.environ.get("STRIPE_MANAGED_PAYMENTS") or cfg.get("managed_payments")
+    managed = mp is True or str(mp).strip().lower() in ("1", "true", "yes", "on")
     return {"secret_key": g("secret_key"), "price_id": g("price_id"),
             "publishable_key": g("publishable_key"), "webhook_secret": g("webhook_secret"),
-            "public_url": pub.rstrip("/")}
+            "public_url": pub.rstrip("/"), "managed_payments": managed}
 
 
 def _stripe():
@@ -93,7 +95,7 @@ async def subscribe(request: Request):
     cfg = _config()
     u = accounts.get_user(email) or {}
     try:
-        sess = s.checkout.Session.create(
+        params = dict(
             mode="subscription",
             line_items=[{"price": cfg["price_id"], "quantity": 1}],
             customer=u.get("stripe_customer") or None,
@@ -104,6 +106,12 @@ async def subscribe(request: Request):
             success_url=f"{cfg['public_url']}/billing/success?cs={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{cfg['public_url']}/compte",
         )
+        # Managed Payments (Stripe = vendeur officiel, gère la TVA/fraude/support). Ajouté SEULEMENT si
+        # activé en config (data/stripe.json "managed_payments":true) ET activé côté compte Stripe + ToS
+        # acceptée, sinon Stripe rejette la création. Le webhook checkout.session.completed active pareil.
+        if cfg.get("managed_payments"):
+            params["managed_payments"] = {"enabled": True}
+        sess = s.checkout.Session.create(**params)
         return RedirectResponse(sess.url, status_code=303)
     except Exception as exc:                           # erreur Stripe -> on ne casse pas l'UX
         log.warning("stripe subscribe: %s", exc)
