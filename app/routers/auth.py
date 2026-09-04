@@ -22,41 +22,90 @@ def _base_url(request: Request) -> str:
     return env or str(request.base_url).rstrip("/")
 
 
+# --------------------------------------------------------------------------- template email de marque
+# Emails transactionnels HABILLÉS BETSFIX : table + styles INLINE (compat clients mail, y compris Outlook),
+# carte sombre premium cohérente avec l'app. Pas d'image distante (robuste + le PC peut être down) : wordmark
+# en texte. `color-scheme` évite que le mode sombre des clients réinvente les couleurs.
+_MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"
+
+
+def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
+    pre = (f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0b0d12">'
+           f'{_html.escape(preheader)}</div>' if preheader else "")
+    return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
+<body style="margin:0;padding:0;background:#0b0d12">{pre}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0d12;padding:28px 14px">
+<tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#0f1621;border:1px solid #1e2a3a;border-radius:16px">
+<tr><td style="padding:22px 26px 4px">
+<div style="font:800 20px/1 {_MAIL_FONT};letter-spacing:.06em;color:#eaf4ff">BETS<span style="color:#22b8ff">FIX</span></div>
+<div style="font:600 10px/1.4 {_MAIL_FONT};color:#6f8299;margin-top:5px;letter-spacing:.12em">PRONOSTICS FOOTBALL · DONNÉES VÉRIFIÉES</div>
+</td></tr>
+<tr><td style="padding:16px 26px 24px">
+<h1 style="font:800 22px/1.25 {_MAIL_FONT};color:#eaf4ff;margin:0 0 12px">{heading}</h1>
+{inner}
+</td></tr>
+<tr><td style="padding:15px 26px;background:#0b1119;border-top:1px solid #1e2a3a;border-radius:0 0 16px 16px">
+<div style="font:400 11px/1.55 {_MAIL_FONT};color:#5f7288">
+BETSFIX · <a href="https://betsfix.com" style="color:#5fd0ff;text-decoration:none">betsfix.com</a><br>
+Tu reçois cet email suite à une action sur ton compte BETSFIX. Les stats et résultats restent publics ; joue responsable — 18+.</div>
+</td></tr></table></td></tr></table></body></html>"""
+
+
+def _email_button(href: str, label: str) -> str:
+    return (f'<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 18px"><tr>'
+            f'<td style="border-radius:12px;background:#22b8ff">'
+            f'<a href="{href}" style="display:inline-block;padding:13px 24px;font:700 15px/1 {_MAIL_FONT};'
+            f'color:#04121c;text-decoration:none;border-radius:12px">{label}</a></td></tr></table>')
+
+
 def _send_reset_email(request: Request, email: str) -> None:
     token = accounts.make_reset_token(email)
     if not token:                                  # compte inconnu -> on n'envoie rien (anti-énumération)
         return
     link = f"{_base_url(request)}/reset?token={_html.escape(token)}"
+    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
+             'Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe. '
+             'Ce lien expire dans <b style="color:#eaf4ff">1 heure</b>.</p>'
+             f'{_email_button(link, "Choisir un nouveau mot de passe")}'
+             f'<p style="font:400 12px/1.5 {_MAIL_FONT};color:#6f8299;margin:0">'
+             "Si tu n'es pas à l'origine de cette demande, ignore simplement cet email.</p>")
     mailer.send(email, "Réinitialise ton mot de passe BETSFIX",
-                f"""<div style="font-family:system-ui,Arial;max-width:480px">
-<h2>Réinitialisation du mot de passe</h2>
-<p>Clique sur le lien ci-dessous pour choisir un nouveau mot de passe. Il expire dans 1 heure.</p>
-<p><a href="{link}" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Choisir un nouveau mot de passe</a></p>
-<p style="color:#666;font-size:13px">Si tu n'es pas à l'origine de cette demande, ignore cet email.</p></div>""",
+                _email_shell("Réinitialise ton mot de passe", inner,
+                             preheader="Lien de réinitialisation (valable 1 h)"),
                 text=f"Réinitialise ton mot de passe BETSFIX : {link} (valable 1 h).")
 
 
 def _send_verify_email(request: Request, email: str) -> None:
     token = accounts.make_verify_token(email)
     link = f"{_base_url(request)}/verify?token={_html.escape(token)}"
+    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
+             f'Confirme ton adresse pour sécuriser ton compte. Ton essai gratuit de '
+             f'<b style="color:#eaf4ff">{accounts.TRIAL_DAYS} jours</b> est déjà actif — profites-en pour '
+             'voir tous les pronos joués.</p>'
+             f'{_email_button(link, "Confirmer mon email")}')
     mailer.send(email, "Confirme ton email BETSFIX",
-                f"""<div style="font-family:system-ui,Arial;max-width:480px">
-<h2>Bienvenue sur BETSFIX 👋</h2>
-<p>Confirme ton adresse pour sécuriser ton compte. Ton essai gratuit de {accounts.TRIAL_DAYS} jours est déjà actif.</p>
-<p><a href="{link}" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Confirmer mon email</a></p></div>""",
+                _email_shell("Bienvenue sur BETSFIX 👋", inner,
+                             preheader="Confirme ton adresse pour sécuriser ton compte"),
                 text=f"Confirme ton email BETSFIX : {link}")
 
 
 def _send_code_email(request: Request, email: str, code: str) -> None:
     """Envoie le code à 6 chiffres (connexion sans mot de passe). Le sujet PORTE le code -> visible dès
     la notification, sans ouvrir l'email."""
+    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 18px">'
+             'Entre ce code pour te connecter à BETSFIX. Il expire dans '
+             '<b style="color:#eaf4ff">10 minutes</b>.</p>'
+             f'<div style="font:800 34px/1 {_MAIL_FONT};letter-spacing:12px;color:#06283c;background:#eaf3ff;'
+             'border:1px solid #cfe6ff;border-radius:12px;padding:20px 10px;text-align:center;margin:0 0 16px">'
+             f'{_html.escape(code)}</div>'
+             f'<p style="font:400 12px/1.5 {_MAIL_FONT};color:#6f8299;margin:0">'
+             "Si tu n'es pas à l'origine de cette demande, ignore simplement cet email.</p>")
     mailer.send(email, f"{code} — ton code de connexion BETSFIX",
-                f"""<div style="font-family:system-ui,Arial;max-width:480px">
-<h2>Ton code de connexion</h2>
-<p>Entre ce code pour accéder à BETSFIX. Il expire dans 10 minutes.</p>
-<div style="font-size:34px;font-weight:800;letter-spacing:10px;background:#0f1720;color:#fff;
-padding:16px 20px;border-radius:12px;text-align:center;margin:14px 0">{_html.escape(code)}</div>
-<p style="color:#666;font-size:13px">Si tu n'es pas à l'origine de cette demande, ignore cet email.</p></div>""",
+                _email_shell("Ton code de connexion", inner,
+                             preheader=f"Code : {code} (valable 10 minutes)"),
                 text=f"Ton code de connexion BETSFIX : {code} (valable 10 minutes).")
 
 # Le CSS du compte (scopé .acctwrap) est désormais GLOBAL dans web.py (toujours chargé) -> le contenu
