@@ -149,8 +149,8 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
     body = (f'<div class="tk-body">'
             f'<div class="tk-row">{_eye}{badge}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
-            f'{_sub}<div class="tk-rule"></div>'
-            f'<div class="tk-row"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
+            f'{_sub}'
+            f'<div class="tk-row tk-betrow"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
             f'{_mx}{_tk_foot(seed, right=_tk_datecode(start), why_text=("" if abst else why_text))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
@@ -186,8 +186,7 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
     body = (f'<div class="tk-body">'
             f'<div class="tk-row">{_eye}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
-            f'<div class="tk-rule"></div>'
-            f'<div class="tk-row"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
+            f'<div class="tk-row tk-betrow"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
             f'{_mx_h}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
     return f'<div class="tk-card tk-{rk}">{_tk_stub()}{body}</div>'
 
@@ -2525,14 +2524,14 @@ CSS = """
   /* Contour = MÊME DÉGRADÉ que le talon (accord parfait ; verdict scannable sans badge) — user 2026-09-05.
      Technique padding-box/border-box : le dégradé remplit le bord tout en respectant les coins arrondis
      (impossible avec border-image + border-radius). Bord transparent + 2 couches de fond. */
-  .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;
+  .tk-card{--tkedge:rgba(69,160,218,.6);position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;
        box-sizing:border-box;max-width:100%;border:1.5px solid transparent;
        background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5ab6f0,#2f7fc4) border-box;
        box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
-  .tk-card.tk-live{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ffd66a,#f6a11e) border-box}
-  .tk-card.tk-won{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5be79b,#28b268) border-box}
-  .tk-card.tk-lost{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ff9d9d,#e14a4a) border-box}
-  .tk-card.tk-push{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#b9c6d6,#8a9bb0) border-box}
+  .tk-card.tk-live{--tkedge:rgba(251,190,68,.65);background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ffd66a,#f6a11e) border-box}
+  .tk-card.tk-won{--tkedge:rgba(65,205,130,.65);background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5be79b,#28b268) border-box}
+  .tk-card.tk-lost{--tkedge:rgba(240,115,115,.65);background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ff9d9d,#e14a4a) border-box}
+  .tk-card.tk-push{--tkedge:rgba(161,176,195,.55);background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#b9c6d6,#8a9bb0) border-box}
   /* Talon = fond COLORÉ par le statut (derrière le logo). Logo en couleurs d'origine + ombre portée pour
      rester lisible sur la couleur. Encoches (perforation) au bord droit = séparation ticket. */
   .tk-stub{position:relative;flex:none;width:46px;background:linear-gradient(180deg,#5ab6f0,#2f7fc4);overflow:hidden}
@@ -2550,8 +2549,10 @@ CSS = """
      clippée par l'overflow du talon -> le cercle reste ENTIER. `left` = largeur talon (46px) − rayon (5px). */
   /* `0 center` (au lieu de `0 -5px`) : la trame de trous est ANCRÉE AU MILIEU puis répétée symétriquement
      -> l'écart au bord HAUT du cadre = l'écart au bord BAS, quelle que soit la hauteur de carte (user 2026-09-04). */
+  /* Anneau coloré (--tkedge, teinte du statut) autour de chaque trou -> la « bordure » suit AUSSI la perforation
+     (user 2026-09-05) : trou = fond de page, cerclé de la couleur du bord. */
   .tk-card::after{content:"";position:absolute;top:0;bottom:0;left:41px;width:10px;z-index:5;pointer-events:none;
-       background:radial-gradient(circle 5px at 5px 11px,var(--bg) 96%,transparent) 0 center/10px 22px repeat-y}
+       background:radial-gradient(circle 5px at 5px 11px,var(--bg) 66%,var(--tkedge) 72%,var(--tkedge) 82%,transparent 90%) 0 center/10px 22px repeat-y}
   .tk-body{flex:1;min-width:0;padding:13px 16px 13px 17px}
   .tk-row{display:flex;align-items:center;gap:10px;min-width:0}
   .tk-ell{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2569,6 +2570,7 @@ CSS = """
   .tk-match{margin-top:7px;font-size:15px;font-weight:700;letter-spacing:-.01em;color:#a9bccf;line-height:1.25}
   .tk-sub{margin-top:3px;font-size:12.5px;color:#8fa2b8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-rule{height:1px;background:rgba(255,255,255,.09);margin:11px 0}
+  .tk-betrow{margin-top:10px}   /* espacement à la place de l'ancien filet équipes/pari (retiré, user 2026-09-05) */
   /* `.tk-sel` NE grandit PAS (flex 0 1 auto) -> la cote reste COLLÉE au pari à jouer (user 2026-09-04)
      au lieu d'être poussée tout à droite ; ellipsis conservée si le pari est trop long. */
   .tk-sel{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
