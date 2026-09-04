@@ -257,7 +257,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   `extra_key`). `POST /auth/code` (envoie, throttle 5/15min) → page 6 cases (auto-avance/coller/auto-valide)
   → `POST /auth/verify` (anti-force-brute email+IP, `ensure_user` crée le compte+essai, `email_verified=1`).
   ⚠️ SMS volontairement écarté (coût récurrent) : même UX, canal EMAIL gratuit. Mémoire `email-code-passwordless-auth`.
-  **Reste à faire** : câbler Stripe aux tiers, choisir un SMTP, héberger hors PC. Mémoire `auth-subscription-scale-foundation`.
+  **Reste à faire** : câbler Stripe aux tiers ; **[EN COURS]** brancher SMTP **Brevo** (attente creds user →
+  poser `BETSFIX_SMTP_*` + relance API) ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
+  décidé 2026-09-04) : projet dédié **BETSFIX** `xlmahadeeodkkxlplgrw` (org WTF, eu-central-1) **préparé**, table
+  `public.users` = miroir de userdb (RLS ON), à ACTIVER au déménagement hors-PC (free tier se met en pause si
+  inactif). Auth maison CONSERVÉE (pas de Supabase Auth). Mémoire `auth-subscription-scale-foundation`.
 - **Filet de survie site** : Cloudflare Worker `betsfix-failover` devant `api.betsfix.com` sert un snapshot
   **KV** si le PC est down. `deploy/snapshot_to_kv.py` (tâche `BETSFIX-KV-Snapshot`, 30 min) + `deploy/worker/`.
   Jeton en env user `BETSFIX_KV_*`. Mémoire `cloudflare-kv-snapshot-failover`.
