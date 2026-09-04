@@ -40,10 +40,12 @@ def _config() -> dict:
     except (OSError, ValueError):
         cfg = {}
     g = lambda k: os.environ.get("STRIPE_" + k.upper()) or cfg.get(k, "")  # noqa: E731
+    from app.config import get_settings
+    pub = (os.environ.get("BETSFIX_PUBLIC_URL") or cfg.get("public_url")
+           or get_settings().public_url or "https://api.betsfix.com")
     return {"secret_key": g("secret_key"), "price_id": g("price_id"),
             "publishable_key": g("publishable_key"), "webhook_secret": g("webhook_secret"),
-            "public_url": (os.environ.get("BETSFIX_PUBLIC_URL") or cfg.get("public_url")
-                           or "https://api.betsfix.com").rstrip("/")}
+            "public_url": pub.rstrip("/")}
 
 
 def _stripe():

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     mail_from: str = Field("", validation_alias="BETSFIX_MAIL_FROM")
     smtp_ssl: bool = Field(False, validation_alias="BETSFIX_SMTP_SSL")
 
+    # URL PUBLIQUE officielle (liens d'email, URLs de retour Stripe). Ex. https://betsfix.com. Vide = repli
+    # sur l'hôte de la requête (auth) / api.betsfix.com (billing). Lu depuis os.environ OU .env (via pydantic).
+    public_url: str = Field("", validation_alias="BETSFIX_PUBLIC_URL")
+
     # Cache et réseau
     cache_ttl_seconds: int = 120
     http_timeout: float = 20.0

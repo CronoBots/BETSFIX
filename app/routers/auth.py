@@ -17,9 +17,11 @@ router = APIRouter(tags=["🖥️ Interface (pages HTML)"])
 
 
 def _base_url(request: Request) -> str:
-    """Base publique pour les liens des emails (env prioritaire, sinon l'hôte de la requête)."""
-    env = (os.environ.get("BETSFIX_PUBLIC_URL") or "").strip().rstrip("/")
-    return env or str(request.base_url).rstrip("/")
+    """Base publique pour les liens des emails. Priorité : config.Settings.public_url (os.environ OU .env,
+    visible au process SYSTEM), sinon l'hôte de la requête."""
+    from app.config import get_settings
+    cfg = (get_settings().public_url or os.environ.get("BETSFIX_PUBLIC_URL") or "").strip().rstrip("/")
+    return cfg or str(request.base_url).rstrip("/")
 
 
 # --------------------------------------------------------------------------- template email de marque
