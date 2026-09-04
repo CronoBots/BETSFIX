@@ -1744,8 +1744,10 @@ def _deacc_gen(s: str) -> str:
 
 def _unibet_odds_map(offers: list, home: str, away: str) -> dict:
     """{code de règlement -> VRAIE cote Unibet} depuis les betOffers TEMPS PLEIN d'un match foot. Couvre les
-    marchés principaux : résultat (1X2/REGTIME), double chance, total de buts (match + équipe), BTTS. Les
-    marchés non couverts gardent la cote du LLM (repli). Lignes en milli-cote (1500 -> 1.5)."""
+    marchés principaux : résultat (1X2/REGTIME), double chance, total de buts (match + équipe), BTTS, et
+    HANDICAP asiatique 2-voies en LIGNE DEMIE (X.5, non ambiguë — user 2026-09-04 : les picks Confiance
+    « <équipe> +1.5 » avaient une cote fantôme faute de capture). Les marchés non couverts gardent la cote du
+    LLM (repli). Lignes en milli-cote (1500 -> 1.5)."""
     m: dict = {}
     dh, da = _deacc_gen(home), _deacc_gen(away)
 
@@ -1801,6 +1803,22 @@ def _unibet_odds_map(offers: list, home: str, away: str) -> dict:
                     if c is None or ln is None:
                         continue
                     m[f"TEAMTOT {side} {'OVER' if t == 'OT_OVER' else 'UNDER'} {ln / 1000.0:g}"] = c
+        elif cl == "handicap":
+            # HANDICAP ASIATIQUE 2-voies (OT_ONE=domicile, OT_TWO=extérieur ; `line` signée en milli). On NE
+            # capte QUE les lignes DEMIES (X.5) : un handicap ENTIER est ambigu (Asiatique remboursable vs
+            # 3-way) et le règlement diverge (cf. note code_from_pick). Codes alignés sur code_from_pick :
+            # « HCAP HOME -1.5 » / « HCAP AWAY +1.5 ».
+            for o in ocs:
+                ln, t, c = o.get("line"), o.get("type"), od(o)
+                if c is None or ln is None:
+                    continue
+                _sd = "HOME" if t == "OT_ONE" else ("AWAY" if t == "OT_TWO" else None)
+                if not _sd:
+                    continue
+                _v = ln / 1000.0
+                if _v == int(_v):                     # ligne ENTIÈRE (ambiguë) -> non captée
+                    continue
+                m[f"HCAP {_sd} {'+' if _v > 0 else ''}{_v:g}"] = c
     return m
 
 
