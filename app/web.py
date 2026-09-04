@@ -292,10 +292,15 @@ CSS = """
      les onglets, quelle que soit la longueur de la page (user 2026-08-22 : Résultats/Accueil, pages longues,
      avaient un fond dilué car le dégradé était sur le body dimensionné au contenu). PAS d'overflow:hidden
      (le body doit scroller, modèle CRYPTONAUTS). */
-  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;color-scheme:dark;
+  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;color-scheme:dark;background:var(--bg)}
+  /* HALOS en pseudo-élément FIXE au VIEWPORT (user 2026-09-04) : fond STRICTEMENT IDENTIQUE sur tous les
+     onglets, quelle que soit la hauteur de page. Avant, les halos étaient sur le fond `html` en
+     `background-attachment:scroll` (défaut) -> ancrés à la HAUTEUR DE PAGE (différente par onglet) -> le halo
+     bas-droite « at 100% 104% » tombait à un endroit différent selon l'onglet = fonds tous différents.
+     `attachment:fixed` étant ignoré par iOS Safari, on peint les halos dans un pseudo `position:fixed`. */
+  html::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
-                  radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
-                  var(--bg)}
+                  radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%)}
   /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
      standalone une ZONE NOIRE apparaissait sous la nav (home-indicator iOS). On peint cette bande, en FIXE,
      avec la couleur de la nav (#0b0d12), sous la barre (z<nav). */
