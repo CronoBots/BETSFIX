@@ -8418,8 +8418,10 @@ def _day_view(iso: str, sport: str | None = None) -> str:
 # Servie par le routeur `/` quand `not accounts.can_see_picks(request)`. Les abonnés/proprio gardent
 # le dashboard. PUREMENT AFFICHAGE — ne touche ni ROI, ni stats, ni calibration.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
-_LZ_SINCE = "2026-06-22"
-_LZ_SINCE_LABEL = "depuis le 22 juin"
+# Repli seulement (si le calcul échoue) : la vitrine affiche désormais TOUT le relevé Confiance officiel
+# (source = stats_full by_tier, cf. _lz_stats), et la plage réelle (« depuis le … ») est dérivée dynamiquement
+# du 1er pari confiance. Ce n'est plus une fenêtre d'affichage.
+_LZ_SINCE = "2026-06-08"
 
 _LZ_CSS = """
 @font-face{font-family:'Selawik';font-weight:400;font-style:normal;font-display:swap;
@@ -8751,72 +8753,58 @@ _LZ_ANIM_JS = (
 )
 
 
-def _lz_stats() -> dict:
-    """Chiffres DYNAMIQUES de la vitrine, calculés sur le relevé RÉEL (foot simple depuis _LZ_SINCE).
-    Tolérant : en cas d'échec, valeurs de repli sûres pour ne jamais faire planter la page."""
+_LZ_FR_MONTHS = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+                 "août", "septembre", "octobre", "novembre", "décembre"]
+
+
+def _lz_fr_date(iso: str) -> str:
+    """« 8 juin » depuis un ISO « 2026-06-08… » (pour les libellés de plage de la vitrine)."""
     try:
-        won = lost = 0
-        stake = ret = 0.0
-        losses = []
+        return f"{int(iso[8:10])} {_LZ_FR_MONTHS[int(iso[5:7])]}"
+    except (ValueError, IndexError, TypeError):
+        return iso or ""
+
+
+def _lz_stats() -> dict:
+    """Chiffres DYNAMIQUES de la vitrine. SOURCE DE VÉRITÉ UNIQUE = le tier CONFIANCE de `stats_full`
+    (le MÊME bloc que la page Résultats) -> l'Accueil affiche EXACTEMENT le relevé Confiance officiel, plus
+    de recalcul parallèle qui divergeait (l'ancien filtre `_LZ_SINCE` amputait 5 paris + série calculée à
+    part). Sélectivité et calibration restent calculées ici (indépendantes du tier). Plage de dates réelle
+    (1er pari) -> libellés dynamiques. Tolérant : repli sûr en cas d'échec, la page ne plante jamais."""
+    try:
+        conf = (analyses.stats_full().get("by_tier") or {}).get("confiance") or {}
+        won = conf.get("won") or 0
+        settled = conf.get("settled") or 0
+        recent = conf.get("recent") or []
+        # PERTES (date, nom nettoyé, cote) tirées de l'historique détaillé du MÊME tier -> cohérent au pari près.
+        losses = sorted((r.get("start", "")[:10], _noF(r.get("name") or ""), r.get("cote"))
+                        for r in recent if r.get("result") == "lost")
+        # SÉLECTIVITÉ (indépendante du tier) : % des matchs foot analysés qui finissent en abstention.
         analysed = retained = 0
-        _ev = []                             # (date, delta_profit) -> courbe d'équité du tier CONFIANCE
         for d in analyses.iter_meta("foot"):
-            if d.get("roi_void"):            # pari exclu du ROI/historique (correction) -> hors vitrine accueil
-                continue
-            st = (d.get("start") or "")
-            if st[:10] < _LZ_SINCE:
+            if d.get("roi_void"):
                 continue
             analysed += 1
             if d.get("bets"):
                 retained += 1
-            for b in (analyses.stat_bet(d),):   # UN MATCH = UN PARI (user 2026-08-07) : plus de stat_bet_first
-                if not isinstance(b, dict):
-                    continue
-                r = b.get("result")
-                if r not in ("won", "lost", "push"):
-                    continue
-                # VITRINE = tier CONFIANCE (le TAUX PHARE, user 2026-08-09) : on ne montre QUE les paris à haute
-                # confiance calibrée (figée -> monotone). Les paris VALUE (rentables, plus variables) sont un
-                # tier séparé, pas dans le taux phare. Réversible (TIER_SPLIT_ON=False -> tout confiance).
-                if analyses.tier_of(d) != "confiance":
-                    continue
-                co = b.get("cote") or b.get("odds") or 0
-                stake += 1
-                if r == "won":
-                    won += 1
-                    ret += co
-                    _ev.append((st[:10], (co or 1) - 1))
-                elif r == "lost":
-                    lost += 1
-                    losses.append((st[:10], _noF(d.get("name") or ""), co))
-                    _ev.append((st[:10], -1.0))
-                else:
-                    ret += 1
-                    _ev.append((st[:10], 0.0))
-        settled = won + lost
-        pct = round(100 * won / settled) if settled else 0
-        roi = round(100 * (ret - stake) / stake, 1) if stake else 0.0
         sel = round(100 * (analysed - retained) / analysed) if analysed else 0
-        _ev.sort(key=lambda x: x[0])         # courbe d'équité du tier CONFIANCE (profit cumulé, ordre des jours)
-        pts, _cum, best, _cur = [0.0], 0.0, 0, 0
-        for _, _dv in _ev:
-            _cum += _dv
-            pts.append(round(_cum, 2))
-            if _dv > 0:                      # gagné -> série ++ ; perdu -> reset ; push -> inchangé
-                _cur += 1
-                best = max(best, _cur)
-            elif _dv < 0:
-                _cur = 0
+        # Plage réelle (pour « depuis le … ») = 1er pari confiance daté.
+        dates = sorted(r.get("start", "")[:10] for r in recent if r.get("start"))
+        since = dates[0] if dates else _LZ_SINCE
         cal = analyses.calibration() or {}
         buckets = [r for r in (cal.get("rows") or [])
                    if r.get("lo", 0) >= 65 and (r.get("n") or 0) >= 20][:3]
-        return {"won": won, "total": settled, "pct": pct, "roi": roi,
-                "profit": round(ret - stake, 1), "losses": sorted(losses),
-                "sel": sel, "pts": pts, "best": best,
+        return {"won": won, "total": settled, "pct": conf.get("pct") or 0,
+                "roi": conf.get("roi") or 0.0, "profit": round(conf.get("profit") or 0.0, 1),
+                "losses": losses, "sel": sel, "pts": conf.get("points") or [0.0],
+                "best": conf.get("best_streak") or 0,
+                "since": since, "since_label": _lz_fr_date(since),
                 "cal_n": cal.get("n") or 0, "cal_mae": cal.get("mae"), "cal_rows": buckets}
     except Exception:
         return {"won": 39, "total": 42, "pct": 93, "roi": 19.0, "profit": 8.0, "losses": [],
-                "sel": 40, "pts": [0.0, 8.0], "best": 15, "cal_n": 5744, "cal_mae": 0.8, "cal_rows": []}
+                "sel": 40, "pts": [0.0, 8.0], "best": 15, "since": _LZ_SINCE,
+                "since_label": _lz_fr_date(_LZ_SINCE),
+                "cal_n": 5744, "cal_mae": 0.8, "cal_rows": []}
 
 
 def _lz_curve(pts: list) -> tuple:
@@ -8887,7 +8875,7 @@ def accueil_body(frag: bool = True) -> str:
         <path class="ln" d="{cd}"/>
         <circle class="ep" cx="{ex}" cy="{ey}" r="1.7"/>
       </svg>
-      <div class="hcurve-f"><span>7 juin</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
+      <div class="hcurve-f"><span>{e(s['since_label'])}</span><span class="mono">{prof_txt} · mise plate 1 u</span><span>aujourd'hui</span></div>
     </div>
     <div class="hkpis">
       <div class="hk"><b class="green num">{roi_txt}</b><span>rentabilité</span></div>
@@ -9021,7 +9009,7 @@ def accueil_body(frag: bool = True) -> str:
     <p>Un site qui n'affiche que ses gains vous ment. Ici, tout est daté — rien n'est caché, rien n'est effacé.</p></div>
   <div class="calib">
     <div>
-      <div class="pl-h"><b class="red">{s['total'] - s['won']} pertes</b> <span>· {_LZ_SINCE_LABEL}, cote comprise</span></div>
+      <div class="pl-h"><b class="red">{s['total'] - s['won']} pertes</b> <span>· depuis le {e(s['since_label'])}, cote comprise</span></div>
       <div class="lzl">{losses_html}</div>
     </div>
     <div>
