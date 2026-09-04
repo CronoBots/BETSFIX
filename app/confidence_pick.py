@@ -58,12 +58,17 @@ _BAN_MARKETS = frozenset({"Corners", "Les 2 marquent", "Premier but", "Mi-temps"
                           "Score exact", "Props joueur", "Arrêts gardien"})
 
 
-def match_candidates(d: dict, markets=None, exclude_markets=None) -> list[dict]:
+def match_candidates(d: dict, markets=None, exclude_markets=None, require_omap: bool = False) -> list[dict]:
     """Vivier de candidats d'un match (sidecar `d`) = fantômes `shadow` + pari retenu `bets`, dédup par
     (code), meilleure proba. Code RE-DÉRIVÉ du libellé (règlement à jour). `prob` en % (0-100).
     `markets` : familles AUTORISÉES (inclusion — défaut = MARKETS confiance DC/Handicap). Si `exclude_markets`
-    est fourni, mode « tous marchés SAUF ceux-là » (value profil B utilise exclude=_BAN_MARKETS)."""
+    est fourni, mode « tous marchés SAUF ceux-là » (value profil B utilise exclude=_BAN_MARKETS).
+    `require_omap` (user 2026-09-04) : n'accepte QUE les candidats dont la cote est VÉRIFIÉE (code présent dans
+    `d["omap"]` = vraie cote Unibet), JAMAIS une cote fantôme LLM — même principe que le combiné/la montante.
+    Match sans omap -> aucun candidat -> PASS (mieux que publier une cote non vérifiée). Défaut False (backtest
+    historique + value inchangés : l'omap n'est fiable qu'en forward, cf. omap-unibet-cote-capture)."""
     _mk = None if exclude_markets is not None else (MARKETS if markets is None else markets)
+    _om = (d.get("omap") or {}) if require_omap else None
     preds = list(d.get("shadow") or [])
     for b in (d.get("bets") or []):
         preds.append({"sel": b.get("sel"), "cote": b.get("odds") or b.get("cote"),
@@ -76,6 +81,8 @@ def match_candidates(d: dict, markets=None, exclude_markets=None) -> list[dict]:
                               d.get("home", ""), d.get("away", "")).strip()
         if not code or code in _BLOCK_CODES:
             continue
+        if _om is not None and code not in _om:
+            continue                                   # cote NON VÉRIFIÉE (absente de l'omap Unibet) -> exclue
         _m = analyses.market_of(code)
         if _mk is not None and _m not in _mk:
             continue
@@ -111,7 +118,7 @@ def pick_for_sidecar(d: dict) -> dict | None:
     """Le pari de confiance d'un match (sidecar déjà chargé), ou None."""
     if not CONFIDENCE_PICK_ON:
         return None
-    return pick_from_candidates(match_candidates(d))
+    return pick_from_candidates(match_candidates(d, require_omap=True))   # cote Unibet vérifiée obligatoire
 
 
 def pick_for_match(sport: str, match_id) -> dict | None:
@@ -145,7 +152,7 @@ def apply_to_sidecar(d: dict) -> bool:
         return False
     if isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"):
         return False                                   # déjà figé -> jamais re-prixé (comme published_bet)
-    c = pick_from_candidates(match_candidates(d))
+    c = pick_from_candidates(match_candidates(d, require_omap=True))   # PRODUCTION : cote Unibet vérifiée obligatoire
     if not c:
         return False
     d["confidence_bet"] = {"sel": c["sel"], "code": c["code"],
