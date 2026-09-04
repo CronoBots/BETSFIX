@@ -152,13 +152,10 @@ def _tk_bet_card(*, league: str, match_txt: str, when_txt: str, time_txt: str, s
     _odds = f'<span class="tk-odds"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx = f'<div class="tk-mx">{metrics_html}</div>' if metrics_html else ""
     _sel_cls = " abst" if abst else ""
-    # État du SCORE à droite de la ligne 1 : « FINAL » quand le match est terminé (le badge EN DIRECT porte
-    # déjà l'état live) — user 2026-09-05, pour savoir si le score est final ou en cours.
-    _state = '<span class="tk-state">FINAL</span>' if (is_finished and not is_live) else ""
-    # Badge de SCORE sur la MÊME ligne que la ligue (en haut à droite) — user 2026-09-04. Le « Pourquoi ce
-    # pari » + le code date/heure vivent dans le pied (code-barres pleine largeur).
+    # PAS de « FINAL » à côté du score (jugé redondant/bizarre, user 2026-09-05) : l'état est déjà porté par le
+    # contour + le badge EN DIRECT (live) / le talon coloré (terminé). Badge de SCORE en haut à droite (ligne ligue).
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{badge}{_sc}{_state}</div>'
+            f'<div class="tk-row">{_eye}{badge}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'{_sub}'
             f'<div class="tk-row tk-betrow"><span class="tk-sel{_sel_cls}">{e(sel_txt)}</span>{_odds}</div>'
@@ -193,11 +190,10 @@ def _tk_result_card(*, league: str, match_txt: str, sel_txt: str, cote, cote_txt
     # Cote collée à droite du pari, MÊME taille de police que le pari joué (`tk-odds-sel`).
     _odds = f'<span class="tk-odds tk-odds-sel"><i>@</i><b>{e(cote_txt)}</b></span>' if cote_txt else ""
     _mx_h = f'<div class="tk-mx">{_mx}</div>' if _mx else ""
-    _state = '<span class="tk-state">FINAL</span>'   # une carte résultat est toujours un match TERMINÉ
-    # PAS de badge GAGNÉ/PERDU : le talon coloré (vert/rouge) + le score l'indiquent déjà (user 2026-09-04).
-    # Pas de ligne de date « Aujourd'hui » non plus : remplacée par le CODE date/heure (AAAA·MMJJ·HHMM) en pied.
+    # PAS de badge GAGNÉ/PERDU ni de « FINAL » : le talon coloré (vert/rouge) + le score l'indiquent déjà (user 2026-09).
+    # Pas de ligne de date « Aujourd'hui » non plus : remplacée par le CODE date/heure en pied.
     body = (f'<div class="tk-body">'
-            f'<div class="tk-row">{_eye}{_sc}{_state}</div>'
+            f'<div class="tk-row">{_eye}{_sc}</div>'
             f'<div class="tk-row"><span class="tk-match tk-ell">{e(match_txt)}</span></div>'
             f'<div class="tk-row tk-betrow"><span class="tk-sel">{e(sel_txt)}</span>{_odds}</div>'
             f'{_mx_h}{_tk_gauge(conf_i)}{_tk_foot(seed, right=_tk_datecode(start))}</div>')
@@ -2587,7 +2583,12 @@ CSS = """
   .tk-betrow{margin-top:10px}   /* espacement à la place de l'ancien filet équipes/pari (retiré, user 2026-09-05) */
   /* Jauge de confiance (barre) + état du score « FINAL » — user 2026-09-05. */
   .tk-gauge{margin-top:8px;height:4px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
-  .tk-gauge>span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#34d27b,#5be79b)}
+  /* Jauge TEINTÉE par le statut (accord talon/bord) : plus de barre verte sur un résultat perdu rouge (user 2026-09-05). */
+  .tk-gauge>span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#3a9fe0,#5fb4ee)}
+  .tk-live .tk-gauge>span{background:linear-gradient(90deg,#f6a11e,#ffd66a)}
+  .tk-won  .tk-gauge>span{background:linear-gradient(90deg,#28b268,#5be79b)}
+  .tk-lost .tk-gauge>span{background:linear-gradient(90deg,#e14a4a,#ff9d9d)}
+  .tk-push .tk-gauge>span{background:linear-gradient(90deg,#8a9bb0,#b9c6d6)}
   .tk-state{flex:none;font-size:9px;font-weight:800;letter-spacing:.09em;color:#7d8ea3;text-transform:uppercase}
   /* `.tk-sel` NE grandit PAS (flex 0 1 auto) -> la cote reste COLLÉE au pari à jouer (user 2026-09-04)
      au lieu d'être poussée tout à droite ; ellipsis conservée si le pari est trop long. */
