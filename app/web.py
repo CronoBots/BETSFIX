@@ -92,12 +92,11 @@ def _tk_datecode(value) -> str:
     return dt.strftime("%d/%m/%Y · %Hh%M") if dt is not None else ""
 
 def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
-    """Pied du ticket : CODE-BARRES PLEINE LARGEUR avec la DATE/HEURE (ou n° de ticket) écrite DEDANS. Si
-    `why_text` est fourni, un bandeau « 💡 Pourquoi ce pari » (flèche de déploiement dans le coin DROIT) est
-    posé SOUS le code-barres et développe l'explication au clic (user 2026-09-04)."""
+    """Pied du ticket : HORODATAGE date/heure CENTRÉ, lisible (façon timestamp de ticket) — PLUS de code-barres
+    (user 2026-09-05 : l'idée date/heure est géniale, le code-barres non). Si `why_text` est fourni, un bandeau
+    « 💡 Pourquoi ce pari » (flèche dans le coin DROIT) est posé DESSOUS et développe l'explication au clic."""
     _code = html.escape(right) if right else _tk_no(seed)
-    _bc = (f'<div class="tk-bc" style="{_tk_barcode(seed)}">'
-           f'<span class="tk-bc-code">{_code}</span></div>')
+    _stamp = f'<div class="tk-stamp">{_code}</div>' if _code else ""
     _sents = _why_sentences(why_text) if why_text else []
     _why = ""
     if _sents:
@@ -105,7 +104,7 @@ def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
         _why = ('<details class="tk-whyd"><summary class="tk-why-bar" onclick="event.stopPropagation()">'
                 '💡 Pourquoi ce pari<span class="tk-chev">▾</span></summary>'
                 f'<div class="tk-why"><ul>{_ul}</ul></div></details>')
-    return f'<div class="tk-foot">{_bc}{_why}</div>'
+    return f'<div class="tk-foot">{_stamp}{_why}</div>'
 
 def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
@@ -2580,11 +2579,10 @@ CSS = """
   .tk-why li{position:relative;padding-left:16px;margin:5px 0;font-size:12.5px;line-height:1.5;color:#c4d3e6;font-weight:500}
   .tk-why li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#3a9fe0}
   .tk-why li b{color:#eef4fb;font-weight:800}
-  /* Pied : CODE-BARRES PLEINE LARGEUR (motif tuilé) avec la DATE/HEURE écrite DEDANS ; « Pourquoi ce pari »
-     posé DESSOUS, flèche de déploiement dans le coin DROIT (user 2026-09-04). */
+  /* Pied : HORODATAGE date/heure CENTRÉ (lisible, façon timestamp de ticket — PLUS de code-barres, user
+     2026-09-05) ; « Pourquoi ce pari » posé DESSOUS, flèche de déploiement dans le coin DROIT. */
   .tk-foot{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
-  .tk-bc{position:relative;width:100%;height:26px;border-radius:3px;opacity:.9;overflow:hidden;display:flex;align-items:center;justify-content:center}
-  .tk-bc-code{position:relative;z-index:1;font-size:11px;font-weight:800;letter-spacing:.16em;color:#c7d4e6;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:rgba(10,20,31,.74);padding:2px 10px;border-radius:4px;white-space:nowrap}
+  .tk-stamp{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.18em;color:#93a8bf;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-whyd{margin-top:9px}
   .tk-why-bar{display:flex;align-items:center;cursor:pointer;list-style:none;font-size:12.5px;font-weight:900;color:#5fb4ee}
   .tk-why-bar::-webkit-details-marker{display:none}
