@@ -264,6 +264,7 @@ async def auth_verify(request: Request, next: str = Form("/"), email: str = Form
                             status_code=401)
     accounts.note_login_ok(key)
     accounts.ensure_user(verified)                        # crée le compte + essai si nouveau
+    accounts.mark_verified(verified)                      # saisir un code reçu par mail PROUVE le contrôle de la boîte
     resp = RedirectResponse(nxt, status_code=303)
     _set_cookie(resp, verified)
     return resp
