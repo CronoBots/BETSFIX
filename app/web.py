@@ -2190,7 +2190,7 @@ CSS = """
   .ue-st{flex:none;font-size:11px;font-weight:800;color:#8fa4bd;font-variant-numeric:tabular-nums}
   .ue-st .cd{color:#5fd0ff} .ue-st.live{color:var(--gold)}
   .ue-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-width:0}
-  .ue-pk{font-size:15.5px;font-weight:900;letter-spacing:-.015em;line-height:1.22;color:#fff;min-width:0;overflow-wrap:anywhere}
+  .ue-pk{font-size:14.5px;font-weight:900;letter-spacing:-.015em;line-height:1.22;color:#fff;min-width:0;overflow-wrap:anywhere}   /* -1 (user 2026-09-04) */
   /* Cote « @ 1.38 » ACCENTUÉE (cyan), COLLÉE au pari (inline) — ressort au lieu d'un blanc plat (user 2026-09-03). */
   .ue-cote,.uel-ct{display:inline-flex;align-items:baseline;gap:1px;color:#5fd0ff;white-space:nowrap}
   .ue-cote i,.uel-ct i{font-style:normal;font-size:12px;font-weight:800;opacity:.75}
@@ -2228,20 +2228,15 @@ CSS = """
   .ue.cbo .mc-head{cursor:default;padding:0}
   /* En-tête = BANDEAU : titre + « · N sélections » COLLÉ au titre à gauche, COTE TOTALE en haut à droite
      (plus de colonne cote — user 2026-09-03). Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
-  .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-       padding:11px 15px;background:#0f1c28}   /* légèrement plus foncé que les jambes (#12212f) — user 2026-09-04 */
+  .cbo-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;
+       padding:11px 15px;background:#0f1c28}   /* titre CENTRÉ VERTICALEMENT (user 2026-09-04) ; fond légèrement plus foncé que les jambes */
   .cbo-l{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
-  .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
+  .cbo-ti{font-size:15.5px;font-weight:900;letter-spacing:.02em;color:#fff}   /* « Combiné du jour/soir » agrandi (user 2026-09-04) */
   .cbo-nb{font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
-  /* COTE totale : accent CYAN unifié avec les cotes de jambe (user 2026-09-04). Se colore vert/rouge + ✓/✗
-     dès que le combiné est réglé (verdict global d'un coup d'œil). */
+  /* COTE totale : couleur NEUTRE (label or, chiffre blanc) — inchangée par le résultat (user 2026-09-04). */
   .cbo-ct{flex:none;display:flex;align-items:baseline;gap:5px}
-  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:#5b7fa0;text-transform:uppercase}
-  .cbo-ct b{font-size:18px;font-weight:900;color:#5fd0ff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .cbo-v{font-size:14px;font-weight:900;margin-left:1px}
-  .cbo-ct.won b,.cbo-ct.won .cbo-v{color:var(--st-won)} .cbo-ct.won i{color:rgba(84,217,140,.7)}
-  .cbo-ct.lost b,.cbo-ct.lost .cbo-v{color:var(--st-lost)} .cbo-ct.lost i{color:rgba(255,125,125,.7)}
-  .cbo-ct.push b,.cbo-ct.push .cbo-v{color:var(--st-void)}
+  .cbo-ct i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--gold);text-transform:uppercase}
+  .cbo-ct b{font-size:18px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .cbo-legs{min-width:0;border-top:1px solid rgba(255,255,255,.08)}
   .uel{display:flex;min-width:0}
   .uel+.uel{border-top:1px solid rgba(255,255,255,.08)}   /* même séparation entre jambes */
@@ -2252,7 +2247,7 @@ CSS = """
   .uel.push .uel-n,.uel.void .uel-n{background:var(--st-void)}
   .uel-b{flex:1;min-width:0;padding:8px 12px 9px}   /* jambes plus DENSES (user 2026-09-04) */
   .uel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
-  .uel-sel{font-size:14.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}
+  .uel-sel{font-size:13.5px;font-weight:900;line-height:1.25;color:var(--text);overflow-wrap:anywhere;min-width:0}   /* -1 (user 2026-09-04) */
   .uel.lost .uel-sel{color:var(--muted)}
   /* COTE à droite du pari (même ligne) — style partagé avec `.ue-cote` (cyan « @ 1.38 »). */
   .uel-ct .uel-v{font-size:12px;font-weight:900;margin-left:3px}
@@ -11029,13 +11024,9 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     # « N sélections » COLLÉ au nom du combiné (gauche) ; COTE TOTALE en HAUT À DROITE — plus de colonne cote
     # (user 2026-09-03). Les jambes prennent toute la largeur.
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
-    # VERDICT GLOBAL dans l'en-tête (user 2026-09-04) : la COTE se colore + ✓/✗ dès que le combiné est réglé
-    # (vert gagné / rouge perdu / = remboursé). Lecture du résultat d'un coup d'œil, sans scanner les jambes.
-    _cv_cls, _cv_mk = {"won": ("won", "✓"), "lost": ("lost", "✗"),
-                       "push": ("push", "="), "void": ("push", "=")}.get(_res, ("", ""))
-    _cv_h = f'<span class="cbo-v">{_cv_mk}</span>' if _cv_mk else ""
-    _ct = (f'<span class="cbo-ct {_cv_cls}"><i>COTE</i><b>{e(_cote_txt)}</b>{_cv_h}</span>'
-           if _cote_txt else "")
+    # COTE globale = COULEUR NEUTRE (blanc), SANS ✓/✗ — user 2026-09-04 (le verdict reste porté par les
+    # gouttières + les scores teintés des jambes).
+    _ct = f'<span class="cbo-ct"><i>COTE</i><b>{e(_cote_txt)}</b></span>' if _cote_txt else ""
     _head = (f'<div class="mc-head"><div class="cbo-hd">'
              f'<div class="cbo-l"><span class="cbo-ti">{e(title)}</span><span class="cbo-nb">· {_nb}</span></div>'
              f'{_ct}</div>'
