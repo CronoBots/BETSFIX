@@ -270,7 +270,12 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   `_dmarc` TXT, posés dans Cloudflare DNS en « DNS only »). Expéditeur = **`BETSFIX <noreply@betsfix.com>`**
   (pas de boîte à créer, envoi seul). Envoi réel vérifié (site → code depuis noreply@betsfix.com, plus de repli
   outbox). Le sous-domaine « branded » Brevo (tracking links) reste NON configuré = optionnel.
-  **Reste à faire** : câbler Stripe aux tiers ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
+  **Stripe = MANAGED PAYMENTS** (décidé 2026-09-04, user « Stripe gère toute la TVA ») : Stripe = merchant of
+  record, collecte+reverse+déclare la TVA (+3,5%/transaction) ; code prêt (`billing.py`, flag `managed_payments`
+  dans `data/stripe.json`), abo **9,99€/mois**, setup **sandbox EN COURS** (attend `sk_test_`/`price_`/`whsec_`
+  du user + activation MP + code taxe éligible). ⚠️ MP ne dispense PAS le user de déclarer son REVENU (fisc
+  belge + statut). Mémoire `stripe-billing-managed-payments`.
+  **Reste à faire** : finir Stripe (sandbox → live) ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
   décidé 2026-09-04) : projet dédié **BETSFIX** `xlmahadeeodkkxlplgrw` (org WTF, eu-central-1) **préparé**, table
   `public.users` = miroir de userdb (RLS ON), à ACTIVER au déménagement hors-PC (free tier se met en pause si
   inactif). Auth maison CONSERVÉE (pas de Supabase Auth). Mémoire `auth-subscription-scale-foundation`.
