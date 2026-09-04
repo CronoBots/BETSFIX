@@ -95,11 +95,15 @@ def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
     """Pied du ticket, façon vrai ticket : CODE-BARRES pleine largeur (propre, sans texte dessus) + la DATE/HEURE
     lisible imprimée JUSTE EN DESSOUS, centrée (user 2026-09-05 : garder le code-barres ET la date/heure, mais
     SÉPARÉS). Si `why_text` est fourni, un bandeau « 💡 Pourquoi ce pari » (flèche coin DROIT) est posé dessous."""
-    # Ce sont les BARRES du code-barres qui donnent le cachet (user 2026-09-05) — PAS de chiffres de série. Sous
-    # les barres : juste l'HEURE lisible si fournie (l'idée date/heure validée), sinon les barres seules suffisent.
+    # Vrai look de code-barres (user 2026-09-05) : BARRES pleine largeur + son numéro « HRI » (human-readable)
+    # collé JUSTE DESSOUS, intégrant l'HEURE lisible + un n° de série déterministe -> ensemble réaliste (façon
+    # ticket de paris / EAN). L'heure fait partie du code (pas des chiffres « seuls »).
     _bc = f'<div class="tk-bc" style="{_tk_barcode(seed)}"></div>'
-    _time = html.escape(right) if right else ""
-    _stamp = f'<div class="tk-stamp"><span class="tk-stamp-t">{_time}</span></div>' if _time else ""
+    _h = hashlib.md5((seed or "betsfix").encode("utf-8")).hexdigest()
+    _serial = f'{int(_h[0:4], 16) % 10000:04d} {int(_h[4:8], 16) % 10000:04d}'
+    _hri = f'BX {right.upper()} {_serial}' if right else f'BX {_serial}'
+    _code = (f'<div class="tk-code">{_bc}'
+             f'<div class="tk-hri">{html.escape(_hri)}</div></div>')
     _sents = _why_sentences(why_text) if why_text else []
     _why = ""
     if _sents:
@@ -107,7 +111,7 @@ def _tk_foot(seed: str, right: str = "", why_text: str = "") -> str:
         _why = ('<details class="tk-whyd"><summary class="tk-why-bar" onclick="event.stopPropagation()">'
                 '💡 Pourquoi ce pari<span class="tk-chev">▾</span></summary>'
                 f'<div class="tk-why"><ul>{_ul}</ul></div></details>')
-    return f'<div class="tk-foot">{_bc}{_stamp}{_why}</div>'
+    return f'<div class="tk-foot">{_code}{_why}</div>'
 
 def _tk_why(text: str, label: str = "Pourquoi ce pari") -> str:
     """« Pourquoi ce pari » repliable (accent cyan, puces) intégré au ticket. '' si pas de texte."""
@@ -2594,10 +2598,9 @@ CSS = """
   /* Pied : BARRES du code-barres (le cachet, user 2026-09-05) pleine largeur + HEURE lisible dessous ;
      « Pourquoi ce pari » posé DESSOUS, flèche de déploiement dans le coin DROIT. */
   .tk-foot{margin-top:13px;padding-top:11px;border-top:1px dashed rgba(233,242,255,.14)}
-  .tk-bc{width:100%;height:26px;border-radius:3px;opacity:.9;overflow:hidden}
-  .tk-stamp{text-align:center;margin-top:7px;font-size:12px;letter-spacing:.16em;font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .tk-stamp-t{color:#c7d4e6;font-weight:900}
-  .tk-stamp-n{color:#6f8394;font-weight:700}
+  .tk-bc{width:100%;height:32px;border-radius:3px 3px 0 0;opacity:.92;overflow:hidden}
+  /* HRI = numéro lisible collé SOUS les barres (comme un vrai code-barres) : monospace, espacé, discret. */
+  .tk-hri{margin-top:3px;text-align:center;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;font-weight:700;letter-spacing:.26em;text-indent:.26em;color:#8ea3ba;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tk-whyd{margin-top:9px}
   .tk-why-bar{display:flex;align-items:center;cursor:pointer;list-style:none;font-size:12.5px;font-weight:900;color:#5fb4ee}
   .tk-why-bar::-webkit-details-marker{display:none}
