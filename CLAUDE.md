@@ -257,8 +257,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   `extra_key`). `POST /auth/code` (envoie, throttle 5/15min) → page 6 cases (auto-avance/coller/auto-valide)
   → `POST /auth/verify` (anti-force-brute email+IP, `ensure_user` crée le compte+essai, `email_verified=1`).
   ⚠️ SMS volontairement écarté (coût récurrent) : même UX, canal EMAIL gratuit. Mémoire `email-code-passwordless-auth`.
-  **Reste à faire** : câbler Stripe aux tiers ; **[EN COURS]** brancher SMTP **Brevo** (attente creds user →
-  poser `BETSFIX_SMTP_*` + relance API) ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
+  **SMTP = Brevo BRANCHÉ** (2026-09-04) : identifiants dans `.env` (gitignoré), lus via `config.Settings`
+  (alias `BETSFIX_SMTP_*`) — PAS `os.environ` (invisible au SYSTEM). From = `BETSFIX <vincent-buron@hotmail.com>`.
+  Envoi réel vérifié (site → code par mail, plus de repli outbox). Free 300 mails/j. Domaine `@betsfix.com` à
+  authentifier (DNS) plus tard pour une meilleure délivrabilité + envoyer depuis `noreply@betsfix.com`.
+  **Reste à faire** : câbler Stripe aux tiers ; héberger hors PC. **Plateforme comptes = Supabase** (pas Firebase,
   décidé 2026-09-04) : projet dédié **BETSFIX** `xlmahadeeodkkxlplgrw` (org WTF, eu-central-1) **préparé**, table
   `public.users` = miroir de userdb (RLS ON), à ACTIVER au déménagement hors-PC (free tier se met en pause si
   inactif). Auth maison CONSERVÉE (pas de Supabase Auth). Mémoire `auth-subscription-scale-foundation`.
