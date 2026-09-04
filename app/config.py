@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,17 @@ class Settings(BaseSettings):
     # passer en prose Claude (Haiku par défaut, ~bon marché en cache).
     anthropic_api_key: str = ""
     analysis_model: str = "claude-haiku-4-5-20251001"
+
+    # Emails transactionnels (codes de connexion 6 chiffres, reset mot de passe). SMTP provider-agnostique
+    # (Brevo par défaut). Alias BETSFIX_SMTP_* = contrat documenté (mailer.py / CLAUDE.md). pydantic lit ces
+    # clés depuis os.environ OU .env -> le process SYSTEM (uvicorn) les voit via le fichier .env, sans avoir à
+    # poser de variable au niveau Machine. Vide = repli data/outbox/*.eml (aucun envoi, jamais d'erreur).
+    smtp_host: str = Field("", validation_alias="BETSFIX_SMTP_HOST")
+    smtp_port: int = Field(587, validation_alias="BETSFIX_SMTP_PORT")
+    smtp_user: str = Field("", validation_alias="BETSFIX_SMTP_USER")
+    smtp_pass: str = Field("", validation_alias="BETSFIX_SMTP_PASS")
+    mail_from: str = Field("", validation_alias="BETSFIX_MAIL_FROM")
+    smtp_ssl: bool = Field(False, validation_alias="BETSFIX_SMTP_SSL")
 
     # Cache et réseau
     cache_ttl_seconds: int = 120

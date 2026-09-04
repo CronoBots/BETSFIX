@@ -27,14 +27,18 @@ _OUTBOX = os.path.join(_ROOT, "data", "outbox")
 
 
 def _cfg() -> dict:
-    g = lambda k, d="": (os.environ.get("BETSFIX_" + k) or d).strip()  # noqa: E731
-    host = g("SMTP_HOST")
-    user = g("SMTP_USER")
+    # Source = config.Settings (pydantic), qui lit les clés BETSFIX_SMTP_* depuis os.environ OU .env : le
+    # process SYSTEM (uvicorn) les voit via le fichier .env, sans variable Machine ni élévation. (Avant, ce
+    # module lisait os.environ directement -> invisible au SYSTEM qui n'a que le .env.)
+    from app.config import get_settings
+    s = get_settings()
+    host = (s.smtp_host or "").strip()
+    user = (s.smtp_user or "").strip()
     return {
-        "host": host, "user": user, "pass": g("SMTP_PASS"),
-        "port": int(g("SMTP_PORT", "587") or 587),
-        "from": g("MAIL_FROM") or user or "no-reply@betsfix.com",
-        "ssl": g("SMTP_SSL") in ("1", "true", "on", "yes"),
+        "host": host, "user": user, "pass": (s.smtp_pass or "").strip(),
+        "port": int(s.smtp_port or 587),
+        "from": (s.mail_from or "").strip() or user or "no-reply@betsfix.com",
+        "ssl": bool(s.smtp_ssl) or int(s.smtp_port or 587) == 465,
     }
 
 
