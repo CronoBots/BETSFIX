@@ -27,11 +27,26 @@ def _base_url(request: Request) -> str:
 # carte sombre premium cohérente avec l'app. Pas d'image distante (robuste + le PC peut être down) : wordmark
 # en texte. `color-scheme` évite que le mode sombre des clients réinvente les couleurs.
 _MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_WORDMARK = os.path.join(_ROOT, "static", "wordmark.png")
+_LOGO_CID = "bxlogo"
+
+
+def _mail_images() -> dict:
+    """Images à embarquer (CID) dans les emails : le wordmark en en-tête. Vide si le fichier manque."""
+    return {_LOGO_CID: _WORDMARK} if os.path.exists(_WORDMARK) else {}
 
 
 def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
     pre = (f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0b0d12">'
            f'{_html.escape(preheader)}</div>' if preheader else "")
+    # Logo embarqué (CID) si présent, sinon repli wordmark texte (jamais d'image cassée).
+    if os.path.exists(_WORDMARK):
+        brand = (f'<img src="cid:{_LOGO_CID}" width="193" height="32" alt="BETSFIX" '
+                 'style="display:block;height:32px;width:193px;border:0;outline:none;text-decoration:none">')
+    else:
+        brand = (f'<div style="font:800 20px/1 {_MAIL_FONT};letter-spacing:.06em;color:#eaf4ff">'
+                 'BETS<span style="color:#22b8ff">FIX</span></div>')
     return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
@@ -39,12 +54,12 @@ def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0d12;padding:28px 14px">
 <tr><td align="center">
 <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#0f1621;border:1px solid #1e2a3a;border-radius:16px">
-<tr><td style="padding:22px 26px 4px">
-<div style="font:800 20px/1 {_MAIL_FONT};letter-spacing:.06em;color:#eaf4ff">BETS<span style="color:#22b8ff">FIX</span></div>
-<div style="font:600 10px/1.4 {_MAIL_FONT};color:#6f8299;margin-top:5px;letter-spacing:.12em">PRONOSTICS FOOTBALL · DONNÉES VÉRIFIÉES</div>
+<tr><td style="padding:24px 26px 0">{brand}
+<div style="font:600 10px/1.4 {_MAIL_FONT};color:#6f8299;margin-top:9px;letter-spacing:.14em">PRONOSTICS FOOTBALL · DONNÉES VÉRIFIÉES</div>
 </td></tr>
-<tr><td style="padding:16px 26px 24px">
-<h1 style="font:800 22px/1.25 {_MAIL_FONT};color:#eaf4ff;margin:0 0 12px">{heading}</h1>
+<tr><td style="padding:14px 26px 0"><div style="height:2px;font-size:0;line-height:0;border-radius:2px;background:#22b8ff;background:linear-gradient(90deg,#22b8ff,#34d27b)">&nbsp;</div></td></tr>
+<tr><td style="padding:18px 26px 24px">
+<h1 style="font:800 22px/1.28 {_MAIL_FONT};color:#eaf4ff;margin:0 0 12px">{heading}</h1>
 {inner}
 </td></tr>
 <tr><td style="padding:15px 26px;background:#0b1119;border-top:1px solid #1e2a3a;border-radius:0 0 16px 16px">
@@ -66,7 +81,7 @@ def _send_reset_email(request: Request, email: str) -> None:
     if not token:                                  # compte inconnu -> on n'envoie rien (anti-énumération)
         return
     link = f"{_base_url(request)}/reset?token={_html.escape(token)}"
-    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
+    inner = (f'<p style="font:400 15px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
              'Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe. '
              'Ce lien expire dans <b style="color:#eaf4ff">1 heure</b>.</p>'
              f'{_email_button(link, "Choisir un nouveau mot de passe")}'
@@ -75,13 +90,14 @@ def _send_reset_email(request: Request, email: str) -> None:
     mailer.send(email, "Réinitialise ton mot de passe BETSFIX",
                 _email_shell("Réinitialise ton mot de passe", inner,
                              preheader="Lien de réinitialisation (valable 1 h)"),
-                text=f"Réinitialise ton mot de passe BETSFIX : {link} (valable 1 h).")
+                text=f"Réinitialise ton mot de passe BETSFIX : {link} (valable 1 h).",
+                inline_images=_mail_images())
 
 
 def _send_verify_email(request: Request, email: str) -> None:
     token = accounts.make_verify_token(email)
     link = f"{_base_url(request)}/verify?token={_html.escape(token)}"
-    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
+    inner = (f'<p style="font:400 15px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 6px">'
              f'Confirme ton adresse pour sécuriser ton compte. Ton essai gratuit de '
              f'<b style="color:#eaf4ff">{accounts.TRIAL_DAYS} jours</b> est déjà actif — profites-en pour '
              'voir tous les pronos joués.</p>'
@@ -89,13 +105,14 @@ def _send_verify_email(request: Request, email: str) -> None:
     mailer.send(email, "Confirme ton email BETSFIX",
                 _email_shell("Bienvenue sur BETSFIX 👋", inner,
                              preheader="Confirme ton adresse pour sécuriser ton compte"),
-                text=f"Confirme ton email BETSFIX : {link}")
+                text=f"Confirme ton email BETSFIX : {link}",
+                inline_images=_mail_images())
 
 
 def _send_code_email(request: Request, email: str, code: str) -> None:
     """Envoie le code à 6 chiffres (connexion sans mot de passe). Le sujet PORTE le code -> visible dès
     la notification, sans ouvrir l'email."""
-    inner = (f'<p style="font:400 14px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 18px">'
+    inner = (f'<p style="font:400 15px/1.6 {_MAIL_FONT};color:#a7bcd6;margin:0 0 18px">'
              'Entre ce code pour te connecter à BETSFIX. Il expire dans '
              '<b style="color:#eaf4ff">10 minutes</b>.</p>'
              f'<div style="font:800 34px/1 {_MAIL_FONT};letter-spacing:12px;color:#06283c;background:#eaf3ff;'
@@ -106,7 +123,8 @@ def _send_code_email(request: Request, email: str, code: str) -> None:
     mailer.send(email, f"{code} — ton code de connexion BETSFIX",
                 _email_shell("Ton code de connexion", inner,
                              preheader=f"Code : {code} (valable 10 minutes)"),
-                text=f"Ton code de connexion BETSFIX : {code} (valable 10 minutes).")
+                text=f"Ton code de connexion BETSFIX : {code} (valable 10 minutes).",
+                inline_images=_mail_images())
 
 # Le CSS du compte (scopé .acctwrap) est désormais GLOBAL dans web.py (toujours chargé) -> le contenu
 # marche aussi bien en page pleine qu'en FRAGMENT injecté dans le panneau SPA.

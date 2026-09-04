@@ -60,8 +60,11 @@ def _outbox_write(to: str, subject: str, body: str) -> None:
         print(f"[mailer] échec écriture outbox : {exc}")
 
 
-def send(to: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Envoie un email. True si remis au SMTP, False si repli outbox / erreur. Ne lève jamais."""
+def send(to: str, subject: str, html: str, text: str | None = None,
+         inline_images: dict | None = None) -> bool:
+    """Envoie un email. True si remis au SMTP, False si repli outbox / erreur. Ne lève jamais.
+    `inline_images` = {cid: chemin_fichier} -> images EMBARQUÉES (CID), référencées par `src="cid:<cid>"`
+    dans le HTML. Méthode fiable multi-clients (Gmail/Apple/Outlook) pour un logo, sans image distante."""
     if not configured():
         _outbox_write(to, subject, text or html)
         return False
@@ -72,6 +75,16 @@ def send(to: str, subject: str, html: str, text: str | None = None) -> bool:
     msg["Subject"] = subject
     msg.set_content(text or "Votre client email ne supporte pas le HTML.")
     msg.add_alternative(html, subtype="html")
+    if inline_images:
+        html_part = msg.get_payload()[-1]              # la partie text/html (après le text/plain)
+        for cid, path in inline_images.items():
+            try:
+                with open(path, "rb") as fh:
+                    data = fh.read()
+                subtype = (os.path.splitext(path)[1].lstrip(".").lower() or "png")
+                html_part.add_related(data, maintype="image", subtype=subtype, cid=f"<{cid}>")
+            except OSError:
+                pass                                   # image absente -> on n'attache rien (jamais d'erreur)
     try:
         if c["ssl"] or c["port"] == 465:
             with smtplib.SMTP_SSL(c["host"], c["port"], timeout=20,
