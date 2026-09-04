@@ -43,7 +43,7 @@ def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
     # Logo embarqué (CID) si présent, sinon repli wordmark texte (jamais d'image cassée).
     if os.path.exists(_WORDMARK):
         brand = (f'<img src="cid:{_LOGO_CID}" width="193" height="32" alt="BETSFIX" '
-                 'style="display:block;height:32px;width:193px;border:0;outline:none;text-decoration:none">')
+                 'style="display:inline-block;height:32px;width:193px;border:0;outline:none;text-decoration:none">')
     else:
         brand = (f'<div style="font:800 20px/1 {_MAIL_FONT};letter-spacing:.06em;color:#eaf4ff">'
                  'BETS<span style="color:#22b8ff">FIX</span></div>')
@@ -54,23 +54,23 @@ def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0d12;padding:28px 14px">
 <tr><td align="center">
 <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#0f1621;border:1px solid #1e2a3a;border-radius:16px">
-<tr><td style="padding:24px 26px 0">{brand}
-<div style="font:600 10px/1.4 {_MAIL_FONT};color:#6f8299;margin-top:9px;letter-spacing:.14em">PRONOSTICS FOOTBALL · DONNÉES VÉRIFIÉES</div>
+<tr><td align="center" style="padding:26px 26px 0;text-align:center">{brand}
+<div style="font:600 10px/1.4 {_MAIL_FONT};color:#6f8299;margin-top:10px;letter-spacing:.14em">PRONOSTICS FOOTBALL · DONNÉES VÉRIFIÉES</div>
 </td></tr>
-<tr><td style="padding:14px 26px 0"><div style="height:2px;font-size:0;line-height:0;border-radius:2px;background:#22b8ff;background:linear-gradient(90deg,#22b8ff,#34d27b)">&nbsp;</div></td></tr>
-<tr><td style="padding:18px 26px 24px">
+<tr><td align="center" style="padding:16px 26px 0"><div style="width:64px;height:3px;margin:0 auto;font-size:0;line-height:0;border-radius:3px;background:#22b8ff;background:linear-gradient(90deg,#22b8ff,#34d27b)">&nbsp;</div></td></tr>
+<tr><td align="center" style="padding:18px 26px 26px;text-align:center">
 <h1 style="font:800 22px/1.28 {_MAIL_FONT};color:#eaf4ff;margin:0 0 12px">{heading}</h1>
 {inner}
 </td></tr>
-<tr><td style="padding:15px 26px;background:#0b1119;border-top:1px solid #1e2a3a;border-radius:0 0 16px 16px">
-<div style="font:400 11px/1.55 {_MAIL_FONT};color:#5f7288">
-BETSFIX · <a href="https://api.betsfix.com" style="color:#5fd0ff;text-decoration:none">betsfix.com</a><br>
-Tu reçois cet email suite à une action sur ton compte BETSFIX. Les stats et résultats restent publics ; joue responsable — 18+.</div>
+<tr><td align="center" style="padding:15px 26px;background:#0b1119;border-top:1px solid #1e2a3a;border-radius:0 0 16px 16px;text-align:center">
+<div style="font:400 11px/1.6 {_MAIL_FONT};color:#5f7288">
+© BETSFIX · <a href="https://api.betsfix.com" style="color:#5fd0ff;text-decoration:none">betsfix.com</a><br>
+Email automatique lié à ton compte — merci de ne pas y répondre.</div>
 </td></tr></table></td></tr></table></body></html>"""
 
 
 def _email_button(href: str, label: str) -> str:
-    return (f'<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 18px"><tr>'
+    return (f'<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:6px auto 18px"><tr>'
             f'<td style="border-radius:12px;background:#22b8ff">'
             f'<a href="{href}" style="display:inline-block;padding:13px 24px;font:700 15px/1 {_MAIL_FONT};'
             f'color:#04121c;text-decoration:none;border-radius:12px">{label}</a></td></tr></table>')
