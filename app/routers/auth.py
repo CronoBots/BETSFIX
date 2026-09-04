@@ -64,7 +64,7 @@ def _email_shell(heading: str, inner: str, preheader: str = "") -> str:
 </td></tr>
 <tr><td style="padding:15px 26px;background:#0b1119;border-top:1px solid #1e2a3a;border-radius:0 0 16px 16px">
 <div style="font:400 11px/1.55 {_MAIL_FONT};color:#5f7288">
-BETSFIX · <a href="https://betsfix.com" style="color:#5fd0ff;text-decoration:none">betsfix.com</a><br>
+BETSFIX · <a href="https://api.betsfix.com" style="color:#5fd0ff;text-decoration:none">betsfix.com</a><br>
 Tu reçois cet email suite à une action sur ton compte BETSFIX. Les stats et résultats restent publics ; joue responsable — 18+.</div>
 </td></tr></table></td></tr></table></body></html>"""
 
