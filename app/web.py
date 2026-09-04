@@ -2530,11 +2530,7 @@ CSS = """
   .tk-card{position:relative;display:flex;margin:11px 0;border-radius:16px;overflow:hidden;
        box-sizing:border-box;max-width:100%;border:1.5px solid transparent;
        background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5ab6f0,#2f7fc4) border-box;
-       box-shadow:0 16px 36px -24px rgba(0,0,0,.95);
-       -webkit-mask:radial-gradient(circle 6px at 46px 0,#0000 0 6px,#000 6.5px),radial-gradient(circle 6px at 46px 100%,#0000 0 6px,#000 6.5px);
-       -webkit-mask-composite:source-in;
-       mask:radial-gradient(circle 6px at 46px 0,#0000 0 6px,#000 6.5px),radial-gradient(circle 6px at 46px 100%,#0000 0 6px,#000 6.5px);
-       mask-composite:intersect}
+       box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
   .tk-card.tk-live{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ffd66a,#f6a11e) border-box}
   .tk-card.tk-won{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#5be79b,#28b268) border-box}
   .tk-card.tk-lost{background:linear-gradient(#0d1a27,#0d1a27) padding-box,linear-gradient(180deg,#ff9d9d,#e14a4a) border-box}
