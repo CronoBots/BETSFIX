@@ -337,6 +337,10 @@ CSS = """
           Sur le body même, ils s'affichent toujours. Le body ne scrolle pas (.wrap scrolle) ->
           le dégradé reste fixe visuellement. */
        background:transparent;}   /* le dégradé (halos) est sur HTML = canvas fixé au viewport (voir plus haut) */
+  /* Bannière « Installer l'app » ouverte : elle est fixée AU-DESSUS de la barre du bas (bottom≈74px) et
+     recouvrait le dernier contenu (audit UX 2026-09-04 : dernière étape/puce cachée dessous). On réserve la
+     hauteur de la bannière en plus de celle de la barre. Togglé par le JS a2hs (classe posée à show/hide). */
+  body.a2hs-open{padding-bottom:calc(150px + env(safe-area-inset-bottom, 0px))}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
   /* Accessibilité clavier (audit 2026-09-02) : anneau de focus VISIBLE au clavier UNIQUEMENT
      (:focus-visible) — jamais au tap/souris, donc 0 changement pour l'usage tactile normal.
@@ -633,8 +637,10 @@ CSS = """
             box-shadow:0 6px 18px var(--glow)}
   /* Sous-menu par sport (Matchs / Fiabilité) */
   .subnav{display:flex;gap:6px;margin:16px 0 2px}
+  /* Inactifs plus lisibles (audit UX 2026-09-04) : texte relevé + léger fond de segment -> on voit que
+     c'est un contrôle cliquable (avant : gris sombre presque invisible sur fond sombre). */
   .subnav a{flex:1;text-align:center;padding:9px;border-radius:11px;font-size:12.5px;
-            font-weight:700;color:var(--muted);background:transparent;
+            font-weight:700;color:#b4bccb;background:rgba(255,255,255,.03);
             border:1px solid var(--border);transition:.16s}
   .subnav a.on{color:var(--text);background:var(--surface2);border-color:var(--border2)}
   /* En-tête de page sport : titre + lien fiabilité (le changement de sport = barre du bas) */
@@ -3706,6 +3712,7 @@ CSS = """
        color:var(--muted);margin-top:5px}
   .mcal-eq{margin:12px 0 4px}
   .mcal-eq .sx-heroc{max-height:none;width:100%;height:auto}   /* pleine largeur, MÊME rendu que les courbes Stats */
+  .mcal-eq-cap{text-align:center;font-size:10.5px;font-weight:600;color:var(--muted);margin-top:3px}
   .mcal-sum-kpis{display:flex;gap:8px;margin-top:12px}
   .mcal-sum-kpis>div{flex:1;text-align:center;background:rgba(255,255,255,.04);border:1px solid var(--border);
        border-radius:12px;padding:9px 4px}
@@ -4386,8 +4393,10 @@ _A2HS_JS = (
     # FERMETURE ✕ = SILENCE PERSISTANT 21 jours (user 2026-08-27 : « apparaît tout le temps au démarrage »).
     # Avant : sessionStorage -> revenait à chaque visite. Maintenant snooze localStorage daté -> plus de harcèlement.
     "var sn=parseInt(lget('a2hs_snooze')||'0',10);if(sn&&Date.now()<sn)return;"
-    "function show(){el.hidden=false;requestAnimationFrame(function(){el.classList.add('show');});}"
-    "function hide(snooze){el.classList.remove('show');setTimeout(function(){el.hidden=true;},320);"
+    "function show(){el.hidden=false;document.body.classList.add('a2hs-open');"        # réserve la place sous la bannière
+    "requestAnimationFrame(function(){el.classList.add('show');});}"
+    "function hide(snooze){el.classList.remove('show');document.body.classList.remove('a2hs-open');"
+    "setTimeout(function(){el.hidden=true;},320);"
     "if(snooze)lset('a2hs_snooze',String(Date.now()+21*864e5));}"
     "function done(){lset('bfx_installed','1');hide(false);}"   # installée (accept/appinstalled) -> mémorise DÉFINITIVEMENT
     "function arm(){var dfd=null;"
@@ -8443,7 +8452,10 @@ _LZ_CSS = """
   -webkit-font-smoothing:antialiased}
 .lz *{box-sizing:border-box}
 .lz .lzw{max-width:1040px;margin:0 auto;padding:0}
-.lz h1,.lz h2,.lz h3{margin:0;text-wrap:balance;letter-spacing:-.02em;line-height:1.06}
+/* Titres en INK (blanc cassé) : sans ça ils héritaient d'une règle globale `h2` grise = même ton que le
+   corps -> le titre censé accrocher devenait le texte le plus faible du bloc (audit UX 2026-09-04). Le gris
+   reste réservé au corps (.sec-head p / .lede). Les gradients/verts spécifiques (.big, .hl) gardent priorité. */
+.lz h1,.lz h2,.lz h3{margin:0;text-wrap:balance;letter-spacing:-.02em;line-height:1.06;color:var(--ink)}
 .lz p{margin:0}.lz a{color:inherit;text-decoration:none}
 .lz .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
 .lz .mono{font-family:var(--mono)}
@@ -8708,14 +8720,14 @@ _LZ_CSS = """
 .lz .hhead::after{content:"";display:block;width:70px;height:3px;border-radius:3px;margin:18px auto 0;
   background:linear-gradient(90deg,var(--accent),var(--accent2))}
 .lz .hproof{display:flex;align-items:center;justify-content:center;gap:18px;margin:26px 0 28px;text-align:left}
-.lz .hpnum{position:relative;display:inline-flex;align-items:flex-start;line-height:.82}
+.lz .hpnum{position:relative;display:inline-flex;align-items:flex-end;line-height:.82}
 .lz .hpnum::before{content:"";position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);
   width:150%;height:175%;z-index:0;pointer-events:none;
   background:radial-gradient(50% 55% at 50% 50%,rgba(34,184,255,.20),transparent 70%);filter:blur(4px)}
 .lz .hpnum .big{position:relative;z-index:1;font-weight:800;font-size:clamp(62px,17vw,98px);letter-spacing:-.045em;
   background:linear-gradient(178deg,#fff 4%,#e2f0ff 30%,var(--accent2) 66%,var(--accent) 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 26px rgba(34,184,255,.3))}
-.lz .hpnum .pct{position:relative;z-index:1;font-weight:800;font-size:clamp(22px,5vw,34px);color:var(--accent);margin-top:.3em;margin-left:.03em}
+.lz .hpnum .pct{position:relative;z-index:1;font-weight:800;font-size:clamp(22px,5vw,34px);color:var(--accent);margin-bottom:.12em;margin-left:.04em}
 .lz .hptxt{font-size:14.5px;color:var(--dim);line-height:1.4;max-width:19ch}
 .lz .hptxt b{color:var(--ink);font-weight:700}.lz .hptxt .hpdim{color:var(--faint);font-size:12.5px}
 /* Typo éditoriale : titres posés, plus d'air */
@@ -9738,7 +9750,10 @@ def _render_calendar(ym: str = "") -> str:
            f'{"" if _next_disabled else f" data-cal={chr(34)}{next_ym}{chr(34)}"} aria-label="Mois suivant">›</button>'
            f'</div>')
     # Bilan du mois (ROI héros + courbe d'équité + jours gagnants/paris + meilleure journée).
-    _eq = (f'<div class="mcal-eq sx-equity">{_hero_chart(_eq_pts, uid="mcaleq")}</div>'
+    # Légende sous la courbe (audit UX 2026-09-04) : dissocie le grand % « réussite » (vert) du bénéfice
+    # CUMULÉ tracé (qui peut plonger en rouge) -> plus de juxtaposition « 67% vert / courbe rouge » déroutante.
+    _eq = (f'<div class="mcal-eq sx-equity">{_hero_chart(_eq_pts, uid="mcaleq")}'
+           f'<div class="mcal-eq-cap">Bénéfice cumulé du mois · mise plate 1 u</div></div>'
            if len(_eq_pts) >= 3 else "")
     summ = (f'<div class="mcal-sum{" neg" if _rcls == "neg" else ""}">'
             f'<div class="mcal-sum-hero mcal-{_rcls}">{_mhit}%'
