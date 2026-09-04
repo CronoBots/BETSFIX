@@ -2171,6 +2171,8 @@ CSS = """
   /* ===== STYLE E — liste plate (user 2026-09-03, flag BETSFIX_CARD_STYLE). Structure demandée :
      ligue (eyebrow) · PARI + cote à droite · équipes + heure · Confiance·Edge·Value. Rail gauche = statut,
      pas de badge Gagné/Perdu. Combiné : chaque jambe = même structure + sa cote ; cote totale en en-tête. ===== */
+  /* Fond LÉGS de combiné = #12212f ; carte SIMPLE + 1re ligne (bandeau) du combiné = PLUS FONCÉ (user 2026-09-04). */
+  .row.mc.ue:not(.cbo){background:#0c1723}
   .row.mc.ue{position:relative;background:#12212f;border:1px solid rgba(255,255,255,.08);border-radius:13px;
        overflow:hidden;box-shadow:0 10px 26px -20px rgba(0,0,0,.9);margin:9px 0;box-sizing:border-box;max-width:100%}
   /* Colonne de STATUT à gauche (user 2026-09-03) : bande colorée par le résultat, PLUS un « bord » fin — même
@@ -2223,7 +2225,7 @@ CSS = """
   /* En-tête = BANDEAU : titre + « · N sélections » COLLÉ au titre à gauche, COTE TOTALE en haut à droite
      (plus de colonne cote — user 2026-09-03). Pas d'état « À venir » (rail gauche + marqueurs par jambe). */
   .cbo-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-       padding:11px 15px;background:rgba(255,255,255,.035)}
+       padding:11px 15px;background:#0c1723}   /* bandeau PLUS FONCÉ que les jambes (#12212f) — user 2026-09-04 */
   .cbo-l{display:flex;align-items:baseline;gap:6px;min-width:0;flex-wrap:wrap}
   .cbo-ti{font-size:14px;font-weight:900;letter-spacing:.02em;color:#fff}
   .cbo-nb{font-size:11.5px;color:#6f8299;font-weight:700;white-space:nowrap}
@@ -2779,6 +2781,7 @@ CSS = """
   .dcd-day{font-size:17px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
   .dcd-dot{width:7px;height:7px;border-radius:50%;margin-top:4px}
   .dcd-dot.pos{background:#54d98c;box-shadow:0 0 8px rgba(84,217,140,.7)}
+  .dcd-dot.warn{background:#ffcb50;box-shadow:0 0 8px rgba(255,203,80,.65)}   /* > la moitié gagnés (user 2026-09-04) */
   .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
   .dcd-dot.neu{background:#9aa6b4}
   .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
@@ -6148,7 +6151,7 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix", bare: bool = False) -
     _sents = _why_sentences(t) or [t]
     _lis = "".join(f"<li>{html.escape(s)}</li>" for s in _sents)
     if bare:
-        return f'<div class="why-h">💡 {html.escape(label)}</div><ul class="why-ul">{_lis}</ul>'
+        return f'<div class="why-h">{html.escape(label)}</div><ul class="why-ul">{_lis}</ul>'
     return ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" '
             'onclick="event.stopPropagation()">' + html.escape(label)
             + '<span class="cleg-chev">▾</span></summary>'
@@ -7462,20 +7465,24 @@ def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -
     except (ValueError, TypeError):
         sel = today
     rmap = _daily_results_map()                            # TOUS paris réglés -> pilote la CLIQUABILITÉ du jour
-    cmap = _daily_conf_results_map()                       # CONFIANCE seule -> pilote la COULEUR de la pastille
+    amap = _daily_all_results_map()                        # Confiance+Value+Combiné -> COULEUR de la pastille
     cells = []
     for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
         dd = today - timedelta(days=i)
         di = dd.isoformat()
         st = rmap.get(di) or {}
         settled = st.get("settled", 0)                     # activité TOUS paris (clic/emphase)
-        # PASTILLE = CONFIANCE UNIQUEMENT (user 2026-08-30) : vert/rouge/neutre selon le net ROI des seuls paris
-        # de Confiance du jour. Un jour SANS confiance réglée (que de la Value, un combiné…) -> pas de point coloré,
-        # même s'il reste cliquable (l'activité TOUS-paris ci-dessus garde le jour actif).
-        cst = cmap.get(di) or {}
-        c_settled, c_profit = cst.get("settled", 0), cst.get("profit", 0.0)
-        if c_settled:                                      # pastille = net ROI des CONFIANCES
-            dcls = "pos" if c_profit > 1e-9 else ("neg" if c_profit < -1e-9 else "neu")
+        # PASTILLE = Confiance + Value + Combiné, par TAUX DE RÉUSSITE (user 2026-09-04) : VERT si TOUT gagné,
+        # JAUNE si > la moitié gagnés, ROUGE sinon. Un jour sans pari décisif réglé -> pas de point coloré.
+        ast_ = amap.get(di) or {}
+        a_settled, a_won = ast_.get("settled", 0), ast_.get("won", 0)
+        if a_settled:
+            if a_won >= a_settled:                         # tout gagné -> vert
+                dcls = "pos"
+            elif a_won * 2 > a_settled:                    # > la moitié -> jaune
+                dcls = "warn"
+            else:                                          # la moitié ou moins -> rouge
+                dcls = "neg"
             dot = f'<span class="dcd-dot {dcls}"></span>'
         else:
             dot = '<span class="dcd-dot none"></span>'
@@ -7562,6 +7569,28 @@ def _daily_results_map() -> dict:
     # Le ROI = SIMPLES football uniquement (cohérent avec stats_full.overall qui exclut déjà les combinés).
     # Les combinés restent AFFICHÉS comme joués (cartes, ✓/✗) — info seule, jamais au ROI.
     _DRM_CACHE.update(ts=_now, map=res)
+    return res
+
+
+def _daily_all_results_map() -> dict:
+    """Confiance + Value (simples, via `_daily_results_map`) + COMBINÉS du jour, won/settled par JOUR SPORTIF.
+    Pilote la COULEUR de la pastille du calendrier horizontal (user 2026-09-04) : vert si TOUT gagné, jaune si
+    > la moitié gagnés, rouge sinon. Foot only. Lecture seule (hors ROI/calibration — les combinés restent
+    hors ROI, ce map ne sert QU'À la teinte de la frise)."""
+    res = {k: dict(v) for k, v in _daily_results_map().items()}     # confiance + value (copie mutable)
+    try:
+        from app import combo_daily
+        _bg = analyses.background_sports()
+        for day, cb in combo_daily.load().items():
+            if not isinstance(cb, dict) or (cb.get("sport") or "foot") in _bg:
+                continue
+            if cb.get("result") not in ("won", "lost"):             # non tranché / remboursé -> neutre (ignoré)
+                continue
+            e = res.setdefault(str(day), {"won": 0, "settled": 0, "profit": 0.0})
+            e["settled"] += 1
+            e["won"] += 1 if cb.get("result") == "won" else 0
+    except Exception:
+        pass
     return res
 
 
