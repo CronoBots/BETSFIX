@@ -544,6 +544,10 @@ CSS = """
   .botnav a[data-tab="directs"].on .nav-radar::before{opacity:.3}
   /* SPA : panneaux par onglet (tout chargé à l'ouverture,
   bascule sans rechargement) */
+  /* CLIP horizontal (user 2026-09-04) : la transition de tab glisse le panneau via translateX(28px) -> ~12px
+     de débordement horizontal transitoire (décalage visuel à chaque changement d'onglet). `overflow-x:clip`
+     le rogne SANS créer de conteneur de scroll (contrairement à `hidden`, qui forcerait overflow-y:auto). */
+  #panels{overflow-x:clip}
   .panel{display:none}
   .panel.on{display:block;animation:panein .22s cubic-bezier(.22,.85,.3,1)}
   /* Transition DIRECTIONNELLE au changement d'onglet (clic OU swipe, user 2026-08-22) : le panneau entrant
