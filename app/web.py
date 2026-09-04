@@ -7571,22 +7571,22 @@ def _daily_results_map() -> dict:
 
 
 def _daily_all_results_map() -> dict:
-    """Confiance + Value (simples, via `_daily_results_map`) + COMBINÉS du jour, won/settled par JOUR SPORTIF.
-    Pilote la COULEUR de la pastille du calendrier horizontal (user 2026-09-04) : vert si TOUT gagné, jaune si
-    > la moitié gagnés, rouge sinon. Foot only. Lecture seule (hors ROI/calibration — les combinés restent
-    hors ROI, ce map ne sert QU'À la teinte de la frise)."""
+    """Confiance + Value (simples, via `_daily_results_map`) + COMBINÉS, won/settled par JOUR SPORTIF. Pilote la
+    COULEUR de la pastille du calendrier horizontal (user 2026-09-04) : vert si TOUT gagné, jaune si > la moitié
+    gagnés, rouge sinon. ⚠️ Combinés lus depuis `analyses.combo_stats().recent` (le track OFFICIEL, filtré
+    `_COMBO_STATS_FROM` + dédup) — PAS `combo_daily.load()` qui contient des combinés fantômes hors bilan (ex.
+    14/08 dans le store brut mais ABSENT du track officiel → il gonflait la pastille à tort). Lecture seule."""
     res = {k: dict(v) for k, v in _daily_results_map().items()}     # confiance + value (copie mutable)
     try:
-        from app import combo_daily
-        _bg = analyses.background_sports()
-        for day, cb in combo_daily.load().items():
-            if not isinstance(cb, dict) or (cb.get("sport") or "foot") in _bg:
+        for _c in (analyses.combo_stats().get("recent") or []):
+            if not isinstance(_c, dict) or _c.get("result") not in ("won", "lost"):
                 continue
-            if cb.get("result") not in ("won", "lost"):             # non tranché / remboursé -> neutre (ignoré)
+            _cd = str(_c.get("start") or "")[:10]
+            if not _cd:
                 continue
-            e = res.setdefault(str(day), {"won": 0, "settled": 0, "profit": 0.0})
+            e = res.setdefault(_cd, {"won": 0, "settled": 0, "profit": 0.0})
             e["settled"] += 1
-            e["won"] += 1 if cb.get("result") == "won" else 0
+            e["won"] += 1 if _c.get("result") == "won" else 0
     except Exception:
         pass
     return res
