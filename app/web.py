@@ -8519,7 +8519,11 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         if isinstance(r, dict) and ((r.get("combo") or {}).get("legs") or isinstance(r.get("stat_bet"), dict)):
             return True
         try:
-            return analyses.retained_bet(r.get("sport") or sport or "foot", r.get("id")) is not None
+            # ⚠️ le row de carte porte `sport="Foot"` (CAPITALE) ET `id`=sofa_id -> `retained_bet("Foot", sofa_id)`
+            # renvoie None (clé sport sensible à la casse sur la voie sofa_id) -> la confiance À VENIR était EXCLUE
+            # à tort (bug user 2026-09-06 : « nouvelle confiance sur Telegram et pas sur le site »). On NORMALISE.
+            _sp = str(r.get("sport") or sport or "foot").lower()
+            return analyses.retained_bet(_sp, r.get("id")) is not None
         except Exception:
             return True                        # doute -> fail-open (ne jamais cacher un vrai pari par erreur)
     play = [r for r in play if _has_display_bet(r)]
