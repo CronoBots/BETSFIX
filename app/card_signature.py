@@ -280,9 +280,46 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
     return f'<div class="sg-card {_vcls} {rk}"><div class="sg-wmk"></div>{body}</div>'
 
 
+def sig_live_card(*, league: str = "", match_txt: str = "", minute: str = "", sel_txt: str = "",
+                  cote_txt: str = "", cote=None, score_txt: str = "", chance_live=None,
+                  why_text: str = "", start=None, **_ignore) -> str:
+    """Carte LIVE signature (onglet Directs) : CONSERVE le score EN DIRECT + la barre « chance live » (proba
+    que le pari passe maintenant), en habillage grand public or/ambre. `minute` = horloge (« 63' »),
+    `chance_live` = % (0-100), `score_txt` = « 1 - 0 »."""
+    e = _html.escape
+    _cote_h = (f'<div class="sg-cote"><span class="sg-k">COTE</span>'
+               f'<span class="sg-v">{e(cote_txt)}</span></div>') if cote_txt else ""
+    _mtxt = e(match_txt) + ((" · " + e(minute)) if minute else "")
+    _meta = f'<div class="sg-meta">{_ic("bolt")}<span class="sg-mtxt">{_mtxt}</span></div>'
+    _pick = f'<div class="sg-pick">{e(sel_txt)}</div>'
+    _score = (f'<span class="sg-live-score"><span class="sg-dl"></span>{e(score_txt)}</span>'
+              if score_txt else "")
+    _ch = None
+    try:
+        _ch = max(0.0, min(100.0, float(chance_live)))
+    except (TypeError, ValueError):
+        _ch = None
+    if _ch is not None:
+        _est = ('<div class="sg-est">'
+                '<div class="sg-est-top"><span class="sg-est-lab">Nos chances en direct</span>'
+                f'{_score}</div>'
+                f'<div class="sg-eg"><span class="sg-edg" style="width:{_ch:.0f}%"></span></div>'
+                f'<div class="sg-egk"><span></span><span class="sg-us">{int(round(_ch))} % que ça passe</span></div>'
+                '</div>')
+    else:                                            # pas de chance calculée -> au moins le score en direct
+        _est = (f'<div class="sg-est"><div class="sg-est-top">'
+                '<span class="sg-est-lab">Score en direct</span>' + (_score or "") + '</div></div>')
+    _wf = _why_fold(why_text)
+    _foot = (f'<div class="sg-foot">{_wf}{_status_pill("live")}</div>' if _wf
+             else f'<div class="sg-foot sg-foot-bare">{_status_pill("live")}</div>')
+    _head = _head_row(e(league), "shield", _cote_h)
+    body = f'<div class="sg-in">{_head}{_meta}{_pick}{_est}{_foot}</div>'
+    return f'<div class="sg-card live"><div class="sg-wmk"></div>{body}</div>'
+
+
 def sig_css() -> str:
     """CSS du style signature — variables SCOPÉES dans `.sg-card` (zéro fuite / collision globale)."""
-    return _SIG_CSS + _SIG_COMBO_CSS
+    return _SIG_CSS + _SIG_COMBO_CSS + _SIG_LIVE_CSS
 
 
 _SIG_CSS = """
@@ -365,4 +402,13 @@ _SIG_COMBO_CSS = """
   .sg-cleg-cf .sg-ic{font-size:11px}
   .sg-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:var(--muted);font-feature-settings:var(--num)}
   .sg-odds i{font-style:normal;font-size:11px;font-weight:700;opacity:.55}.sg-odds b{font-size:14px;font-weight:800}
+"""
+
+_SIG_LIVE_CSS = """
+  .sg-live-score{flex:none;display:inline-flex;align-items:center;gap:7px;font-size:16px;font-weight:800;color:var(--st);
+    font-feature-settings:var(--num);letter-spacing:.02em;padding:3px 11px;border-radius:8px;
+    background:color-mix(in srgb,var(--st) 12%,transparent);border:1px solid color-mix(in srgb,var(--st) 32%,transparent)}
+  .sg-live-score .sg-dl{width:6px;height:6px;border-radius:50%;background:var(--st);box-shadow:0 0 8px var(--st);animation:sgpulse 1.4s ease-in-out infinite}
+  @keyframes sgpulse{50%{opacity:.4}}
+  @media (prefers-reduced-motion:reduce){.sg-live-score .sg-dl{animation:none}}
 """

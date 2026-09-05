@@ -11769,6 +11769,28 @@ def _sport_row(r: dict) -> str:
             _live_pct = _lp_res.get("pct")
             _live_trend = _lp_res.get("trend") or ""
             _live_state = _lp_res.get("source") or ""
+    # ONGLET LIVE en style SIGNATURE (2026-09-05) : carte live dédiée (score en direct + « chance live »), or/ambre.
+    # FILET try/except -> toute erreur retombe sur le rendu classique ci-dessous : JAMAIS de 500 sur l'onglet Live.
+    if _signature_style() and r.get("_livetab") and is_live and not is_combo and bets3:
+        try:
+            _sl_b0 = bets3[0]
+            _sl_h, _sl_a = r.get("home", ""), r.get("away", "")
+            _sl_mid = re.search(r"/(\d+)", r.get("url") or "")
+            _sl_lh, _sl_la = _parse_live_score(r.get("score"))
+            _sl_score = (f"{_sl_lh} - {_sl_la}" if (_sl_lh is not None and _sl_la is not None) else "")
+            _sl_min = str(r.get("live_time") or "").strip()
+            _sl_why = (_prov_why_snippet(sport_key, _sl_mid.group(1), maxlen=100000, played=True)
+                       if (_sl_mid and sport_key) else "")
+            _sl_cote = _sl_b0.get("cote")
+            return _cardsig.sig_live_card(
+                league=(comp or ""),
+                match_txt=(f"{_sl_h} — {_sl_a}" if (_sl_h and _sl_a) else (_sl_h or _sl_a or "")),
+                minute=_sl_min, sel_txt=_pretty_sel(_sl_b0.get("sel", ""), _sl_h, _sl_a),
+                cote_txt=(f"{_sl_cote:g}" if isinstance(_sl_cote, (int, float)) and _sl_cote else ""),
+                cote=_sl_cote, score_txt=_sl_score, chance_live=_live_pct, why_text=_sl_why,
+                start=r.get("start"))
+        except Exception:
+            pass                                                # repli silencieux -> rendu classique ci-dessous
     # COMBINÉ COUPE DU MONDE (ROI) À VENIR : présenté EXACTEMENT comme le combiné du jour (demande user
     # 2026-07-19) -> même COQUILLE DORÉE + en-tête « 🎯 COMBINÉ • <match> » + badge heure. On court-circuite
     # la carte de match générique (ni barres %, ni ligne d'équipes, ni bannières sources — comme le combiné
