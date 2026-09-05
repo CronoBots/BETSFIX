@@ -64,16 +64,28 @@ def _edge_block(conf_i, cote, *, lab: str = "Nos chances estimées") -> str:
         return ""
     ours = max(0.0, min(100.0, float(conf_i)))
     mkt = max(0.0, min(100.0, 100.0 / c))
-    edge = max(0.0, ours - mkt)                       # part « edge » (>=0 pour l'affichage)
-    _, tag, _cls = _tier_of(conf_i, cote)
+    value = (conf_i / 100.0 * c - 1) * 100
+    if value >= 8:
+        # VALUE : on montre l'EDGE vs marché (part marché grise + notre edge colorée) — c'est le point.
+        edge = max(0.0, ours - mkt)
+        return (
+            '<div class="sg-est">'
+            f'<div class="sg-est-top"><span class="sg-est-lab">{_html.escape(lab)}</span>'
+            f'<span class="sg-qtag">{_ic("star")}Bonne value</span></div>'
+            f'<div class="sg-eg"><span class="sg-mkt" style="width:{mkt:.0f}%"></span>'
+            f'<span class="sg-edg" style="width:{edge:.0f}%"></span></div>'
+            f'<div class="sg-egk"><span>Cote du marché : <b>{_pct(mkt)}</b></span>'
+            f'<span class="sg-us">Nos chances : {_pct(ours)}</span></div>'
+            '</div>'
+        )
+    # SÛRETÉ (Confiance / Combiné) : JUSTE notre proba de gagner, PAS de comparaison au marché — sinon un favori
+    # court (ou un combiné sûr sous le plancher) afficherait « nos chances < marché » et se dévaloriserait.
     return (
         '<div class="sg-est">'
-        f'<div class="sg-est-top"><span class="sg-est-lab">{_html.escape(lab)}</span>'
-        f'<span class="sg-qtag">{_ic("star" if tag == "Bonne value" else "shield")}{_html.escape(tag)}</span></div>'
-        f'<div class="sg-eg"><span class="sg-mkt" style="width:{mkt:.0f}%"></span>'
-        f'<span class="sg-edg" style="width:{edge:.0f}%"></span></div>'
-        f'<div class="sg-egk"><span>Cote du marché : <b>{_pct(mkt)}</b></span>'
-        f'<span class="sg-us">Nos chances : {_pct(ours)}</span></div>'
+        '<div class="sg-est-top"><span class="sg-est-lab">Nos chances de gagner</span>'
+        f'<span class="sg-qtag">{_ic("shield")}Pari sûr</span></div>'
+        f'<div class="sg-eg"><span class="sg-edg" style="width:{ours:.0f}%"></span></div>'
+        f'<div class="sg-egk"><span></span><span class="sg-us">{_pct(ours)} de réussite estimée</span></div>'
         '</div>'
     )
 
@@ -228,7 +240,10 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
     _head = (f'<div class="sg-h"><div class="sg-cat">{_ic("layers")}'
              f'<span class="sg-t">{e(title)}</span></div>{cote_h}</div>')
     body = f'<div class="sg-in">{_head}{_meta}<div class="sg-div"></div>{_legs_html}{_mid}{_foot}</div>'
-    return f'<div class="sg-card {"value" if (not settled and ours) else ""} {rk}"><div class="sg-wmk"></div>{body}</div>'
+    # classe « value » (palette verte) SEULEMENT si le combiné a une vraie value (edge>=8%) — sinon bleu « sûr »
+    _cv = ((ours / 100.0 * total - 1) * 100) if (ours and total) else None
+    _vcls = "value" if (not settled and _cv is not None and _cv >= 8) else ""
+    return f'<div class="sg-card {_vcls} {rk}"><div class="sg-wmk"></div>{body}</div>'
 
 
 def sig_css() -> str:
