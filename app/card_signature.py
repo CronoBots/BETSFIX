@@ -231,17 +231,23 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
     _meta = (f'<div class="sg-meta">{_ic("check" if rk == "won" else "cross" if rk == "lost" else "clock")}'
              f'<span class="sg-mtxt">{_nb}{" · terminé" if settled else ""}</span></div>')
+    # value du combiné (EV) : décide le cadrage. Un combiné 3 jambes multiplie vers ~50 % -> NE JAMAIS titrer le
+    # « X % combiné » sur un combiné de sûreté (ça le fait passer pour un pile-ou-face). La confiance PAR JAMBE
+    # (déjà affichée) porte le message. On ne montre l'edge/marché QUE si le combiné a une vraie value (>=8 %).
+    _cv = ((ours / 100.0 * total - 1) * 100) if (ours and total) else None
     if settled:
         _tally = f'<span class="sg-tally">{_ic("check")}{won_n} / {len(legs)} jambes</span>' if rk == "won" else ""
         _mid = _result_strip(total, rk, tally_html=_tally)
-    else:
-        _mid = _edge_block(ours, total, lab="Chances du combiné")
+    elif _cv is not None and _cv >= 8:
+        _mid = _edge_block(ours, total, lab="Chances du combiné")     # vraie value -> edge vs marché
+    else:                                                             # sûreté -> juste le tag, PAS de % combiné
+        _mid = ('<div class="sg-est"><div class="sg-est-top">'
+                f'<span class="sg-est-lab">{len(legs)} sélections sûres cumulées</span>'
+                f'<span class="sg-qtag">{_ic("shield")}Pari sûr</span></div></div>')
     _foot = f'<div class="sg-foot"><span></span>{_status_pill(rk)}</div>'
     _head = (f'<div class="sg-h"><div class="sg-cat">{_ic("layers")}'
              f'<span class="sg-t">{e(title)}</span></div>{cote_h}</div>')
     body = f'<div class="sg-in">{_head}{_meta}<div class="sg-div"></div>{_legs_html}{_mid}{_foot}</div>'
-    # classe « value » (palette verte) SEULEMENT si le combiné a une vraie value (edge>=8%) — sinon bleu « sûr »
-    _cv = ((ours / 100.0 * total - 1) * 100) if (ours and total) else None
     _vcls = "value" if (not settled and _cv is not None and _cv >= 8) else ""
     return f'<div class="sg-card {_vcls} {rk}"><div class="sg-wmk"></div>{body}</div>'
 
