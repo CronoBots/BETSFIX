@@ -80,12 +80,13 @@ def _edge_block(conf_i, cote, *, lab: str = "Nos chances estimées") -> str:
         )
     # SÛRETÉ (Confiance / Combiné) : JUSTE notre proba de gagner, PAS de comparaison au marché — sinon un favori
     # court (ou un combiné sûr sous le plancher) afficherait « nos chances < marché » et se dévaloriserait.
+    # Badge « Pari sûr » RETIRÉ (user 2026-09-06) : on met le % de réussite À SA PLACE (haut-droite), et on
+    # retire la ligne du bas (devenue redondante) -> label « Nos chances de gagner » + « 86 % » + jauge.
     return (
         '<div class="sg-est">'
         '<div class="sg-est-top"><span class="sg-est-lab">Nos chances de gagner</span>'
-        f'<span class="sg-qtag">{_ic("shield")}Pari sûr</span></div>'
+        f'<span class="sg-qpct">{_pct(ours)}</span></div>'
         f'<div class="sg-eg"><span class="sg-edg" style="width:{ours:.0f}%"></span></div>'
-        f'<div class="sg-egk"><span></span><span class="sg-us">{_pct(ours)} de réussite estimée</span></div>'
         '</div>'
     )
 
@@ -355,6 +356,7 @@ _SIG_CSS = """
   .sg-card.value{--st:#3fd684;--st2:#22a866}
   .sg-card.live{--st:#ffcf5a;--st2:#f6a11e}
   .sg-card.won{--st:#5be79b;--st2:#25b264}.sg-card.lost{--st:#ff9d9d;--st2:#e14a4a}
+  .sg-card.soon{--st:#f4c24c;--st2:#e0a42c}   /* À VENIR = JAUNE (user 2026-09-06) — confiance ET value ; après .value pour gagner la cascade */
   .sg-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3;
     background:linear-gradient(180deg,var(--st),var(--st2));box-shadow:0 0 14px color-mix(in srgb,var(--st) 55%,transparent)}
   .sg-wmk{position:absolute;inset:0;z-index:0;opacity:.028;background:var(--logo) center/140px no-repeat;filter:grayscale(.35) brightness(1.35)}
@@ -369,7 +371,7 @@ _SIG_CSS = """
   .sg-meta{margin-top:3px;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--dim);min-width:0}
   .sg-meta .sg-ic{font-size:12px;opacity:.8}
   .sg-mtxt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sg-pick{margin-top:12px;font-size:19px;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.22;overflow-wrap:anywhere}  /* pari LONG -> retour à la ligne (plus d'ellipse tronquée, user 2026-09-06) */
+  .sg-pick{margin-top:12px;font-size:17.5px;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.24;overflow-wrap:anywhere}  /* pari LONG -> retour à la ligne (plus d'ellipse, user 2026-09-06) ; taille réduite légèrement (user 2026-09-06) */
   .sg-pick.abst{color:var(--muted);font-weight:700}
   .sg-mk{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;font-size:11px;font-weight:900;margin-right:8px;vertical-align:-2px}
   .sg-mk.ok{color:#06210f;background:var(--green)}.sg-mk.no{color:#2a0d0d;background:#ff8a8a}
@@ -380,6 +382,7 @@ _SIG_CSS = """
   .sg-qtag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:99px;
     color:var(--st);background:color-mix(in srgb,var(--st) 13%,transparent);border:1px solid color-mix(in srgb,var(--st) 32%,transparent)}
   .sg-qtag .sg-ic{font-size:12px}
+  .sg-qpct{flex:none;font-size:17px;font-weight:800;color:var(--st);font-feature-settings:var(--num);line-height:1}  /* % de réussite (remplace le badge « Pari sûr », user 2026-09-06) */
   .sg-eg{margin-top:9px;height:9px;border-radius:5px;background:rgba(255,255,255,.05);overflow:hidden;display:flex}
   .sg-eg .sg-mkt{height:100%;background:rgba(174,191,210,.28)}
   .sg-eg .sg-edg{height:100%;background:linear-gradient(90deg,var(--st2),var(--st));box-shadow:0 0 10px color-mix(in srgb,var(--st) 50%,transparent)}
