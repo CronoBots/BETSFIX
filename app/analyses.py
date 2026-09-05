@@ -2521,8 +2521,15 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # la carte -> la publication voit bien le pari. Réversible : REVEAL_ONLY_FINAL = False.
     _final = (not REVEAL_ONLY_FINAL or for_history or is_settled(m) or m.get("prematch_done")
               or (isinstance(m.get("published_bet"), dict) and m["published_bet"].get("sel")))
+    # ⚠️ ABSTENTION PRIME (2026-09-05, Villarreal-Deportivo) : un match ABSTENU à la re-vérif KO−1h ne révèle
+    # JAMAIS son `confidence_bet`/`value_bet` mécanique — MÊME en `for_history` (donc jamais compté au ROI, jamais
+    # de carte résultat). Sans ça, un abstenu qui a GARDÉ son `confidence_bet` (cas où l'abstention n'a pas pu
+    # nettoyer le sidecar car un prono FANTÔME `get_prono` le protégeait) était figé en stat_bet au règlement.
+    # Garde robuste `abstained and not published_bet` : un pari réellement PUBLIÉ (published_bet figé) reste
+    # révélé même si un flag `abstained` traînait (invariant « publié ≠ abstained », mais on ne s'y fie pas).
+    _abst_block = bool(m.get("abstained")) and not isinstance(m.get("published_bet"), dict)
     _cb = m.get("confidence_bet")
-    if _final and isinstance(_cb, dict) and _cb.get("code") and not isinstance(m.get("stat_bet"), dict):
+    if _final and isinstance(_cb, dict) and _cb.get("code") and not isinstance(m.get("stat_bet"), dict) and not _abst_block:
         try:
             from app import confidence_pick as _cpk
             _res = _cpk.resolve_result(m, _cb["code"])
@@ -2537,7 +2544,7 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # historique via le flag, résultat résolu depuis le fantôme. `stat_bet` figé prime (monotone).
     _vb = m.get("value_bet")
     if (_final and isinstance(_vb, dict) and _vb.get("code") and not (isinstance(_cb, dict) and _cb.get("code"))
-            and not isinstance(m.get("stat_bet"), dict)):
+            and not isinstance(m.get("stat_bet"), dict) and not _abst_block):
         try:
             from app import confidence_pick as _cpk2
             _vres = _cpk2.resolve_result(m, _vb["code"])
