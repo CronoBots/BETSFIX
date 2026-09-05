@@ -43,6 +43,16 @@
     routinier) ni ce qui n'a d'intérêt que dans la conversation : c'est ça qui avait fait gonfler
     l'index à 64 Ko et me faisait « repartir de zéro ». On mémorise une **décision**, un **piège**, une
     **mesure**, une **préférence** — pas un diff.
+11. **CHECKPOINT du travail EN COURS — la session remote est JETABLE** (décision user 2026-09-05). La boucle
+    `remote-control-loop.ps1` **efface l'historique de conversation** et repart en **session fraîche** à chaque
+    relance (LogonTrigger/veille/coupure réseau/kill watchdog — souvent le matin) : le fil de la veille est
+    perdu **par design** (prix de la stabilité remote ; remettre `--continue` réintroduit les gels watchdog). La
+    **mémoire et le git survivent** → seule voie de continuité. Donc : quand le user dit **« checkpoint »**,
+    **« je dors »**, **« je m'arrête »** (ou équivalent), je fige l'état dans la mémoire **`wip-current-task.md`**
+    (tâche / état exact / prochaine étape / fichiers / pièges) + je mets à jour le **hook de l'entrée épinglée
+    en tête de MEMORY.md** + je committe le code en cours (branche WIP si non fini). **Au DÉMARRAGE de session,
+    lire `wip-current-task.md` EN PREMIER** : s'il décrit une tâche en cours, reprendre de là. Quand une tâche
+    est finie → remettre l'entrée WIP à « AUCUNE ».
 
 ## Carte du démarrage automatique (Windows)
 
