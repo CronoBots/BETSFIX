@@ -84,7 +84,7 @@ def _edge_block(conf_i, cote, *, lab: str = "Nos chances estimées") -> str:
     # retire la ligne du bas (devenue redondante) -> label « Nos chances de gagner » + « 86 % » + jauge.
     return (
         '<div class="sg-est">'
-        '<div class="sg-est-top"><span class="sg-est-lab">Nos chances de gagner</span>'
+        '<div class="sg-est-top"><span class="sg-est-lab">Confiance</span>'
         f'<span class="sg-qpct">{_pct(ours)}</span></div>'
         f'<div class="sg-eg"><span class="sg-edg" style="width:{ours:.0f}%"></span></div>'
         '</div>'
@@ -376,9 +376,9 @@ _SIG_CSS = """
   .sg-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .sg-cat{display:flex;align-items:center;gap:6px;min-width:0}.sg-cat .sg-ic{font-size:13px;color:var(--st)}
   .sg-cat .sg-t{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sg-cote{text-align:right;flex:none}
-  .sg-cote .sg-k{display:block;font-size:8px;font-weight:800;letter-spacing:.14em;color:var(--dim)}
-  .sg-cote .sg-v{font-size:15px;font-weight:800;color:var(--muted);font-feature-settings:var(--num);line-height:1.1}
+  .sg-cote{display:inline-flex;align-items:baseline;gap:6px;flex:none;white-space:nowrap}   /* COTE + valeur sur UNE seule ligne (user 2026-09-06) */
+  .sg-cote .sg-k{font-size:9.5px;font-weight:800;letter-spacing:.12em;color:var(--dim)}
+  .sg-cote .sg-v{font-size:17px;font-weight:800;color:var(--txt);font-feature-settings:var(--num);line-height:1}   /* valeur MIEUX indiquée : plus grande + plus claire */
   .sg-meta{margin-top:3px;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--dim);min-width:0}
   .sg-meta .sg-ic{font-size:12px;opacity:.8}
   .sg-mtxt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
