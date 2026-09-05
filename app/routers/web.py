@@ -851,6 +851,12 @@ async def directs_page(
             # (retained_bet), JAMAIS le pick BRUT de Claude `d["pick"]` (divergent depuis la refonte
             # 2026-08-29 + fantôme sur abstention). Idem carte À VENIR — cf. result-verdict-follows-played-bet.
             perle = analyses.display_perle(sport, d.get("id"))
+            # ABSTENTION EN DIRECT (user 2026-09-05) : un match live SANS pari mécanique à montrer (perle None)
+            # ni combiné ne doit PAS avoir de carte dans l'onglet Live (« paris retenus en cours ») — cohérent
+            # avec le filet anti-abstention du Programme (cas Villarreal). display_perle = retained_bet, jamais
+            # le pick brut -> une abstention y est None. Skip AVANT le fetch live (évite un appel réseau inutile).
+            if not perle and not ((d.get("combo") or {}).get("legs")):
+                continue
             if not lf.get("score"):                        # REPLI SofaScore (mort) puis LiveScore (vivant)
                 lf = await match_select.fetch_sofa_live(sport, sid) or lf
                 if not lf.get("score"):                    # LiveScore = notre source de scores live -> évite
