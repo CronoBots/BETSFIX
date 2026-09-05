@@ -190,9 +190,10 @@ def sig_result_card(*, league: str = "", match_txt: str = "", sel_txt: str = "",
                         start=start)
 
 
-def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pretty=None) -> str:
-    """Combiné signature : jambes compactes (pari + cote + confiance/jambe), edge sur le TOTAL (à venir) ou
-    score + gain % (réglé). `pretty(sel, home, away)` = formateur d'intitulé (web._pretty_sel) si fourni."""
+def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pretty=None, when_fmt=None) -> str:
+    """Combiné signature : jambes compactes (pari + cote + confiance/jambe + heure), edge sur le TOTAL (à venir)
+    ou score + gain % (réglé). `pretty(sel, home, away)` = formateur d'intitulé (web._pretty_sel) ;
+    `when_fmt(start, with_date=False)` = formateur d'heure LOCALE (web.fmt_local) si fournis."""
     e = _html.escape
     legs = sorted(cb.get("legs") or [], key=lambda l: str(l.get("start") or "~"))
     if not legs:
@@ -237,7 +238,16 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
                   if lscore and any(ch.isdigit() for ch in lscore) else "")
             _legs_html += (f'<div class="sg-cleg-top">{mk}<span class="sg-cleg-sel">{e(lsel)}</span>{sc}{odds}</div>')
         else:
-            teams = e(f"{lh} — {la}") if (lh and la) else ""
+            _lwhen = ""
+            if when_fmt:
+                try:
+                    _lwhen = when_fmt(l.get("start"), with_date=False) or ""
+                except Exception:
+                    _lwhen = ""
+            _tt = f"{lh} — {la}" if (lh and la) else ""
+            if _lwhen:
+                _tt += (" · " if _tt else "") + _lwhen
+            teams = e(_tt)
             cf = (f'<span class="sg-cleg-cf">{_ic("shield")}{lconf} %</span>'
                   if lconf is not None else "")
             _legs_html += (f'<div class="sg-cleg-top"><span class="sg-cleg-sel">{e(lsel)}</span>{odds}</div>'

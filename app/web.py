@@ -11395,8 +11395,8 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     legs = cb.get("legs") or []
     if not legs:
         return ""
-    if _signature_style():     # combiné signature (grand public) — jambes + confiance/jambe + edge sur le total
-        return _cardsig.sig_combo_card(cb, title=title, sport=sport, pretty=_pretty_sel)
+    if _signature_style():     # combiné signature (grand public) — jambes + confiance/jambe + heure + edge sur le total
+        return _cardsig.sig_combo_card(cb, title=title, sport=sport, pretty=_pretty_sel, when_fmt=fmt_local)
     if _ticket_style():        # combiné en TICKET (signature BETSFIX + jambes en mini-tickets) — maquette E étendue
         return _tk_combo_card(cb, title=title, sport=sport)
     # Jambes dans l'ordre du MATCH (coup d'envoi croissant) — user 2026-09-03. Tri d'AFFICHAGE seulement
