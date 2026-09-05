@@ -158,6 +158,9 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
                f'<span class="sg-v">{e(cote_txt)}</span></div>') if cote_txt else ""
     _eye = e(league) if league else ""
     _time = time_txt or (when_txt or "")
+    # « Aujourd'hui » est REDONDANT (le calendrier/la section du jour font déjà foi) -> on ne garde que
+    # l'heure. « Hier »/« Demain »/dates explicites sont conservés (info utile hors du jour). User 2026-09-05.
+    _time = _re.sub(r"^\s*[Aa]ujourd['’]hui\s*", "", _time).strip()
     _meta = (f'<div class="sg-meta">{_ic("check" if rk == "won" else "cross" if rk == "lost" else "clock")}'
              f'<span class="sg-mtxt">{e(match_txt)}{(" · " + e(_time)) if _time else ""}</span></div>')
     # héros = le pari (marque ✓/✕ + score si réglé)
@@ -166,11 +169,18 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     _sc = f'<span class="sg-score">{e(score_txt)}</span>' if (settled and score_txt) else ""
     _pick = f'<div class="sg-pick{" abst" if abst else ""}">{_mk}{e(sel_txt)}{_sc}</div>'
     _mid = _result_strip(cote, rk) if settled else _edge_block(conf_i, cote)
-    _wf = "" if (abst or settled) else _why_fold(why_text)      # « Pourquoi ce pari » comble le bas-gauche
-    _foot = (f'<div class="sg-foot">{_wf}{_status_pill(rk)}</div>' if _wf
-             else f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>')
+    # RÉGLÉ (user 2026-09-05) : la COTE en haut à droite fait DOUBLON avec « Cote encaissée » du bandeau
+    # résultat -> on la remplace par le badge GAGNÉ/PERDU/REMBOURSÉE, et on SUPPRIME le pied (plus de badge
+    # en double, carte plus courte). À-venir/live : COTE en haut (utile) + badge (+ « pourquoi ») en pied.
+    _head_right = _status_pill(rk) if settled else _cote_h
+    if settled:
+        _foot = ""
+    else:
+        _wf = "" if abst else _why_fold(why_text)               # « Pourquoi ce pari » comble le bas-gauche
+        _foot = (f'<div class="sg-foot">{_wf}{_status_pill(rk)}</div>' if _wf
+                 else f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>')
     _wm = '<div class="sg-wmk"></div>'
-    body = f'<div class="sg-in">{_head_row(_eye, icon, _cote_h)}{_meta}{_pick}{_mid}{_foot}</div>'
+    body = f'<div class="sg-in">{_head_row(_eye, icon, _head_right)}{_meta}{_pick}{_mid}{_foot}</div>'
     return f'<div class="sg-card {cls} {rk}">{_wm}{body}</div>'
 
 
