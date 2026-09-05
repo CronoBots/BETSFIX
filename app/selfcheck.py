@@ -1083,6 +1083,41 @@ def _check_omap_coverage(rows) -> dict:
             "items": bad}
 
 
+# Période où le pipeline persiste l'ancre sharp STRUCTURÉE pour 100 % des paris publiés (verrou `no_sharp`
+# actif depuis 2026-08-14 + persistance sidecar confirmée propre en septembre). Les paris d'AVANT — Coupe du
+# Monde / ligues hors catalogue sharp / avant le verrou — sont grandfathered (legacy, non re-jugeables).
+_SHARP_ANCHOR_ENFORCED_FROM = "2026-09-01"
+
+
+def _check_played_bet_sharp_anchor(rows) -> dict:
+    """DISCIPLINE — invariant BUSINESS CRITIQUE : tout pari foot PUBLIÉ (`stat_bet`) depuis
+    _SHARP_ANCHOR_ENFORCED_FROM DOIT porter une ancre sharp STRUCTURÉE (`sharp_map`, figée au scan). Un pari
+    publié SANS ancre = misé « à sec » = régression majeure (toute la sélection/EV/value repose sur l'ancre).
+    `sharp_map` étant RETENU après règlement, on vérifie les paris à-venir ET réglés récents. Les paris
+    d'avant la période disciplinée sont grandfathered (persistance non systématique alors). 100 % lecture seule."""
+    bad, n = [], 0
+    for _s, d in rows:
+        if d.get("sport") != "foot" or d.get("roi_void"):
+            continue
+        if not d.get("stat_bet"):                          # seulement les paris RÉELLEMENT publiés/comptés
+            continue
+        if (d.get("start") or "")[:10] < _SHARP_ANCHOR_ENFORCED_FROM:
+            continue                                       # legacy grandfathered
+        n += 1
+        if not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+            bad.append(f"{d.get('home', '?')}–{d.get('away', '?')} ({(d.get('start') or '')[:10]}) : "
+                       f"pari publié SANS ancre sharp structurée")
+    return {"key": "played_bet_sharp_anchor",
+            "level": "error" if bad else "ok",
+            "title": "Ancre sharp sur les paris publiés",
+            "detail": (f"{len(bad)}/{n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} SANS ancre "
+                       f"structurée (misés « à sec » — régression critique, à corriger d'urgence)."
+                       if bad else
+                       f"0 — les {n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} portent tous leur "
+                       f"ancre sharp structurée."),
+            "items": bad}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -1116,6 +1151,7 @@ def run(persist: bool = False) -> dict:
         _check_settled_prono_card_reads_played_bet(rows),
         _check_upcoming_display_coherence(rows),
         _check_omap_coverage(rows),
+        _check_played_bet_sharp_anchor(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
     ]
