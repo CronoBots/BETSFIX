@@ -124,7 +124,7 @@ def _status_pill(rk: str, compact: bool = False) -> str:
     return f'<span class="sg-st">{icon}{_STATUS.get(rk, "À venir")}</span>'
 
 
-def _why_fold(text: str) -> str:
+def _why_fold(text: str, right_html: str = "") -> str:
     """« Pourquoi ce pari » repliable (puces) — remplit le bas-gauche de la carte + restaure l'analyse.
     '' si pas de texte. Découpe en phrases courtes (≤5)."""
     t = (text or "").strip()
@@ -134,8 +134,12 @@ def _why_fold(text: str) -> str:
     if not parts:
         return ""
     lis = "".join(f"<li>{_html.escape(p)}</li>" for p in parts)
-    return ('<details class="sg-why"><summary onclick="event.stopPropagation()">Pourquoi ce pari'
-            f'<span class="sg-chev">▾</span></summary><ul>{lis}</ul></details>')
+    # Le <details> EST le pied (pleine largeur) : summary = libellé (gauche) + `right_html` = pastille statut
+    # (droite) sur la MÊME ligne ; les puces s'étalent sur TOUTE la largeur dessous (user 2026-09-06 : le
+    # « pourquoi » déplié ne prenait pas toute la largeur car il partageait la ligne flex avec la pastille).
+    return ('<details class="sg-why sg-foot-why"><summary onclick="event.stopPropagation()">'
+            '<span class="sg-why-lab">Pourquoi ce pari<span class="sg-chev">▾</span></span>'
+            f'{right_html}</summary><ul>{lis}</ul></details>')
 
 
 def _rk_of(rcls: str, is_live: bool, is_finished: bool, result: str = "") -> str:
@@ -181,9 +185,9 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     if settled:
         _foot = ""
     else:
-        _wf = "" if abst else _why_fold(why_text)               # « Pourquoi ce pari » comble le bas-gauche
-        _foot = (f'<div class="sg-foot">{_wf}{_status_pill(rk)}</div>' if _wf
-                 else f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>')
+        # « Pourquoi ce pari » = <details> PLEINE LARGEUR (la pastille statut est dans son summary, à droite).
+        _wf = "" if abst else _why_fold(why_text, right_html=_status_pill(rk))
+        _foot = _wf or f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>'
     _wm = '<div class="sg-wmk"></div>'
     body = f'<div class="sg-in">{_head_row(_eye, icon, _head_right)}{_meta}{_pick}{_mid}{_foot}</div>'
     return f'<div class="sg-card {cls} {rk}">{_wm}{body}</div>'
@@ -365,7 +369,7 @@ _SIG_CSS = """
   .sg-meta{margin-top:3px;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--dim);min-width:0}
   .sg-meta .sg-ic{font-size:12px;opacity:.8}
   .sg-mtxt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sg-pick{margin-top:12px;font-size:19px;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sg-pick{margin-top:12px;font-size:19px;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.22;overflow-wrap:anywhere}  /* pari LONG -> retour à la ligne (plus d'ellipse tronquée, user 2026-09-06) */
   .sg-pick.abst{color:var(--muted);font-weight:700}
   .sg-mk{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;font-size:11px;font-weight:900;margin-right:8px;vertical-align:-2px}
   .sg-mk.ok{color:#06210f;background:var(--green)}.sg-mk.no{color:#2a0d0d;background:#ff8a8a}
@@ -392,8 +396,9 @@ _SIG_CSS = """
   .sg-rside .sg-tally{display:inline-flex;align-items:center;gap:5px;color:var(--st);font-weight:800;font-size:11px;margin-top:1px}
   .sg-foot{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .sg-foot.sg-foot-bare{border-top:none;padding-top:0;margin-top:14px;justify-content:flex-end}
-  .sg-why{flex:1;min-width:0}
-  .sg-why>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--st);white-space:nowrap}
+  .sg-why.sg-foot-why{margin-top:13px;padding-top:11px;border-top:1px solid var(--line)}   /* le <details> EST le pied, pleine largeur */
+  .sg-why>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .sg-why-lab{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--st);white-space:nowrap}
   .sg-why>summary::-webkit-details-marker{display:none}
   .sg-chev{font-size:10px;transition:transform .18s}.sg-why[open] .sg-chev{transform:rotate(180deg)}
   .sg-why ul{margin:8px 0 0;padding:0;list-style:none}
