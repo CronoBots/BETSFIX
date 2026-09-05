@@ -250,8 +250,10 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
             teams = e(_tt)
             cf = (f'<span class="sg-cleg-cf">{_ic("shield")}{lconf} %</span>'
                   if lconf is not None else "")
-            _legs_html += (f'<div class="sg-cleg-top"><span class="sg-cleg-sel">{e(lsel)}</span>{odds}</div>'
-                           f'<div class="sg-cleg-sub"><span class="sg-cleg-teams">{teams}</span>{cf}</div>')
+            # jambe présentée COMME UNE CARTE SIMPLE : méta (heure/équipes + cote) au-dessus, PARI en héros dessous
+            _legs_html += (
+                f'<div class="sg-cleg-r1">{_ic("clock")}<span class="sg-cleg-teams">{teams}</span>{odds}</div>'
+                f'<div class="sg-cleg-r2"><span class="sg-cleg-sel">{e(lsel)}</span>{cf}</div>')
         if i < len(legs) - 1:
             _legs_html += '<div class="sg-div thin"></div>'
     _nb = f'{len(legs)} sélection{"s" if len(legs) > 1 else ""}'
@@ -351,11 +353,14 @@ _SIG_CSS = """
 """
 
 _SIG_COMBO_CSS = """
-  .sg-div{height:1px;background:var(--line);margin:11px 0}.sg-div.thin{margin:9px 0}
+  .sg-div{height:1px;background:var(--line);margin:11px 0}.sg-div.thin{margin:15px 0}
   .sg-cleg-top{display:flex;align-items:center;gap:10px}
-  .sg-cleg-sel{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;font-weight:800;color:#eaf1fa}
+  .sg-cleg-r1{display:flex;align-items:center;gap:7px;min-width:0}
+  .sg-cleg-r1 .sg-ic{font-size:11.5px;color:var(--dim);opacity:.8}
+  .sg-cleg-r2{margin-top:5px;display:flex;align-items:center;gap:10px}
+  .sg-cleg-sel{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16.5px;font-weight:800;color:#fff;letter-spacing:-.005em}
   .sg-cleg-sub{margin-top:4px;display:flex;align-items:center;gap:10px}
-  .sg-cleg-teams{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;font-weight:600;color:var(--dim)}
+  .sg-cleg-teams{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;color:var(--dim)}
   .sg-cleg-cf{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--green);font-feature-settings:var(--num)}
   .sg-cleg-cf .sg-ic{font-size:11px}
   .sg-odds{flex:none;display:inline-flex;align-items:baseline;gap:2px;color:var(--muted);font-feature-settings:var(--num)}
