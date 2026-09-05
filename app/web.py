@@ -11685,11 +11685,21 @@ def _sport_row(r: dict) -> str:
                     bets3 = [{**_pbz, "tag": "Premier scan"},
                              {"sel": _curb.get("sel", ""), "cote": _curb.get("cote"),
                               "prob": _curb.get("prob"), "tag": "Dernier scan"}]
-            elif summ.get("play") and reco_i is not None and 0 <= reco_i < len(bets3):
-                bets3 = [bets3[reco_i]]     # À VENIR non publié : le simple RECOMMANDÉ maintenant
-                reco_i = 0
             else:
-                bets3 = []                 # jamais publié, aucune value -> abstention assumée
+                # À VENIR non publié : le pari affiché = la SÉLECTION MÉCANIQUE (`retained_bet` -> confidence_pick
+                # /value_pick), JAMAIS `card_summary.reco_idx` qui est l'ANCIEN `_recommend` sur le PICK BRUT du
+                # .md (`bets_of`). Bug récurrent n°1 (user 2026-09-05) : Villarreal montrait « Moins de 3.5 buts
+                # @1.52 » (pick brut Value) en section CONFIANCE alors que le mécanique = « Deportivo +2.5 @1.25 »
+                # — pari + tier incohérents, fuité jusqu'à Telegram. Cohérent avec les branches réglé (`stat_bet`)
+                # et publié (`published_bet`). `retained_bet` = None (pas de sélection / pas encore final) -> abstention.
+                _mid = re.search(r"/(\d+)", url)
+                _rbc = analyses.retained_bet(sport_key, _mid.group(1)) if (sport_key and _mid) else None
+                if _rbc and _rbc.get("sel"):
+                    bets3 = [{"sel": _rbc["sel"], "cote": _rbc.get("cote"),
+                              "prob": _rbc.get("prob"), "cprob": _rbc.get("cprob")}]
+                    reco_i = 0
+                else:
+                    bets3 = []             # aucune sélection mécanique finale -> abstention (jamais le pick brut)
     rows3 = []
     for i, b in enumerate(bets3):
         # Ligne INFO pure (double scan : « Dernier scan : aucun pari conseillé ») — pas un pari.
