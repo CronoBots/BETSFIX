@@ -80,13 +80,18 @@ def _edge_block(conf_i, cote, *, lab: str = "Nos chances estimées") -> str:
         )
     # SÛRETÉ (Confiance / Combiné) : JUSTE notre proba de gagner, PAS de comparaison au marché — sinon un favori
     # court (ou un combiné sûr sous le plancher) afficherait « nos chances < marché » et se dévaloriserait.
-    # Badge « Pari sûr » RETIRÉ (user 2026-09-06) : on met le % de réussite À SA PLACE (haut-droite), et on
-    # retire la ligne du bas (devenue redondante) -> label « Nos chances de gagner » + « 86 % » + jauge.
+    # Badge « Pari sûr » RETIRÉ (user 2026-09-06) : label « Confiance » + « 86 % » (haut-droite) + jauge.
+    # GAIN POTENTIEL (user 2026-09-06 « optimise-toi ») : ligne discrète sous la jauge -> le parieur voit
+    # CONFIANCE *et* combien ça rapporte (gains en %, cohérent avec la carte réglée). Cote gardée en haut = réf.
+    _gain = int(round((c - 1) * 100))
+    _gain_row = (f'<div class="sg-egk"><span>Gain potentiel</span>'
+                 f'<span class="sg-gv">+{_gain} %</span></div>') if _gain > 0 else ""
     return (
         '<div class="sg-est">'
         '<div class="sg-est-top"><span class="sg-est-lab">Confiance</span>'
         f'<span class="sg-qpct">{_pct(ours)}</span></div>'
         f'<div class="sg-eg"><span class="sg-edg" style="width:{ours:.0f}%"></span></div>'
+        f'{_gain_row}'
         '</div>'
     )
 
@@ -399,6 +404,7 @@ _SIG_CSS = """
   .sg-eg .sg-edg{height:100%;background:linear-gradient(90deg,var(--st2),var(--st));box-shadow:0 0 10px color-mix(in srgb,var(--st) 50%,transparent)}
   .sg-egk{margin-top:8px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--dim);font-feature-settings:var(--num)}
   .sg-egk .sg-us{color:var(--st);font-weight:800}.sg-egk b{font-weight:800}
+  .sg-egk .sg-gv{color:#7fe0a8;font-weight:800}   /* gain potentiel en % (vert = ce que ça rapporte, user 2026-09-06) */
   .sg-result{margin-top:12px;padding:11px 14px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:color-mix(in srgb,var(--st) 10%,transparent)}
   .sg-pnl{display:flex;flex-direction:column;gap:1px}
   .sg-pnl .sg-l{font-size:8.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
