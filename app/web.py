@@ -8510,6 +8510,19 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if sport:
         play = [r for r in play if _item_sport(r) == sport]
         _prog = [it for it in _prog if it.get("_sport") == sport]
+    # GARDE ANTI-ABSTENTION (user 2026-09-05) : une abstention (aucun pari mécanique à MONTRER) ne doit JAMAIS
+    # apparaître comme carte dans une section de tier (Confiance/Value) — même si `list_for` a fuité (cache
+    # périmé / transitoire du scan qui réécrit le sidecar en temps réel : cas Villarreal « Analysé · pas de pari
+    # conseillé » resté en CONFIANCE). Filet robuste : on ne garde QUE les matchs avec un VRAI pari à afficher —
+    # combiné, pari FIGÉ (`stat_bet`), ou sélection MÉCANIQUE retenue (`retained_bet`, jamais le pick brut).
+    def _has_display_bet(r):
+        if isinstance(r, dict) and ((r.get("combo") or {}).get("legs") or isinstance(r.get("stat_bet"), dict)):
+            return True
+        try:
+            return analyses.retained_bet(r.get("sport") or sport or "foot", r.get("id")) is not None
+        except Exception:
+            return True                        # doute -> fail-open (ne jamais cacher un vrai pari par erreur)
+    play = [r for r in play if _has_display_bet(r)]
     prov = (sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
             if analyses.PROVISOIRES_ON else [])   # provisoires retirés (user 2026-08-11) : abstentions ignorées
     # PLUS de catégorie « à analyser » (demande user 2026-07-20 : la supprimer) : un match NON encore
