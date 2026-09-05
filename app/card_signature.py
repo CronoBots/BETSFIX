@@ -163,11 +163,10 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     _time = _re.sub(r"^\s*[Aa]ujourd['’]hui\s*", "", _time).strip()
     _meta = (f'<div class="sg-meta">{_ic("check" if rk == "won" else "cross" if rk == "lost" else "clock")}'
              f'<span class="sg-mtxt">{e(match_txt)}{(" · " + e(_time)) if _time else ""}</span></div>')
-    # héros = le pari (marque ✓/✕ + score si réglé)
-    _mk = ('<span class="sg-mk ok">✓</span>' if rk == "won"
-           else '<span class="sg-mk no">✕</span>' if rk == "lost" else "")
+    # héros = le pari (+ score si réglé). Plus de pastille ronde ✓/✕ devant le pari (user 2026-09-06) : le
+    # badge GAGNÉ/PERDU en haut-droite + la couleur de carte + la coche du méta suffisent -> ligne épurée.
     _sc = f'<span class="sg-score">{e(score_txt)}</span>' if (settled and score_txt) else ""
-    _pick = f'<div class="sg-pick{" abst" if abst else ""}">{_mk}{e(sel_txt)}{_sc}</div>'
+    _pick = f'<div class="sg-pick{" abst" if abst else ""}">{e(sel_txt)}{_sc}</div>'
     _mid = _result_strip(cote, rk) if settled else _edge_block(conf_i, cote)
     # RÉGLÉ (user 2026-09-05) : la COTE en haut à droite fait DOUBLON avec « Cote encaissée » du bandeau
     # résultat -> on la remplace par le badge GAGNÉ/PERDU/REMBOURSÉE, et on SUPPRIME le pied (plus de badge
