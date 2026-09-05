@@ -161,7 +161,9 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     # « Aujourd'hui » est REDONDANT (le calendrier/la section du jour font déjà foi) -> on ne garde que
     # l'heure. « Hier »/« Demain »/dates explicites sont conservés (info utile hors du jour). User 2026-09-05.
     _time = _re.sub(r"^\s*[Aa]ujourd['’]hui\s*", "", _time).strip()
-    _meta = (f'<div class="sg-meta">{_ic("check" if rk == "won" else "cross" if rk == "lost" else "clock")}'
+    # icône (coche/croix/horloge) retirée devant les équipes (user 2026-09-06) : le badge + la couleur de
+    # carte portent déjà le statut -> ligne match/heure épurée.
+    _meta = ('<div class="sg-meta">'
              f'<span class="sg-mtxt">{e(match_txt)}{(" · " + e(_time)) if _time else ""}</span></div>')
     # héros = le pari (+ score si réglé). Plus de pastille ronde ✓/✕ devant le pari (user 2026-09-06) : le
     # badge GAGNÉ/PERDU en haut-droite + la couleur de carte + la coche du méta suffisent -> ligne épurée.
@@ -184,7 +186,9 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
 
 
 def _head_row(eye: str, icon: str, cote_h: str) -> str:
-    return (f'<div class="sg-h"><div class="sg-cat">{_ic(icon)}'
+    # icône de tier retirée devant la ligue (user 2026-09-06) : la section (CONFIANCES/VALUE) + la couleur
+    # de carte portent déjà le tier -> ligne de ligue épurée. `icon` gardé en param (compat appelants).
+    return (f'<div class="sg-h"><div class="sg-cat">'
             f'<span class="sg-t">{eye}</span></div>{cote_h}</div>')
 
 
