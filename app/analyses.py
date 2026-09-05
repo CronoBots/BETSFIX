@@ -2546,14 +2546,17 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
         _vcc = _cool_conf(calibrated_conf(_vb.get("prob"), sport, _vb["code"]), sport, _vb["code"], m.get("streaks"))
         return {"idx": 0, "sel": _vb.get("sel"), "prob": _vb.get("prob"), "cprob": _vcc,
                 "cote": _vb.get("cote"), "result": _vres, "code": _vb["code"], "tier": "value"}
-    # FOOT = 2 SÉLECTEURS MÉCANIQUES SEULEMENT (confiance + value). Un match foot À VENIR SANS confidence_bet
-    # NI value_bet est une ABSTENTION : on ne rejoue PLUS l'ANCIEN pick EV de Claude (`_recommend`), qui
-    # polluait le tier value avec des paris hors-profil (ex. Real Sociedad « Plus de 1.5 @1.25 », cote < 1.40).
+    # FOOT = 2 SÉLECTEURS MÉCANIQUES SEULEMENT (confiance + value). Arrivé ici, les branches confiance/value
+    # ci-dessus ont DÉJÀ renvoyé le pari mécanique s'il était FINAL (publié/prematch/réglé/historique). Donc
+    # atteindre ce point pour un match foot signifie : AUCUN pari mécanique final à montrer — soit le match
+    # n'a ni confidence_bet ni value_bet (abstention), soit il en a un mais PAS ENCORE publié (Option B : caché
+    # jusqu'à la vague KO−1h). Dans les DEUX cas -> None : on ne rejoue JAMAIS l'ANCIEN pick EV de Claude
+    # (`_recommend`), qui fuitait le PICK BRUT hors-profil (Real Sociedad « Plus de 1.5 @1.25 » ; RÉCIDIVE
+    # 2026-09-05 Villarreal-Deportivo « Moins de 3.5 @1.52 » affiché en Live alors que le vrai pari mécanique
+    # était « Deportivo +2.5 @1.25 » non publié -> _final False -> l'ancien garde `not _cb` laissait passer).
     # On PRÉSERVE la montante (mids dédiés) et les combinés (leur pick vient d'ailleurs), et on ne touche pas
     # aux réglés figés (stat_bet -> couche stats/anchor). Réversible : FOOT_MECHANICAL_ONLY = False.
     if (FOOT_MECHANICAL_ONLY and sport == "foot" and not isinstance(m.get("stat_bet"), dict)
-            and not (isinstance(_cb, dict) and _cb.get("code"))
-            and not (isinstance(_vb, dict) and _vb.get("code"))
             and not (m.get("combo") or {}).get("legs")
             and str(match_id) not in _montante_mids()):
         return None
