@@ -171,9 +171,11 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     # l'heure. « Hier »/« Demain »/dates explicites sont conservés (info utile hors du jour). User 2026-09-05.
     _time = _re.sub(r"^\s*[Aa]ujourd['’]hui\s*", "", _time).strip()
     # icône (coche/croix/horloge) retirée devant les équipes (user 2026-09-06) : le badge + la couleur de
-    # carte portent déjà le statut -> ligne match/heure épurée.
+    # carte portent déjà le statut -> ligne match/heure épurée. SOON : l'heure passe dans la pastille du pied
+    # (au lieu du badge « À venir », user 2026-09-06) -> on la RETIRE du méta pour ne pas la dupliquer.
+    _meta_time = "" if rk == "soon" else _time
     _meta = ('<div class="sg-meta">'
-             f'<span class="sg-mtxt">{e(match_txt)}{(" · " + e(_time)) if _time else ""}</span></div>')
+             f'<span class="sg-mtxt">{e(match_txt)}{(" · " + e(_meta_time)) if _meta_time else ""}</span></div>')
     # héros = le pari (+ score si réglé). Plus de pastille ronde ✓/✕ devant le pari (user 2026-09-06) : le
     # badge GAGNÉ/PERDU en haut-droite + la couleur de carte + la coche du méta suffisent -> ligne épurée.
     _sc = f'<span class="sg-score">{e(score_txt)}</span>' if (settled and score_txt) else ""
@@ -183,15 +185,21 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     # résultat -> on la remplace par le badge GAGNÉ/PERDU/REMBOURSÉE, et on SUPPRIME le pied (plus de badge
     # en double, carte plus courte). À-venir/live : COTE en haut (utile) + badge (+ « pourquoi ») en pied.
     _head_right = _status_pill(rk, compact=True) if settled else _cote_h
+    # SOON : au lieu du badge « À venir », on affiche l'HEURE du match (user 2026-09-06).
+    _foot_right = (f'<span class="sg-st sg-st-time">{_ic("clock")}{e(_time)}</span>'
+                   if (rk == "soon" and _time) else _status_pill(rk))
     if settled:
         _foot = ""
     else:
-        # « Pourquoi ce pari » = <details> PLEINE LARGEUR (la pastille statut est dans son summary, à droite).
-        _wf = "" if abst else _why_fold(why_text, right_html=_status_pill(rk))
-        _foot = _wf or f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>'
+        # « Pourquoi ce pari » = <details> PLEINE LARGEUR (la pastille est dans son summary, à droite).
+        _wf = "" if abst else _why_fold(why_text, right_html=_foot_right)
+        _foot = _wf or f'<div class="sg-foot sg-foot-bare">{_foot_right}</div>'
     _wm = '<div class="sg-wmk"></div>'
     body = f'<div class="sg-in">{_head_row(_eye, icon, _head_right)}{_meta}{_pick}{_mid}{_foot}</div>'
-    return f'<div class="sg-card {cls} {rk}">{_wm}{body}</div>'
+    # CLIC N'IMPORTE OÙ SUR LA CARTE -> déploie/replie « Pourquoi ce pari » (user 2026-09-06). Le <summary>
+    # garde son stopPropagation -> pas de double bascule quand on clique précisément dessus. No-op si pas de fold.
+    _toggle = "var d=this.querySelector('details.sg-why');if(d){d.open=!d.open}"
+    return f'<div class="sg-card {cls} {rk}" onclick="{_toggle}">{_wm}{body}</div>'
 
 
 def _head_row(eye: str, icon: str, cote_h: str) -> str:
@@ -331,12 +339,12 @@ def sig_live_card(*, league: str = "", match_txt: str = "", minute: str = "", se
     else:                                            # pas de chance calculée -> au moins le score en direct
         _est = (f'<div class="sg-est"><div class="sg-est-top">'
                 '<span class="sg-est-lab">Score en direct</span>' + (_score or "") + '</div></div>')
-    _wf = _why_fold(why_text)
-    _foot = (f'<div class="sg-foot">{_wf}{_status_pill("live")}</div>' if _wf
-             else f'<div class="sg-foot sg-foot-bare">{_status_pill("live")}</div>')
+    _wf = _why_fold(why_text, right_html=_status_pill("live"))   # <details> pleine largeur (pastille dans le summary)
+    _foot = _wf or f'<div class="sg-foot sg-foot-bare">{_status_pill("live")}</div>'
     _head = _head_row(e(league), "shield", _cote_h)
     body = f'<div class="sg-in">{_head}{_meta}{_pick}{_est}{_foot}</div>'
-    return f'<div class="sg-card live"><div class="sg-wmk"></div>{body}</div>'
+    _toggle = "var d=this.querySelector('details.sg-why');if(d){d.open=!d.open}"
+    return f'<div class="sg-card live" onclick="{_toggle}"><div class="sg-wmk"></div>{body}</div>'
 
 
 def sig_css() -> str:
@@ -351,7 +359,9 @@ _SIG_CSS = """
     position:relative;border-radius:16px;overflow:hidden;isolation:isolate;margin:11px 0;
     font-family:Selawik,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--txt);
     background:linear-gradient(180deg,#101f30,#0a1420) padding-box,
-      linear-gradient(155deg,color-mix(in srgb,var(--st) 55%,transparent),color-mix(in srgb,var(--st2) 24%,transparent) 55%,rgba(255,255,255,.04)) border-box;
+      linear-gradient(160deg,color-mix(in srgb,var(--st) 46%,transparent),color-mix(in srgb,var(--st2) 30%,transparent)) border-box;
+    /* dégradé de bordure UNIFORME (plus de fondu vers transparent) -> le cadre/halo est IDENTIQUE en replié
+       et déplié (user 2026-09-06 : le halo changeait quand le « pourquoi » s'étirait sur une carte plus haute) */
     border:1px solid transparent;box-shadow:0 1px 1px rgba(0,0,0,.5),0 22px 46px -28px rgba(0,0,0,.98),inset 0 1px 0 rgba(255,255,255,.06)}
   .sg-card.value{--st:#3fd684;--st2:#22a866}
   .sg-card.live{--st:#ffcf5a;--st2:#f6a11e}
@@ -359,7 +369,8 @@ _SIG_CSS = """
   .sg-card.soon{--st:#f4c24c;--st2:#e0a42c}   /* À VENIR = JAUNE (user 2026-09-06) — confiance ET value ; après .value pour gagner la cascade */
   .sg-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3;
     background:linear-gradient(180deg,var(--st),var(--st2));box-shadow:0 0 14px color-mix(in srgb,var(--st) 55%,transparent)}
-  .sg-wmk{position:absolute;inset:0;z-index:0;opacity:.028;background:var(--logo) center/140px no-repeat;filter:grayscale(.35) brightness(1.35)}
+  .sg-card:has(details.sg-why){cursor:pointer}   /* clic n'importe où -> déploie le « pourquoi » (user 2026-09-06) */
+  .sg-wmk{position:absolute;top:0;left:0;right:0;height:172px;z-index:0;opacity:.028;background:var(--logo) center/140px no-repeat;filter:grayscale(.35) brightness(1.35)}  /* hauteur FIXE ancrée en haut -> le filigrane ne bouge PLUS quand le « pourquoi » se déplie (user 2026-09-06) */
   .sg-in{position:relative;z-index:2;padding:15px 16px 14px 18px}
   .sg-ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-.12em}
   .sg-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -412,6 +423,7 @@ _SIG_CSS = """
     color:var(--st);background:color-mix(in srgb,var(--st) 13%,transparent);border:1px solid color-mix(in srgb,var(--st) 36%,transparent)}
   .sg-st .sg-ic{font-size:12px}
   .sg-st.sg-st-ic{padding:6px;border-radius:99px}.sg-st.sg-st-ic .sg-ic{font-size:14px}
+  .sg-st.sg-st-time{text-transform:none;font-feature-settings:var(--num);letter-spacing:.02em}   /* heure du match (remplace « À venir », user 2026-09-06) */
   .sg-dl{width:6px;height:6px;border-radius:50%;background:var(--st);box-shadow:0 0 8px var(--st)}
 """
 
