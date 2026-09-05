@@ -3749,6 +3749,14 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     _sharp_map = (meta or {}).get("sharp_map") or {}
     if _sharp_map:
         side["sharp_map"] = _sharp_map  # map {code -> proba SHARP de-viggée} figée au scan -> comparaison carte + CLV
+    # DISCIPLINE (user 2026-09-05) : persister le STATUT de l'ancre pour TOUT match analysé — paris ET
+    # ABSTENTIONS — pas seulement quand sharp_map est plein. Sinon une abstention (ancre 1X2 présente dans le
+    # .md mais map PAR MARCHÉ vide/incohérente) apparaît « sans ancre » aux scans/QC (FAUX ; cf. les 5 du 05/09).
+    # Rend l'invariant sharp AUDITABLE structurellement (comme l'omap réparé le 31/08), sans changer la décision.
+    if meta is not None and meta.get("no_sharp") is not None:
+        side["no_sharp"] = bool(meta.get("no_sharp"))
+    if (meta or {}).get("sharp_conflict"):
+        side["sharp_conflict"] = True
     _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
     if not _omap:                       # process courant n'a pas re-capté les cotes Unibet (ré-écriture, cache…)
         try:                            # -> NE PAS PERDRE l'omap déjà écrit dans le sidecar (user 2026-08-31)

@@ -945,18 +945,34 @@ def _check_stats_snapshot_drift() -> dict:
     live = analyses.stats_full(_bypass_snapshot=True)          # recalcul RÉEL, sans lire le snapshot
     sd, ld = snap["data"], live
     ov_s = (sd.get("overall") or {}); ov_l = (ld.get("overall") or {})
-    items = []
-    if int(ov_s.get("settled") or 0) != int(ov_l.get("settled") or 0):
-        items.append(f"paris comptés : snapshot {ov_s.get('settled')} ≠ live {ov_l.get('settled')}")
+    s_n = int(ov_s.get("settled") or 0); l_n = int(ov_l.get("settled") or 0)
     ps = (ov_s.get("points") or []); pl = (ov_l.get("points") or [])
-    if (ps[-1] if ps else None) != (pl[-1] if pl else None):
-        items.append(f"P&L final : snapshot {ps[-1] if ps else None} ≠ live {pl[-1] if pl else None}")
-    if round(float(ov_s.get("roi") or 0), 3) != round(float(ov_l.get("roi") or 0), 3):
-        items.append(f"ROI : snapshot {ov_s.get('roi')} ≠ live {ov_l.get('roi')}")
-    lvl = "error" if items else "ok"
+    s_pnl, l_pnl = (ps[-1] if ps else None), (pl[-1] if pl else None)
+    s_roi = round(float(ov_s.get("roi") or 0), 3); l_roi = round(float(ov_l.get("roi") or 0), 3)
+    items = []
+    if s_n != l_n:
+        items.append(f"paris comptés : snapshot {s_n} ≠ live {l_n}")
+    else:                                                      # même nb de comptés -> P&L/ROI doivent coller pile
+        if s_pnl != l_pnl:
+            items.append(f"P&L final : snapshot {s_pnl} ≠ live {l_pnl}")
+        if s_roi != l_roi:
+            items.append(f"ROI : snapshot {s_roi} ≠ live {l_roi}")
+    # NIVEAU (durci 2026-09-05) : le snapshot ne peut PAS s'invalider quand un match FINI est compté EN DIRECT
+    # par stats_full avant que le reconcile persiste le résultat au sidecar (`_dir_sig` inchangé). Ce LAG (live
+    # EN AVANCE) est un TRANSITOIRE normal, résorbé au reconcile -> WARN, PAS erreur (sinon alarme « normale »
+    # qui entraîne à ignorer les vraies). ERREUR seulement sur une VRAIE dérive de sérialisation : snapshot qui
+    # SUR-compte (snapshot > live) ou chiffres qui divergent À NOMBRE ÉGAL de comptés.
+    if s_n > l_n or (s_n == l_n and items):
+        lvl = "error"
+    elif l_n > s_n:
+        lvl = "warn"
+    else:
+        lvl = "ok"
     return {"key": "stats_snapshot_drift", "level": lvl,
             "title": "Snapshot stats == calcul live",
-            "detail": ("DÉRIVE détectée (snapshot ≠ recalcul)." if items
+            "detail": ("LAG transitoire : le live compte des matchs finis pas encore persistés au sidecar "
+                       f"(snapshot {s_n} < live {l_n}) — se résorbe au reconcile." if lvl == "warn"
+                       else "DÉRIVE de sérialisation (snapshot ≠ recalcul à données égales)." if lvl == "error"
                        else "snapshot à jour et identique au recalcul en direct (P&L + comptés + ROI)."),
             "items": items}
 
