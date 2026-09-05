@@ -11984,7 +11984,8 @@ def _sport_row(r: dict) -> str:
                     league=_uleague, match_txt=_umatch, when_txt=_uwhen, time_txt=_uwhen_hm,
                     sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                     cote_txt=_ucote_txt, rcls=_rcls, is_live=is_live, is_finished=is_finished,
-                    score_txt=_uscore_txt, abst=(_pb is None), start=sdt, conf_i=_ucf_i)
+                    score_txt=_uscore_txt, abst=(_pb is None), start=sdt, conf_i=_ucf_i,
+                    why_text=_uwhy_text)
             if _ticket_style():        # carte À VENIR / LIVE en TICKET (maquette E validée) — dédiée
                 return _tk_bet_card(
                     league=_uleague, match_txt=_umatch, when_txt=_uwhen, time_txt=_uwhen_hm,

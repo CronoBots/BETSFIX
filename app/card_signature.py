@@ -120,6 +120,20 @@ def _status_pill(rk: str) -> str:
     return f'<span class="sg-st">{icon}{_STATUS.get(rk, "À venir")}</span>'
 
 
+def _why_fold(text: str) -> str:
+    """« Pourquoi ce pari » repliable (puces) — remplit le bas-gauche de la carte + restaure l'analyse.
+    '' si pas de texte. Découpe en phrases courtes (≤5)."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    parts = [p.strip() for p in _re.split(r"(?<=[.!?])\s+", t) if p.strip()][:5]
+    if not parts:
+        return ""
+    lis = "".join(f"<li>{_html.escape(p)}</li>" for p in parts)
+    return ('<details class="sg-why"><summary onclick="event.stopPropagation()">Pourquoi ce pari'
+            f'<span class="sg-chev">▾</span></summary><ul>{lis}</ul></details>')
+
+
 def _rk_of(rcls: str, is_live: bool, is_finished: bool, result: str = "") -> str:
     if result in ("won", "lost", "push", "void") or any(k in (rcls or "") for k in ("mc-r-won", "mc-r-lost", "mc-r-push")):
         r = result or ("won" if "mc-r-won" in rcls else "lost" if "mc-r-lost" in rcls else "push")
@@ -130,7 +144,7 @@ def _rk_of(rcls: str, is_live: bool, is_finished: bool, result: str = "") -> str
 def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", time_txt: str = "",
                  sel_txt: str = "", cote_txt: str = "", cote=None, conf_i=None, rcls: str = "",
                  is_live: bool = False, is_finished: bool = False, score_txt: str = "",
-                 start=None, abst: bool = False, **_ignore) -> str:
+                 start=None, abst: bool = False, why_text: str = "", **_ignore) -> str:
     """Carte PARI SIMPLE (à-venir / live / réglé), style signature grand public. Drop-in : accepte les mêmes
     kwargs que `_tk_bet_card` (extras ignorés)."""
     e = _html.escape
@@ -152,7 +166,9 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     _sc = f'<span class="sg-score">{e(score_txt)}</span>' if (settled and score_txt) else ""
     _pick = f'<div class="sg-pick{" abst" if abst else ""}">{_mk}{e(sel_txt)}{_sc}</div>'
     _mid = _result_strip(cote, rk) if settled else _edge_block(conf_i, cote)
-    _foot = f'<div class="sg-foot"><span></span>{_status_pill(rk)}</div>'
+    _wf = "" if (abst or settled) else _why_fold(why_text)      # « Pourquoi ce pari » comble le bas-gauche
+    _foot = (f'<div class="sg-foot">{_wf}{_status_pill(rk)}</div>' if _wf
+             else f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>')
     _wm = '<div class="sg-wmk"></div>'
     body = f'<div class="sg-in">{_head_row(_eye, icon, _cote_h)}{_meta}{_pick}{_mid}{_foot}</div>'
     return f'<div class="sg-card {cls} {rk}">{_wm}{body}</div>'
@@ -244,7 +260,7 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
         _mid = ('<div class="sg-est"><div class="sg-est-top">'
                 f'<span class="sg-est-lab">{len(legs)} sélections sûres cumulées</span>'
                 f'<span class="sg-qtag">{_ic("shield")}Pari sûr</span></div></div>')
-    _foot = f'<div class="sg-foot"><span></span>{_status_pill(rk)}</div>'
+    _foot = f'<div class="sg-foot sg-foot-bare">{_status_pill(rk)}</div>'
     _head = (f'<div class="sg-h"><div class="sg-cat">{_ic("layers")}'
              f'<span class="sg-t">{e(title)}</span></div>{cote_h}</div>')
     body = f'<div class="sg-in">{_head}{_meta}<div class="sg-div"></div>{_legs_html}{_mid}{_foot}</div>'
@@ -267,6 +283,7 @@ _SIG_CSS = """
       linear-gradient(155deg,color-mix(in srgb,var(--st) 55%,transparent),color-mix(in srgb,var(--st2) 24%,transparent) 55%,rgba(255,255,255,.04)) border-box;
     border:1px solid transparent;box-shadow:0 1px 1px rgba(0,0,0,.5),0 22px 46px -28px rgba(0,0,0,.98),inset 0 1px 0 rgba(255,255,255,.06)}
   .sg-card.value{--st:#3fd684;--st2:#22a866}
+  .sg-card.live{--st:#ffcf5a;--st2:#f6a11e}
   .sg-card.won{--st:#5be79b;--st2:#25b264}.sg-card.lost{--st:#ff9d9d;--st2:#e14a4a}
   .sg-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3;
     background:linear-gradient(180deg,var(--st),var(--st2));box-shadow:0 0 14px color-mix(in srgb,var(--st) 55%,transparent)}
@@ -307,7 +324,16 @@ _SIG_CSS = """
   .sg-rside .sg-t{font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
   .sg-rside .sg-num{font-size:15px;font-weight:800;color:var(--muted)}
   .sg-rside .sg-tally{display:inline-flex;align-items:center;gap:5px;color:var(--st);font-weight:800;font-size:11px;margin-top:1px}
-  .sg-foot{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .sg-foot{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .sg-foot.sg-foot-bare{border-top:none;padding-top:0;margin-top:14px;justify-content:flex-end}
+  .sg-why{flex:1;min-width:0}
+  .sg-why>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--st);white-space:nowrap}
+  .sg-why>summary::-webkit-details-marker{display:none}
+  .sg-chev{font-size:10px;transition:transform .18s}.sg-why[open] .sg-chev{transform:rotate(180deg)}
+  .sg-why ul{margin:8px 0 0;padding:0;list-style:none}
+  .sg-why li{position:relative;padding-left:15px;margin:5px 0;font-size:12.5px;line-height:1.5;color:#c4d3e6;font-weight:500}
+  .sg-why li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:var(--st)}
+  .sg-foot .sg-why>summary{padding:5px 0}
   .sg-st{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:5px 11px;border-radius:99px;
     color:var(--st);background:color-mix(in srgb,var(--st) 13%,transparent);border:1px solid color-mix(in srgb,var(--st) 36%,transparent)}
   .sg-st .sg-ic{font-size:12px}
