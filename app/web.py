@@ -25,14 +25,25 @@ _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # — logos, barres, analyse — s'affiche au dépli). "ticket" = MÊME base E, ENVELOPPÉE dans une signature
 # « ticket de paris » (en-tête BETSFIX + statut, perforations à encoches, code-barres unique, n° de ticket,
 # tampon néon GAGNÉ/PERDU sur les cartes réglées). "classic" = ancien design (logos + grille au repli).
-# ⛔ REVENIR À L'ANCIEN STYLE = poser la variable d'env `BETSFIX_CARD_STYLE=classic` (rien d'autre à toucher :
-# toutes les branches classiques sont conservées intactes) · `=unibet` = E sans le cadre ticket. Mémoire `card-style-unibet-flag`.
-CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "ticket").strip().lower()
+# "signature" = style GRAND PUBLIC (2026-09-05, DÉFAUT en ligne) : le PARI est l'unique héros, cote discrète,
+# zéro jargon (« nos chances » vs « cote du marché », gains en %), jauge d'edge (marché gris + notre edge coloré),
+# tags « Pari sûr » / « Bonne value ». Rendu DÉDIÉ dans app/card_signature.py (classes `.sg-*`, CSS scopé).
+# ⛔ REVENIR À L'ANCIEN STYLE = poser la variable d'env `BETSFIX_CARD_STYLE=ticket` (talon/code-barres) ou
+# `=classic` (ancien) / `=unibet` (E plat) — rien d'autre à toucher, toutes les branches sont conservées intactes.
+# Mémoires `card-style-unibet-flag`, `signature-card-style`.
+CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "signature").strip().lower()
 def _e_style() -> bool:
-    # Le style « ticket » réutilise INTÉGRALEMENT le rendu E (liste plate) puis l'habille -> il active E aussi.
-    return CARD_STYLE in ("unibet", "ticket")
+    # « ticket » ET « signature » réutilisent le rendu E (liste plate) puis l'habillent -> ils activent E aussi.
+    return CARD_STYLE in ("unibet", "ticket", "signature")
 def _ticket_style() -> bool:
     return CARD_STYLE == "ticket"
+def _signature_style() -> bool:
+    # Style « signature » grand public (flag BETSFIX_CARD_STYLE=signature) — rendu par app/card_signature.
+    return CARD_STYLE == "signature"
+from app import card_signature as _cardsig
+def _sig_extra_css() -> str:
+    """CSS du style signature (scopé .sg-card) injecté dans le <head> UNIQUEMENT quand le flag est actif."""
+    return _cardsig.sig_css() if _signature_style() else ""
 
 # ===== TICKET DE PARIS — direction A « talon » (validée user 2026-09-04, flag BETSFIX_CARD_STYLE=ticket) =====
 # LAYOUT UNIQUE tous états (à-venir/live/gagné/perdu/combiné) : talon vertical gauche = LOGO BETSFIX (wordmark
@@ -5032,7 +5043,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-<style>{CSS}</style></head><body class="sp-{e(sport)}">
+<style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
@@ -5078,7 +5089,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-<style>{CSS}</style></head><body class="sp-{e(active)}">
+<style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
@@ -11361,6 +11372,11 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     except Exception:
         _why_body = ""
     _uedetail = f'<div class="ue-why">{_why_body}</div>' if _why_body else rich_html
+    if _signature_style():     # carte RÉSULTAT signature (grand public) — score + gain %
+        return _cardsig.sig_result_card(league=_league, match_txt=f"{_home} — {_away}",
+                                        sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
+                                        cote=_cote, cote_txt=_cote_txt, result=_res, conf_i=_cf_i,
+                                        score_txt=_score_txt, when_txt=_when, start=d.get("start"))
     if _ticket_style():        # carte RÉSULTAT « néon premium » (maquette C validée) — cote encaissée centrée + tampon
         return _tk_result_card(league=_league, match_txt=f"{_home} — {_away}",
                                sel_txt=_pretty_sel(rb.get("sel", ""), _home, _away),
@@ -11379,6 +11395,8 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     legs = cb.get("legs") or []
     if not legs:
         return ""
+    if _signature_style():     # combiné signature (grand public) — jambes + confiance/jambe + edge sur le total
+        return _cardsig.sig_combo_card(cb, title=title, sport=sport, pretty=_pretty_sel)
     if _ticket_style():        # combiné en TICKET (signature BETSFIX + jambes en mini-tickets) — maquette E étendue
         return _tk_combo_card(cb, title=title, sport=sport)
     # Jambes dans l'ordre du MATCH (coup d'envoi croissant) — user 2026-09-03. Tri d'AFFICHAGE seulement
@@ -11961,6 +11979,12 @@ def _sport_row(r: dict) -> str:
                 sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
                 match_txt=_umatch, metrics_html=_umx, score_txt=_uscore_txt, score_live=is_live,
                 chev=True, abst=(_pb is None))
+            if _signature_style():     # carte À VENIR / LIVE / RÉGLÉE signature (grand public) — dédiée
+                return _cardsig.sig_bet_card(
+                    league=_uleague, match_txt=_umatch, when_txt=_uwhen, time_txt=_uwhen_hm,
+                    sel_txt=(_pretty_sel(_pb.get("sel", ""), _uhome, _uaway) if _pb else "Analysé · pas de pari conseillé"),
+                    cote_txt=_ucote_txt, rcls=_rcls, is_live=is_live, is_finished=is_finished,
+                    score_txt=_uscore_txt, abst=(_pb is None), start=sdt, conf_i=_ucf_i)
             if _ticket_style():        # carte À VENIR / LIVE en TICKET (maquette E validée) — dédiée
                 return _tk_bet_card(
                     league=_uleague, match_txt=_umatch, when_txt=_uwhen, time_txt=_uwhen_hm,
