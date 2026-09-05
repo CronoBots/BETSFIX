@@ -115,8 +115,12 @@ def _result_strip(cote, result: str, *, tally_html: str = "") -> str:
 _STATUS = {"soon": "À venir", "live": "Live", "won": "Gagné", "lost": "Perdu", "push": "Remboursé"}
 
 
-def _status_pill(rk: str) -> str:
+def _status_pill(rk: str, compact: bool = False) -> str:
     icon = {"won": _ic("check"), "lost": _ic("cross"), "live": '<span class="sg-dl"></span>'}.get(rk, "")
+    # compact (user 2026-09-06) : badge de RÉSULTAT en haut-droite = pastille ICÔNE SEULE (✓/✕), sans le mot
+    # « Gagné »/« Perdu » (redondant). Réservé à won/lost ; push (remboursé, pas d'icône) garde son libellé.
+    if compact and rk in ("won", "lost"):
+        return f'<span class="sg-st sg-st-ic" aria-label="{_STATUS.get(rk)}">{icon}</span>'
     return f'<span class="sg-st">{icon}{_STATUS.get(rk, "À venir")}</span>'
 
 
@@ -173,7 +177,7 @@ def sig_bet_card(*, league: str = "", match_txt: str = "", when_txt: str = "", t
     # RÉGLÉ (user 2026-09-05) : la COTE en haut à droite fait DOUBLON avec « Cote encaissée » du bandeau
     # résultat -> on la remplace par le badge GAGNÉ/PERDU/REMBOURSÉE, et on SUPPRIME le pied (plus de badge
     # en double, carte plus courte). À-venir/live : COTE en haut (utile) + badge (+ « pourquoi ») en pied.
-    _head_right = _status_pill(rk) if settled else _cote_h
+    _head_right = _status_pill(rk, compact=True) if settled else _cote_h
     if settled:
         _foot = ""
     else:
@@ -399,6 +403,7 @@ _SIG_CSS = """
   .sg-st{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:5px 11px;border-radius:99px;
     color:var(--st);background:color-mix(in srgb,var(--st) 13%,transparent);border:1px solid color-mix(in srgb,var(--st) 36%,transparent)}
   .sg-st .sg-ic{font-size:12px}
+  .sg-st.sg-st-ic{padding:6px;border-radius:99px}.sg-st.sg-st-ic .sg-ic{font-size:14px}
   .sg-dl{width:6px;height:6px;border-radius:50%;background:var(--st);box-shadow:0 0 8px var(--st)}
 """
 
