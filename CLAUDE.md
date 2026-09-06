@@ -320,9 +320,16 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     centre + « Terminé » (plus de chip score haut-droite) ; sur `.cleg.cleg-res-live` (`_leg_card` live_layout,
     = cartes résultat + montante) idem. Les **combinés** (`_combo_gold_card`) gardent leur bandeau `mc-combo-res`
     (layout à part : dots par jambe). ⚠️ NE PAS confondre « cadre » (bordure, gardée) et « bandeau » (retiré).
-  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes. `.row.mc::before` + **`.cleg::before`** (jambes/
-    cartes-résultat/montante). Pour les **combinés**, le logo vit dans le **cadre des JAMBES**, PAS sur le cadre
-    global doré (`.row.mc.mc-tg-gold::before{content:none}`).
+    **Sous le pari (fiche RÉSULTAT réglée) = Confiance + Cote SEULS** : la légende « marché % · edge · value »
+    est RETIRÉE (métrique de value d'avant-match, inutile une fois réglé) via `hide_context=True`
+    (`analyses.verdict_line` / `web._verdict_block`), passé par `_leg_card` quand won/lost/push/void. Avant
+    règlement (à venir/live) : légende inchangée.
+  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes, **opacité .05** (discret, validé user).
+    `.row.mc::before` + **`.cleg::before`** (jambes/cartes-résultat/montante). Pour les **combinés**, le logo vit
+    dans le **cadre des JAMBES**, PAS sur le cadre global doré (`.row.mc.mc-tg-gold::before{content:none}`).
+    **`.cleg::before` CENTRÉ verticalement** dans le cadre REPLIÉ (`top:0;bottom:0` + `background center 80px`,
+    offset px FIXE depuis le haut = centre d'un cadre ~266px) → le logo **reste à la même place quand le pli
+    « Pourquoi » se déplie** (la carte grandit vers le bas, l'offset top ne bouge pas).
   - **PASTILLE calendrier horizontal (MAJ 2026-09-06)** : couleur pilotée par la **Confiance SEULE**
     (`_daily_conf_results_map`, plus `_daily_all_results_map`). Règle : VERT = tout gagné · JAUNE dès la **moitié**
     (`won*2 >= settled`) · ROUGE seulement si **strictement < moitié**. Cliquabilité du jour = tous paris (`rmap`).
