@@ -1022,7 +1022,7 @@ def _value_word(v: int) -> tuple[str, str]:
 def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = False,
                  hide_neg_value: bool = False, pick_html: str = "",
                  live_pct=None, live_trend: str = "", live_state: str = "",
-                 result_html: str = "", bare: bool = False) -> str:
+                 result_html: str = "", bare: bool = False, hide_context: bool = False) -> str:
     """Bloc VERDICT PARTAGÉE (cartes de pari ET provisoires -> rendu IDENTIQUE). Refonte 2026-07-18
     (demande user « réorganise tout : aligné, pleine largeur, que l'utile et l'intuitif ») :
       (1) en-tête CONFIANCE = qualificatif + % coloré (par niveau) ;
@@ -1092,9 +1092,11 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # (combiné) : Confiance + Cote seuls (pas de légende marché/edge/value). L'ANCIENNE grille `.vm-grid` reste
     # utilisée par le repli « pari sans verdict » de web._verdict_block (cote seule) -> classes .vm-* conservées.
     _ctx = ""
-    if not bare:
+    if not bare and not hide_context:
         # EDGE/VALUE MASQUÉS SI NÉGATIFS (user 2026-09-06) : sur un favori court (confiance haute, pas de value),
         # edge/value sont souvent négatifs -> on ne les affiche PAS (bruit). On garde « marché » (référence).
+        # `hide_context` (user 2026-09-06) : fiche RÉSULTAT -> on retire la légende marché/edge/value (métrique
+        # de value d'AVANT-match, inutile une fois réglé) ; il ne reste que Confiance + Cote.
         _bits = [f'<span class="vx-i">marché <b>{be}%</b></span>']
         if _edge >= 0:
             _ecls, _eword = _edge_word(_edge)

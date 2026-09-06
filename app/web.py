@@ -2841,8 +2841,11 @@ CSS = """
        border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
      dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
-  .cleg::before{content:"";position:absolute;top:0;left:0;right:0;height:150px;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center 20px/120px no-repeat;filter:grayscale(.3) brightness(1.3)}
+  /* Filigrane CENTRÉ verticalement dans le cadre REPLIÉ (user 2026-09-06) : `top:0;bottom:0` couvre toute la
+     carte + position Y FIXE en px (80px = centre d'un cadre replié ~266px : logo 120×106, 133−53) -> le logo
+     reste À LA MÊME PLACE quand le pli « Pourquoi » se déplie (la carte grandit vers le bas, l'offset top ne bouge pas). */
+  .cleg::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
+       opacity:.05;background:url('/static/logo.png') center 80px/120px no-repeat;filter:grayscale(.3) brightness(1.3)}
   .cleg>*:not(.mc-corner){position:relative;z-index:1}   /* le badge coin garde son position:absolute (mc-corner) */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
@@ -6427,7 +6430,7 @@ def _pretty_sel(sel: str, home: str = "", away: str = "") -> str:
 def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calibrated: bool = True,
                    hide_neg_value: bool = False, pick_html: str = "",
                    live_pct=None, live_trend: str = "", live_state: str = "", result_html: str = "",
-                   bare: bool = False) -> str:
+                   bare: bool = False, hide_context: bool = False) -> str:
     """Bloc VERDICT UNIFIÉ (demande user 2026-07-17 « tout doit être identique sur les autres types de
     paris ») = ligne verdict PARTAGÉE `analyses.verdict_line` (« Marché XX% · Notre confiance YY% ✓calibré
     → Value ±Z% », value = héros coloré) + pied (mention/ré-analyse + grosse cote). Remplace l'ancienne
@@ -6449,7 +6452,7 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
             _vl = analyses.verdict_line(c, conf, ev, calibrated=calibrated, with_cote=bool(cote_html),
                                         hide_neg_value=hide_neg_value, pick_html=pick_html,
                                         live_pct=live_pct, live_trend=live_trend, live_state=live_state,
-                                        result_html=result_html, bare=bare)
+                                        result_html=result_html, bare=bare, hide_context=hide_context)
         except (TypeError, ValueError):
             _vl = ""
     if not _vl and pick_html:              # pas de verdict calculable -> cadre « pari seul » (jamais perdu)
@@ -7309,7 +7312,11 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         else:
             _ctr = f'<span class="tm-fin">{html.escape(_hh) if _hh else "À venir"}</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
-        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge, bare=bare)
+        # FICHE RÉSULTAT (réglé) : on RETIRE la légende marché/edge/value (métrique de value d'avant-match, inutile
+        # une fois le match joué — user 2026-09-06) -> il ne reste que Confiance + Cote. Avant règlement : inchangé.
+        _settled_card = _res in ("won", "lost", "push", "void")
+        _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge,
+                             bare=bare, hide_context=_settled_card)
         # CLASSES IDENTIQUES à la carte normale (user 2026-08-17 : « exactement la même mise en page ») :
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
