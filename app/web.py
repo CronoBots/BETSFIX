@@ -1292,7 +1292,8 @@ CSS = """
   .lvbar-ar{font-size:11px;margin-left:3px}
   .lvbar.lv-up .lvbar-ar{color:#34d27b}
   .lvbar.lv-down .lvbar-ar{color:#ff6b6b}
-  .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+  .lvbar-track{height:8px;border-radius:6px;background:rgba(255,255,255,.09);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.35);
+       transform:translateZ(0);-webkit-transform:translateZ(0)}   /* iOS : idem .vb-bar (coin arrondi stable au 1er rendu) */
   /* Remplissage PREMIUM (user 2026-08-19) : dégradé/gloss (posé inline), léger reflet haut, et CROISSANCE à
      l'entrée (scaleX depuis la gauche). Respecte prefers-reduced-motion. */
   @keyframes lvGrow{from{transform:scaleX(.02)}to{transform:scaleX(1)}}
@@ -3634,7 +3635,9 @@ CSS = """
   .vb-mk-us{background:#64cd8d !important;box-shadow:0 0 0 1px rgba(9,14,22,.65) !important}
   /* BARRE pleine largeur (bloc) : remplissage = confiance, marqueur = seuil marché. */
   .vb-bar{position:relative;height:9px;border-radius:99px;overflow:hidden;margin-top:9px;
-       background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
+       background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55);
+       transform:translateZ(0);-webkit-transform:translateZ(0)}   /* iOS : couche de compositing stable -> le
+       coin arrondi n'est PLUS « coupé » au 1er chargement pendant l'animation de remplissage (user 2026-09-06) */
   /* barre qui se REMPLIT au chargement (0 -> confiance), léger delay. `both` fige l'état final. */
   .vb-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block;min-width:9px;
        box-shadow:inset 0 1px 0 rgba(255,255,255,.35);animation:vbfill 1s cubic-bezier(.22,1,.36,1) .05s both}
