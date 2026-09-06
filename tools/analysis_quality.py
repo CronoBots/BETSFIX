@@ -294,7 +294,13 @@ def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
     md_ko = (os.path.getsize(md) / 1000.0) if (md and os.path.exists(md)) else 0.0
     return {
         "src_names": src_names, "n_src": len(src_names),
-        "sharp_ok": (bool(d.get("sharp_map")) or ("pinnacle" in mdtxt.lower())) and not d.get("no_sharp"),
+        # ANCRE SHARP présente si : map par marché persistée, OU l'analyse CITE une ancre chiffrée (« sharp 50 % »/
+        # « Pinnacle 82 % » — `_SHARP_CITE`, pas seulement le mot « pinnacle »). Le verrou `no_sharp` DIFFÈRE déjà
+        # tout match SANS ancre -> un match ANALYSÉ (donc non différé) qui cite un sharp EN A un. Corrige le FAUX
+        # « ❌ pas d'ancre sharp » sur les ABSTENTIONS (fiche minimale : `sharp_map` PAR MARCHÉ vide alors que
+        # l'ancre 1X2 existe, comme l'omap avant le fix du 31/08). La FABRICATION reste détectée à part (bet réel
+        # citant un sharp SANS `sharp_map` -> ❌ dédié, cf. _qc_audit), donc on ne masque aucun vrai problème.
+        "sharp_ok": (bool(d.get("sharp_map")) or bool(_SHARP_CITE.search(mdtxt or ""))) and not d.get("no_sharp"),
         # ⚠️ FABRICATION D'ANCRE : l'analyse cite un « sharp/Pinnacle XX % » alors qu'AUCUNE ancre réelle n'existe
         # (`sharp_map` vide) -> chiffre inventé pour justifier une EV (bug Burnley-Middlesbrough 2026-09-02).
         "sharp_map_empty": not bool(d.get("sharp_map")),
