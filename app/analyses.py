@@ -677,7 +677,14 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
                 _kind = "asiatique" if (_half and not _three) else "3 voies"
                 return f"Handicap {_kind} {_team} {_sign}"
             return s
-    if _periode or "double chance" not in low:   # période -> tel quel (jamais normalisé en DC match entier)
+    # Reconnaître AUSSI la forme explicite « <équipe> ou nul (1X) » SANS le préfixe « double chance » (bug user
+    # 2026-09-07 : le pari SIMPLE « Corinthians ou nul (1X) » gardait le nom COURT du `sel` tandis que la jambe
+    # de combiné « Double chance Corinthians-SP ou nul (1X) » était reconstruite au nom CANONIQUE `home` -> 2
+    # libellés pour le MÊME pari). On entre dans la normalisation DC si « double chance » OU (code 1X/X2/12
+    # explicite ET « ou nul »). Le garde `_periode` reste prioritaire (un DC de mi-temps n'est jamais normalisé).
+    _dc_form = ("double chance" in low
+                or bool(re.search(r"\b(1x|x2|12)\b", low) and re.search(r"\bou\s+nul\b", low)))
+    if _periode or not _dc_form:                 # période / pas une double chance -> tel quel
         return s
     m = re.search(r"\b(1x|x2|12)\b", low)
     code = m.group(1).upper() if m else None

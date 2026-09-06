@@ -8747,10 +8747,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # UN SEUL COMBINÉ du jour (user 2026-08-20 : retour au combiné sécurité unique du 29/07-07/08). Hors ROI.
     # DEUX COMBINÉS (user 2026-08-30) : « Combiné du jour » (variant "") + « Combiné du soir » (variant "soir"),
     # MÊME présentation (titre sans « SÛR »/« COTE 2 » -> accent par défaut). Chacun bâti à SON scan (matin/soir).
-    combo_daily = _MC_SEP.join([c for c in (
-        _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU JOUR", variant=""),
-        _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU SOIR", variant="soir"),
-    ) if c])
+    # Cartes des DEUX combinés (jour + soir). Construites ici mais ORDONNÉES plus bas (EN COURS au-dessus,
+    # RÉGLÉ en dessous — comme Confiance/Value ; user 2026-09-07). On les garde par variante pour connaître leur
+    # état au tri. `combo_daily` (chaîne finale ordonnée) est assemblé dans la boucle record du combiné.
+    _combo_cards_by_var = {
+        "": _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU JOUR", variant=""),
+        "soir": _combo_tg_card(include_settled=True, sport=(sport or "foot"), title="COMBINÉ DU SOIR", variant="soir"),
+    }
+    combo_daily = ""   # rempli (ordonné) dans la boucle record du combiné, plus bas
     _is_foot_view = sport in (None, "foot")
     # (Zone « Combiné » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
     #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
@@ -8844,7 +8848,21 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             return datetime.fromisoformat(str(m.get("start")).replace("Z", "+00:00")).timestamp() > _now_ts
         except Exception:
             return False
-    _has_prog = any(_prog_upcoming(m) for m in (_load_day_programme().get("matches") or []))
+    def _prog_pending(m) -> bool:
+        # « EN ATTENTE » = match encore À VENIR **ET pas encore finalisé** : sa vague KO−1h n'a pas tourné
+        # (`prematch_done` absent) -> il peut ENCORE tomber dans une catégorie vide. Une fois la vague passée
+        # (pari OU abstention FIGÉS), le match est confirmé dans SA catégorie -> il n'alimentera plus une
+        # catégorie vide -> inutile de la garder « en attente ». (user 2026-09-07 : « les 2 matchs restants sont
+        # déjà confirmés/catégorisés, aucune chance qu'un autre pari apparaisse dans les catégories vides ».)
+        if not _prog_upcoming(m):
+            return False
+        _sd = analyses.meta(m.get("sport") or "foot", str(m.get("id") or "")) or {}
+        return not _sd.get("prematch_done")
+    # `_has_prog` pilote l'affichage des catégories VIDES (« en attente ») ET des ABSTENTIONS : seulement tant
+    # qu'il reste un match NON finalisé (cf. `_prog_pending`). Programme TERMINÉ (tous les matchs restants ont
+    # leur vague passée = pari/abstention figés) -> on masque les catégories vides ET les abstentions (user
+    # 2026-09-07 : « une fois le programme terminé on peut cacher aussi les abstentions »).
+    _has_prog = any(_prog_pending(m) for m in (_load_day_programme().get("matches") or []))
     # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
@@ -8903,7 +8921,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _combo_rec = None
     _n_combos = 0
     _combo_active = 0                    # nb de combinés ENCORE actifs (non réglés) -> badge nav
-    if combo_daily:
+    _combo_ordered = []                  # (réglé?, html) -> tri « en cours » AVANT « réglé »
+    if any(_combo_cards_by_var.values()):
         try:
             from app import combo_daily as _cd2
             _tot = _up = _clive = _won = _lost = _pend = 0
@@ -8913,6 +8932,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                     continue
                 _tot += 1
                 _cr = _cbt.get("result")
+                _settled = _cr in ("won", "lost", "void")
+                _card = _combo_cards_by_var.get(_var)
+                if _card:
+                    _combo_ordered.append((_settled, _card))
                 if _cr == "won":
                     _won += 1
                 elif _cr == "lost":
@@ -8925,9 +8948,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                         l.get("start") and analyses.likely_finished(
                             {"sport": l.get("sport") or "foot", "start": l.get("start")})
                         for l in (_cbt.get("legs") or []))
-                    if _lv:
-                        _clive += 1
-                    elif _pd:
+                    # LIVE compte JAUNE avec « à venir » (user 2026-09-07) : `_zone` n'affiche PAS le slot live
+                    # distinct (position 3 du record) -> un combiné EN COURS y disparaissait du badge (« ne prend
+                    # pas en compte le combiné du soir »). On le range donc dans `_up` (jaune « non résolu »).
+                    if _pd:
                         _pend += 1
                     else:
                         _up += 1
@@ -8936,6 +8960,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
             _combo_rec = (_tot, _up, _clive, _won, _lost, _pend) if _tot else None
         except Exception:
             _combo_rec = None
+    # ORDRE (user 2026-09-07) : combiné EN COURS au-dessus, combiné RÉGLÉ en dessous — comme Confiance/Value.
+    # (Avant : ordre fixe jour->soir -> le combiné du jour GAGNÉ passait au-dessus du soir encore en cours.)
+    _combo_ordered.sort(key=lambda t: t[0])                       # False (en cours) avant True (réglé)
+    combo_daily = _MC_SEP.join([h for _s, h in _combo_ordered if h])
+    if not combo_daily:                                           # repli si aucun combiné avec jambes : ordre brut
+        combo_daily = _MC_SEP.join([h for h in _combo_cards_by_var.values() if h])
     # ZONE COMBINÉ JUSTE SOUS VALUE (user 2026-08-20) : insérée à l'index 2 (après Confiance[0] + Value[1]),
     # AVANT Montante/Provisoire. TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
     # `empty` conditionné à `_has_prog` (user 2026-09-04, comme Confiance/Value/Montante) : la zone Combiné VIDE
