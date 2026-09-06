@@ -331,6 +331,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     **`.cleg::before` CENTRÉ verticalement** dans le cadre REPLIÉ (`top:0;bottom:0` + `background center 80px`,
     offset px FIXE depuis le haut = centre d'un cadre ~266px) → le logo **reste à la même place quand le pli
     « Pourquoi » se déplie** (la carte grandit vers le bas, l'offset top ne bouge pas).
+    ⚠️ **EXCEPTION « Prochains lives » (onglet Live, user 2026-09-06)** : les cartes compactes de CETTE zone
+    N'ONT PAS de filigrane. Les cartes du bloc sont marquées `_no_wm` → classe `mc-nowm` (`_sport_row`, branche
+    `_compact`) → `.row.mc.mc-nowm::before{content:none}`. Toutes les AUTRES cartes compactes (autres onglets/
+    zones) gardent le filigrane. Ciblage par flag (pas par sélecteur de zone) = pas de fuite ailleurs.
   - **PASTILLE calendrier horizontal (MAJ 2026-09-06)** : couleur pilotée par la **Confiance SEULE**
     (`_daily_conf_results_map`, plus `_daily_all_results_map`). Règle : VERT = tout gagné · JAUNE dès la **moitié**
     (`won*2 >= settled`) · ROUGE seulement si **strictement < moitié**. Cliquabilité du jour = tous paris (`rmap`).

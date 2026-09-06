@@ -1187,6 +1187,8 @@ CSS = """
      FIXE en px (pas `center center`) -> le logo NE BOUGE PAS au dépli (la carte grandit vers le bas, l'offset top
      reste constant), tout en restant ~centré sur le cadre replié. User 2026-09-06 (« de nouveau déplacé »). */
   .row.mc.mc-flat::before,.row.mc.mc-islive::before{background-position:center 110px}
+  /* « Prochains lives » (onglet Live) : filigrane logo RETIRÉ sur demande user (2026-09-06) */
+  .row.mc.mc-nowm::before{content:none}
   .row.mc>*:not(.mc-corner):not(.mc-bell){position:relative;z-index:1}   /* badge coin ✓/✗ + 🔔 gardent position:absolute */
   /* COMBINÉ (user 2026-09-06) : le filigrane vit dans le cadre des JAMBES (.cleg::before), PAS sur le cadre
      global doré -> on le neutralise sur la coquille du combiné (le corps ne fait que rassembler les jambes). */
@@ -12214,7 +12216,8 @@ def _sport_row(r: dict) -> str:
     # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
-        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{_corner}{_bell}{head}</div>')
+        _nowm = " mc-nowm" if r.get("_no_wm") else ""   # filigrane logo retiré (ex. « Prochains lives » onglet Live)
+        return (f'<div class="row pick mc prog-card mc-compact{_nowm}{_rcls}">{_corner}{_bell}{head}</div>')
     # ===== STYLE E (liste plate façon Unibet) : résumé compact + DÉTAIL riche au dépli (user 2026-09-03) =====
     # Le résumé replié devient une ligne plate ; le corps déplié réutilise TEL QUEL le détail classique
     # (ligue + équipes/logos + grille verdict/barres + analyse). Combinés gérés à part (_ue_combo).
@@ -12674,6 +12677,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
         if _upcoming_all:
             _upc_title = "Prochains lives" if len(_upcoming_all) > 1 else "Prochain live"
+            for _uc in _upcoming_all:
+                _uc["_no_wm"] = True     # filigrane logo RETIRÉ des « Prochains lives » de l'onglet Live (user 2026-09-06)
             out.append(_zone("prog", _upc_title, "", len(_upcoming_all),
                              _join_cards([_sport_row(c) for c in _upcoming_all]),
                              zk="live-upc", collapsible=False))
