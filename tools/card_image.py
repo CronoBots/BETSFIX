@@ -270,6 +270,10 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
   border-radius:20px;background:rgba(246,197,74,.08);border:1.5px solid rgba(246,197,74,.30)}
 .ctot-l{font-size:24px;font-weight:800;color:#e7c86a;text-transform:uppercase;letter-spacing:.08em}
 .ctot-v{font-size:50px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+/* TOTAL DU COMBINÉ façon site : intertitre centré + le bloc verdict (Confiance · Cote). */
+.ctot-hd{margin:22px 0 4px;text-align:center;font-size:22px;font-weight:800;color:#90a4be;
+  text-transform:uppercase;letter-spacing:.08em}
+.ctot-box .svd{margin-top:8px}
 .csyn{text-align:center;font-size:22px;font-weight:500;color:#a7bcd6;line-height:1.42;margin-top:28px}
 """
 
@@ -304,13 +308,15 @@ def _team_logo_html(name, url, e) -> str:
     return f'<span class="tlwrap"><span class="tlogo mono" style="{_bg}">{e(ini)}</span></span>'
 
 
-def _verdict_site_html(d: dict, e, settled: bool = False) -> str:
+def _verdict_site_html(d: dict, e, settled: bool = False, bare: bool = False, calibrated: bool = True) -> str:
     """Bloc verdict EXACTEMENT comme le SITE (`analyses.verdict_line`, version compacte 2026-09-06) pour que
     la carte Telegram == le prono publié sur le site : en-tête « Confiance X% <qualificatif> » (coloré par
     niveau) + « Cote Y », barre de confiance (remplissage + surbrillance edge + repère marché), puis ligne de
     contexte « marché Z% · edge · value » — edge/value AFFICHÉS SEULEMENT s'ils sont POSITIFS (comme le site).
-    `settled=True` (fiche résultat) : on RETIRE la barre + la ligne de contexte (marché/edge/value = métrique
-    d'avant-match) -> il ne reste que « Confiance X% · Cote Y », comme le site réglé."""
+    `settled=True` (fiche résultat) : on RETIRE la barre + la ligne de contexte -> « Confiance X% · Cote Y » seuls.
+    `bare=True` (TOTAL d'un combiné) : Confiance + barre + Cote, SANS la ligne marché/edge/value (comme le site).
+    `calibrated=False` (combiné) : échelle de mots DÉDIÉE (proba structurellement basse) = Audacieux/Équilibré/
+    Solide/Très solide, comme analyses.verdict_line."""
     conf, cote, val = d.get("conf"), d.get("cote"), d.get("value")
     try:
         cfi = int(round(float(conf)))
@@ -320,20 +326,34 @@ def _verdict_site_html(d: dict, e, settled: bool = False) -> str:
         return ""
     if cv <= 1:
         return ""
-    # Couleur + qualificatif = MÊMES seuils que analyses.verdict_line (branche calibrée).
-    if cfi < 55:
-        col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Faible"
-    elif cfi < 68:
-        col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Modérée"
-    elif cfi < 80:
-        col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Élevée"
+    # Couleur + qualificatif = MÊMES seuils que analyses.verdict_line (calibré = simple ; non calibré = combiné).
+    if calibrated:
+        if cfi < 55:
+            col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Faible"
+        elif cfi < 68:
+            col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Modérée"
+        elif cfi < 80:
+            col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Élevée"
+        else:
+            col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Très élevée"
     else:
-        col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Très élevée"
+        if cfi < 38:
+            col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Audacieux"
+        elif cfi < 52:
+            col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Équilibré"
+        elif cfi < 62:
+            col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Solide"
+        else:
+            col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Très solide"
     _head = (f'<div class="svhd"><span class="svconf" style="color:{col}">Confiance '
              f'<b>{cfi}%</b> <i>{e(word.lower())}</i></span>'
              f'<span class="svcote">Cote <b>{e(cote)}</b></span></div>')
     if settled:                                    # fiche résultat : Confiance + Cote seuls (comme le site réglé)
         return f'<div class="svd">{_head}</div>'
+    if bare:                                        # TOTAL d'un combiné : Confiance + barre + Cote (pas de marché/edge/value)
+        _cfic = max(0, min(cfi, 100))
+        _bar = f'<div class="svbar"><i style="width:{_cfic}%;background:{grad}"></i></div>'
+        return f'<div class="svd">{_head}{_bar}</div>'
     _edge = cfi - be
     ep = int(round(float(val))) if val is not None else None
     _cfic, _bec = max(0, min(cfi, 100)), max(0, min(be, 100))
@@ -510,11 +530,16 @@ def _combo_card_html(d: dict) -> str:
             f'<div class="spk">{e(_pick)}</div>{_gl}'
             f'{_verdict}{_extra}'
             '</div>')
-    _tot = (f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
-            f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
     _syn = ""      # synthèse « pourquoi ce combiné » RETIRÉE de l'image (user 2026-08-22)
     _cm = d.get("combo_mark") or ""
     _ccls = "won" if _cm == "won" else ("lost" if _cm == "lost" else ("push" if _cm in ("push", "void") else ""))
+    # TOTAL DU COMBINÉ = comme le site (user 2026-09-06) : « Total du combiné » + « Confiance X% <qual> · Cote Y »
+    # (barre si à venir ; conf combinée = produit des probas des jambes). Repli « Cote combinée » si pas de conf.
+    _tot_v = _verdict_site_html({"conf": d.get("combo_conf"), "cote": d.get("cote"), "value": None},
+                                e, settled=bool(_cm), bare=True, calibrated=False)
+    _tot = (f'<div class="ctot-hd">Total du combiné</div><div class="ctot-box">{_tot_v}</div>' if _tot_v
+            else f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
+                 f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
     inner = (                                             # plus de logo BETSFIX en tête (user 2026-09-06) ; on garde le TITRE du combiné
         f'<div class="stag st-combo">{e(_title)}</div>'
         f'<div class="slg">{len(legs)} SÉLECTIONS</div>'

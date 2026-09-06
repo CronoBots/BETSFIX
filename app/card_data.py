@@ -311,8 +311,11 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
             "mark": (l.get("result") if result else None),
         })
     _cote = combo.get("real_odds") or combo.get("cote") or combo.get("total")
+    _cprob = combo.get("prob")                            # proba combinée -> Confiance du TOTAL (comme le site)
+    _cconf = round(_cprob * 100) if isinstance(_cprob, (int, float)) else None
     return {"emoji": "⚽", "type": ("combo_result" if result else "combo"), "combo_title": "COMBINÉ",
             "cote": (f"{_cote:.2f}" if isinstance(_cote, float) else str(_cote or "")),
+            "combo_conf": _cconf,                         # Confiance du total (site montre « Confiance X% · Cote »)
             "legs": legs,
             "synth": ("" if result else _clean_synth(combo.get("synth") or combo.get("why"))),
             "combo_mark": (combo.get("result") if result else None)}
