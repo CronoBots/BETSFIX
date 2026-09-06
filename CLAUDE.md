@@ -313,6 +313,17 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   Les styles **signature** (`app/card_signature.py`, classes `.sg-*`), **ticket** (talon/code-barres) et
   **unibet** (E plat) restent **conservés intacts** (code mort, gate par flag) → réactivables via l'env
   **`BETSFIX_CARD_STYLE=signature|ticket|unibet`** (reload auto). Mémoires [[signature-card-style]], [[ticket-card-style]].
+  - **RÉSULTAT gagné/perdu (MAJ 2026-09-06)** : PLUS de **cadre coloré** (bordure won/lost neutralisée) → **badge
+    ✓/✗ dans le COIN haut-droit** (`.mc-corner`, SVG coche/croix), sur les cartes de pari (`.row.mc`, `_sport_row`
+    — le score passe au centre + « Terminé », plus de chip score) ET les cartes résultat (`.cleg.cleg-res-live`,
+    `_leg_card` live_layout). Les **jambes de combiné** (`.cleg` **sans** `cleg-res-live`) **gardent** leur bord
+    coloré (indique la jambe qui passe). La barre pleine largeur « GAGNÉ/PERDU » reste (info détaillée).
+  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes. `.row.mc::before` + **`.cleg::before`** (jambes/
+    cartes-résultat/montante). Pour les **combinés**, le logo vit dans le **cadre des JAMBES**, PAS sur le cadre
+    global doré (`.row.mc.mc-tg-gold::before{content:none}`).
+  - **PASTILLE calendrier horizontal (MAJ 2026-09-06)** : couleur pilotée par la **Confiance SEULE**
+    (`_daily_conf_results_map`, plus `_daily_all_results_map`). Règle : VERT = tout gagné · JAUNE dès la **moitié**
+    (`won*2 >= settled`) · ROUGE seulement si **strictement < moitié**. Cliquabilité du jour = tous paris (`rmap`).
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
