@@ -31,7 +31,7 @@ _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ⛔ REVENIR À L'ANCIEN STYLE = poser la variable d'env `BETSFIX_CARD_STYLE=ticket` (talon/code-barres) ou
 # `=classic` (ancien) / `=unibet` (E plat) — rien d'autre à toucher, toutes les branches sont conservées intactes.
 # Mémoires `card-style-unibet-flag`, `signature-card-style`.
-CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "signature").strip().lower()
+CARD_STYLE = os.environ.get("BETSFIX_CARD_STYLE", "classic").strip().lower()   # DÉFAUT ramené à « classic » (logos d'équipe + nom en dessous, comme début de semaine — user 2026-09-06 : annulation de la refonte cartes). Signature/ticket/unibet conservés (réactivables via l'env).
 def _e_style() -> bool:
     # « ticket » ET « signature » réutilisent le rendu E (liste plate) puis l'habillent -> ils activent E aussi.
     return CARD_STYLE in ("unibet", "ticket", "signature")
