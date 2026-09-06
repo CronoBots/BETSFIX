@@ -7302,7 +7302,22 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _resbadge, _extra = "", ""
         if _res in ("won", "lost", "push", "void"):               # RÉGLÉ : score final + « Terminé » (ou « Annulé »)
             _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
-            if _res == "void":
+            # JAMBE VALIDÉE LIVE (acquise) mais MATCH ENCORE EN COURS (user 2026-09-06 : « Barcelone n'est pas
+            # terminé même si la jambe est gagnée ») : si le match est TOUJOURS en direct (horloge live active),
+            # on GARDE le COMPTEUR (score + horloge M:SS) au lieu de « Terminé ». La couleur du cadre dit « acquis ».
+            _still_live = None
+            if _res in ("won", "lost"):
+                try:
+                    _lf_now = live_fields(match_select.live_state_for(_sp, _lh, _la), _sp)
+                    if _lf_now.get("score") and _lf_now.get("live_time"):
+                        _still_live = _lf_now
+                except Exception:
+                    _still_live = None
+            if _still_live:
+                _lsc = str(_still_live.get("score")).strip()
+                _ctr = (f'<span class="tm-live"><b>{html.escape(_lsc.replace("-", " - "))}</b>'
+                        + _live_clock_html(_sp, _lh, _la) + '</span>')
+            elif _res == "void":
                 _ctr = '<span class="tm-fin">Annulé</span>'
             elif _scf and any(c.isdigit() for c in _scf):
                 _ctr = (f'<span class="tm-live"><b>{html.escape(_scf.replace("-", " - "))}</b>'
@@ -11961,8 +11976,11 @@ def _sport_row(r: dict) -> str:
         # Pari+glose (+ note « cote au conseil ») DANS le cadre des chiffres, centré (user 2026-08-15) :
         # passés à _verdict_block via pick_html -> plus de séparateur mc-div sous les équipes.
         _pick_in_box = f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
-        _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box,
-                                   live_pct=_live_pct, live_trend=_live_trend, live_state=_live_state)
+        # LIVE (user 2026-09-06) : 2 barres DISTINCTES comme les jambes de combiné — la barre de CONFIANCE
+        # d'avant-match (verdict, SANS live_pct) PUIS la barre « Chance live » séparée (_live_bar_html). Avant :
+        # les deux étaient fusionnées en une seule « Confiance live » -> incohérent avec la jambe de combiné.
+        _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box)
+                    + (_live_bar_html(_lp_res) if (is_live and _lp_res) else "")
                     + _mont_b
                     + ("" if is_live else _pwhy))
         # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
