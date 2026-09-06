@@ -32,9 +32,9 @@ html,body{margin:0;padding:0;background:transparent}
   border:2px solid #f6c54a;border-radius:32px;color:#e9f1fb;position:relative;overflow:hidden}   /* bord GOLD (à venir) = site --st-soon */
 /* FILIGRANE logo (user 2026-09-06) : EXACTEMENT comme le site (.row.mc::before) — discret, centré, DERRIÈRE
    le contenu. Le logo est injecté en style inline (data-URI) par chaque carte. */
-.swmk{position:absolute;top:0;left:0;right:0;height:100%;z-index:0;pointer-events:none;opacity:.05;
-  background-repeat:no-repeat;background-position:center 210px;background-size:300px auto;
-  filter:grayscale(.3) brightness(1.3)}
+.swmk{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.05;
+  background-repeat:no-repeat;background-position:center center;background-size:300px auto;
+  filter:grayscale(.3) brightness(1.3)}   /* CENTRÉ comme le site .row.mc::before */
 .card>*:not(.glow):not(.swmk):not(.scorner){position:relative;z-index:1}   /* contenu AU-DESSUS du filigrane */
 /* Badge RÉSULTAT dans le coin haut-droit (✓ gagné / ✗ perdu) — comme le site .mc-corner, remplace le titre. */
 .scorner{position:absolute;top:26px;right:30px;z-index:3;width:64px;height:64px;border-radius:50%;
@@ -261,7 +261,7 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .clg{background:#0d1119;border:1.5px solid rgba(255,255,255,.12);border-radius:22px;
   padding:34px 34px 36px;margin-bottom:22px;position:relative;overflow:hidden}   /* fond + ancrage du filigrane (comme le site .cleg) */
 .clg>*:not(.swmk){position:relative;z-index:1}
-.clg .swmk{height:100%;background-position:center 120px;background-size:210px auto}   /* filigrane centré dans la jambe */
+.clg .swmk{background-position:center center;background-size:210px auto}   /* filigrane centré dans la jambe */
 .clg-lg{text-align:center;font-size:22px;font-weight:800;color:#93b7db;letter-spacing:.05em;
   text-transform:uppercase;margin-bottom:24px}
 .clg .stms{margin-bottom:26px}   /* un cran plus serré que la carte simple (jambes empilées) */

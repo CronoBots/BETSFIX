@@ -1173,10 +1173,12 @@ CSS = """
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
        border:1px solid var(--st-soon)}
-  /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré en haut, DERRIÈRE le
-     contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
-  .row.mc::before{content:"";position:absolute;top:0;left:0;right:0;height:180px;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center 26px/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
+  /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, CENTRÉ dans le cadre, DERRIÈRE
+     le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le
+     tap. `inset:0`+`center center` -> centré verticalement quelle que soit la hauteur (à venir COMME live, qui est
+     plus haut -> le logo était collé en haut, user 2026-09-06). */
+  .row.mc::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+       opacity:.05;background:url('/static/logo.png') center center/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
   .row.mc>*{position:relative;z-index:1}
   /* COMBINÉ (user 2026-09-06) : le filigrane vit dans le cadre des JAMBES (.cleg::before), PAS sur le cadre
      global doré -> on le neutralise sur la coquille du combiné (le corps ne fait que rassembler les jambes). */
