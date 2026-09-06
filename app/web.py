@@ -1178,10 +1178,23 @@ CSS = """
   .row.mc::before{content:"";position:absolute;top:0;left:0;right:0;height:180px;z-index:0;pointer-events:none;
        opacity:.05;background:url('/static/logo.png') center 26px/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
   .row.mc>*{position:relative;z-index:1}
-  .row.mc.mc-r-won{border-color:var(--st-won)}
-  .row.mc.mc-r-lost{border-color:var(--st-lost)}
+  /* COMBINÉ (user 2026-09-06) : le filigrane vit dans le cadre des JAMBES (.cleg::before), PAS sur le cadre
+     global doré -> on le neutralise sur la coquille du combiné (le corps ne fait que rassembler les jambes). */
+  .row.mc.mc-tg-gold::before{content:none}
+  /* RÉSULTAT gagné/perdu : PLUS de cadre coloré (user 2026-09-06) — bordure NEUTRE + badge dans le COIN
+     haut-droit ✓/✗ (comme le style signature testé cette semaine). Push (remboursé)/live gardent leur teinte. */
+  .row.mc.mc-r-won,.row.mc.mc-r-lost{border-color:var(--border2)}
   .row.mc.mc-r-push{border-color:var(--st-void)}
   .row.mc.mc-r-live{border-color:var(--st-live)}
+  /* Badge RÉSULTAT dans le coin haut-droit : pastille ronde ✓ (gagné) / ✗ (perdu), colorée, par-dessus l'en-tête. */
+  .mc-corner{position:absolute;top:9px;right:10px;z-index:4;width:26px;height:26px;border-radius:50%;
+       display:inline-flex;align-items:center;justify-content:center;pointer-events:none;border:1px solid}
+  .mc-corner svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.6;
+       stroke-linecap:round;stroke-linejoin:round}
+  .mc-corner.won{color:var(--st-won);background:color-mix(in srgb,var(--st-won) 16%,transparent);
+       border-color:color-mix(in srgb,var(--st-won) 44%,transparent)}
+  .mc-corner.lost{color:var(--st-lost);background:color-mix(in srgb,var(--st-lost) 16%,transparent);
+       border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
   /* Séparateur DISCRET entre deux cadres de paris (demande user 2026-07-18 : « mieux séparer les
      cadres entre eux »). Fine ligne dégradée qui s'estompe aux extrémités -> respire sans alourdir.
      Inséré entre cartes (jamais après un en-tête de jour ni en tête de zone). */
@@ -2823,8 +2836,13 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:#0d1119;border:1px solid var(--st-soon);   /* fond UNI (user 2026-08-16) : stable au dépli */
+  .cleg{background:#0d1119;border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond UNI (user 2026-08-16) : stable au dépli ; position/overflow = ancrage du filigrane */
        border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
+  /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
+     dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
+  .cleg::before{content:"";position:absolute;top:0;left:0;right:0;height:150px;z-index:0;pointer-events:none;
+       opacity:.05;background:url('/static/logo.png') center 20px/120px no-repeat;filter:grayscale(.3) brightness(1.3)}
+  .cleg>*:not(.mc-corner){position:relative;z-index:1}   /* le badge coin garde son position:absolute (mc-corner) */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
      défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
@@ -2832,6 +2850,10 @@ CSS = """
   .cleg.won{border-color:var(--st-won)}
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
+  /* CARTE RÉSULTAT (cleg-res-live, standalone — PAS une jambe de combiné) : PLUS de cadre coloré gagné/perdu
+     (user 2026-09-06) — bordure NEUTRE + badge ✓/✗ dans le coin haut-droit. Les jambes de combiné (.cleg sans
+     cleg-res-live) GARDENT leur bord coloré (il indique quelle jambe a passé). */
+  .cleg.cleg-res-live.won,.cleg.cleg-res-live.lost{border-color:var(--border2)}
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;
        text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = couleur du glose + MAJUSCULE + MÊME taille que la carte de pari (user 2026-08-08) */
@@ -7292,7 +7314,15 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         # CLASSES IDENTIQUES à la carte normale (user 2026-08-17 : « exactement la même mise en page ») :
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
-        return (f'<div class="cleg {_state} cleg-res-live mc-prem">'
+        # BADGE RÉSULTAT dans le COIN haut-droit (user 2026-09-06) : ✓ (gagné) / ✗ (perdu), remplace le cadre coloré.
+        _corner_c = ""
+        if _res == "won":
+            _corner_c = ('<span class="mc-corner won" aria-label="Gagné">'
+                         '<svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></span>')
+        elif _res == "lost":
+            _corner_c = ('<span class="mc-corner lost" aria-label="Perdu">'
+                         '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
+        return (f'<div class="cleg {_state} cleg-res-live mc-prem">{_corner_c}'
                 f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{_comp_c}</span></div>'
                 f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
@@ -7938,23 +7968,24 @@ def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -
     except (ValueError, TypeError):
         sel = today
     rmap = _daily_results_map()                            # TOUS paris réglés -> pilote la CLIQUABILITÉ du jour
-    amap = _daily_all_results_map()                        # Confiance+Value+Combiné -> COULEUR de la pastille
+    amap = _daily_conf_results_map()                       # CONFIANCE seule -> COULEUR de la pastille (user 2026-09-06)
     cells = []
     for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
         dd = today - timedelta(days=i)
         di = dd.isoformat()
         st = rmap.get(di) or {}
         settled = st.get("settled", 0)                     # activité TOUS paris (clic/emphase)
-        # PASTILLE = Confiance + Value + Combiné, par TAUX DE RÉUSSITE (user 2026-09-04) : VERT si TOUT gagné,
-        # JAUNE si > la moitié gagnés, ROUGE sinon. Un jour sans pari décisif réglé -> pas de point coloré.
+        # PASTILLE = paris de CONFIANCE UNIQUEMENT (user 2026-09-06 : le point ne reflète QUE le phare Confiance,
+        # pas la Value/le combiné/la montante), par TAUX DE RÉUSSITE : VERT si TOUT gagné, JAUNE si > la moitié
+        # gagnés, ROUGE sinon. Un jour sans pari de confiance réglé -> pas de point coloré.
         ast_ = amap.get(di) or {}
         a_settled, a_won = ast_.get("settled", 0), ast_.get("won", 0)
         if a_settled:
             if a_won >= a_settled:                         # tout gagné -> vert
                 dcls = "pos"
-            elif a_won * 2 > a_settled:                    # > la moitié -> jaune
+            elif a_won * 2 >= a_settled:                   # la MOITIÉ ou plus (mais pas tout) -> jaune (user 2026-09-06)
                 dcls = "warn"
-            else:                                          # la moitié ou moins -> rouge
+            else:                                          # STRICTEMENT moins de la moitié -> rouge (user 2026-09-06)
                 dcls = "neg"
             dot = f'<span class="dcd-dot {dcls}"></span>'
         else:
@@ -11647,9 +11678,14 @@ def _sport_row(r: dict) -> str:
     score_txt = e(str(r.get("score"))) if r.get("score") else ""
     if is_live:                                          # live : PAS de badge en haut à droite (user 2026-08-15) —
         badge = ""                                       #        le SCORE + l'horloge M:SS au centre suffisent
-    elif is_finished:                                    # terminé : score FINAL, SANS drapeau 🏁
-        badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
-                 else '<span class="mc-badge mc-wait">⏳ En attente</span>')
+    elif is_finished:                                    # terminé : le SCORE passe au CENTRE (+ « Terminé ») et
+        #                                                  le résultat est porté par le badge ✓/✗ du coin (mc-corner)
+        #                                                  -> plus de chip score en haut-droite. ⏳ = pas encore réglé.
+        if r.get("_state") in ("won", "lost", "push"):
+            badge = ""
+        else:
+            badge = (f'<span class="mc-badge mc-done">{score_txt}</span>' if score_txt
+                     else '<span class="mc-badge mc-wait">⏳ En attente</span>')
     else:                                                # à venir : HEURE + DÉCOMPTE (« HH:MM - Début dans 52m01s »),
         #                                                  MÊME badge combiné que _leg_card (user 2026-08-08 : timer
         #                                                  heure + décompte sur TOUS les types de paris).
@@ -11929,6 +11965,11 @@ def _sport_row(r: dict) -> str:
         # avec les jambes de combiné (_live_clock_html), même rendu partout (user 2026-08-15/16/17).
         _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
                    + _live_clock_html(sport_key, r.get("home"), r.get("away")) + '</span>')
+    elif is_finished and _sc_live and any(ch.isdigit() for ch in _sc_live):
+        # TERMINÉ (user 2026-09-06) : SCORE final au centre + « Terminé » dessous (comme le live/la carte
+        # résultat), le badge ✓/✗ du coin porte le verdict -> plus de chip score en haut-droite.
+        _center = (f'<span class="tm-live"><b>{e(_sc_live.replace("-", " - "))}</b>'
+                   f'<span class="tm-fin">Terminé</span></span>')
     elif (not is_finished) and sdt and sdt.timestamp() > time.time():
         # À VENIR (user 2026-08-15) : HEURE au centre + DÉCOMPTE juste DESSOUS (comme l'horloge live sous le
         # score) ; le badge décompte en haut à droite est retiré. Le timer JS `.cd` rafraîchit le décompte.
@@ -11984,12 +12025,21 @@ def _sport_row(r: dict) -> str:
         _rcls = " mc-r-live"
     else:
         _rcls = ""
+    # BADGE RÉSULTAT dans le COIN haut-droit (user 2026-09-06) : pastille ✓ (gagné) / ✗ (perdu) qui REMPLACE le
+    # cadre coloré. Piloté par `_rcls` -> couvre aussi le live « acquis/perdu » (verrou math). Push/live-en-cours : rien.
+    _corner = ""
+    if " mc-r-won" in _rcls:
+        _corner = ('<span class="mc-corner won" aria-label="Gagné">'
+                   '<svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></span>')
+    elif " mc-r-lost" in _rcls:
+        _corner = ('<span class="mc-corner lost" aria-label="Perdu">'
+                   '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
     # (La montante est injectée en carte dédiée EN TÊTE de Confiance + exclue de play -> plus de décoration
     #  in-place ici, cf. _today_zones. user 2026-08-08.)
     # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
-        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{head}</div>')
+        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{_corner}{head}</div>')
     # ===== STYLE E (liste plate façon Unibet) : résumé compact + DÉTAIL riche au dépli (user 2026-09-03) =====
     # Le résumé replié devient une ligne plate ; le corps déplié réutilise TEL QUEL le détail classique
     # (ligue + équipes/logos + grille verdict/barres + analyse). Combinés gérés à part (_ue_combo).
@@ -12068,9 +12118,9 @@ def _sport_row(r: dict) -> str:
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')
     if _no_expand:
-        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{head}</div>')
+        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{_corner}{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}{_rcls}">{head}'
+            f'{" mc-islive" if is_live else ""}{_rcls}">{_corner}{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'
