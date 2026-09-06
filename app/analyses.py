@@ -553,6 +553,20 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     s = re.sub(r"\b(gagne|vainqueur)\w*\s+(?:le|du)\s+match\b", r"\1", s, flags=re.I)  # « gagne le match » -> « gagne »
     s = re.sub(r"\s+dans le match\s*$", "", s, flags=re.I)              # « … jeux dans le match » -> « … jeux »
     s = re.sub(r"\bvainqueur(?:e|es|s)\b", "vainqueur", s, flags=re.I)  # « vainqueure/vainqueurs » -> « vainqueur »
+    # ⚠️ CONTRADICTION « <équipe> ou nul (12) » : « ou nul » INCLUT le nul, or la double chance « 12 » l'EXCLUT
+    # (domicile OU extérieur). Le suffixe « (12) » est donc FAUX (souvent un fantôme mal libellé par l'analyste ;
+    # le CODE réel, lu par code_from_pick sur « <équipe> ou nul », est bien 1X/X2). On corrige le suffixe d'après
+    # l'équipe citée — domicile -> 1X, extérieur -> X2. « 12 » ne doit JAMAIS s'afficher avec « ou nul » (user
+    # 2026-09-06, Remo-Flamengo « Flamengo ou nul (12) »). PURE AFFICHAGE : le `sel` stocké/règlement inchangés.
+    if "(12)" in s and re.search(r"\bou\s+nul\b", s, re.I):
+        _low12 = s.lower()
+        def _cit12(name):
+            toks = [t for t in re.findall(r"[a-zà-ÿ0-9]+", (name or "").lower()) if len(t) >= 3]
+            return bool(toks) and any(t in _low12 for t in toks)
+        _fix12 = ("1X" if (_cit12(home) and not _cit12(away))
+                  else "X2" if (_cit12(away) and not _cit12(home)) else None)
+        if _fix12:
+            s = s.replace("(12)", f"({_fix12})")
     # TENNIS « remporte au moins un set » : converge toutes les variantes (au moins 1 set / ≥ 1 set / gagne au
     # moins un set / suffixes Hcap +1.5 set…) vers UNE forme. Le « au moins un set » = handicap +1.5 set déguisé.
     if re.search(r"(remporte|gagne).{0,12}(au moins|≥).{0,4}(1|un)\s+set|\+\s?1[.,]5\s+set", s, re.I):
