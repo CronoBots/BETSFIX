@@ -7293,7 +7293,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
         return (f'<div class="cleg {_state} cleg-res-live mc-prem">'
-                f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{_comp_c}</span></div>'
+                f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{_comp_c}</span></div>'
                 f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
@@ -7687,7 +7687,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
                     '<span class="tm-fin">Terminé</span></span>')
         else:
             _ctr = ""                              # pas de score (à venir / indispo) -> équipes seules
-        out = (f'<div class="mc-line mc-line-c mc-lg-cleg"><span class="mc-comp">{_comp_c}</span></div>'
+        out = (f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{_comp_c}</span></div>'
                f'<div class="mc-teams">{_teams_vs_html(home, away, _ctr)}</div><div class="mc-div"></div>')
     # SIMPLE retenu ADDITIONNEL (cas « carte multi-paris » : un match CdM peut porter un simple retenu ET
     # le combiné). On le montre en tête, présenté comme une carte de pari (pick gras + glose + verdict).
