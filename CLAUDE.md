@@ -305,17 +305,14 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».
-- **CARTES = style « SIGNATURE » GRAND PUBLIC — EN LIGNE par défaut** (2026-09-05, `CARD_STYLE` ticket→signature
-  dans `app/web.py`, rendu dédié **`app/card_signature.py`**) : le **PARI est l'unique héros** (gros), cote
-  **discrète**, **zéro jargon** (« nos chances » vs « cote du marché », gains en **%**), **jauge d'edge** (part
-  marché grise + notre edge coloré), tags « **Pari sûr** » / « **Bonne value** », logo en **filigrane** discret,
-  gain réglé en % (+65 % / −100 %). Combiné = confiance par jambe + edge sur le **total**. ⛔ Classes **`.sg-*`**
-  + variables CSS **scopées** dans `.sg-card` (zéro collision) ; CSS injecté via `_sig_extra_css()` UNIQUEMENT si
-  le flag est actif. Branché aux 3 points d'appel via `_signature_style()` (E-style élargi à « signature »).
-  **Revenir en arrière** = env **`BETSFIX_CARD_STYLE=ticket`** (talon/code-barres) / `=unibet` / `=classic` (reload auto).
-  ⚠️ **Surfaces PAS ENCORE en signature** (rendent l'ancien style) : onglet **Live/directs** (`_livetab`) et cartes
-  de **fiche match** (`_bets_for_url`) — à unifier. Le style ticket reste intact (branches conservées).
-  Mémoires [[signature-card-style]], [[ticket-card-style]].
+- **CARTES = style « CLASSIC » (logos d'équipe + nom en dessous) — DÉFAUT depuis 2026-09-06** (`CARD_STYLE`
+  dans `app/web.py`, défaut `classic`). Le user a **annulé la refonte « signature »** du 2026-09-05 et voulu
+  revenir aux cartes « début de semaine » : **vrais logos (crest) des 2 équipes + nom dessous**, score central
+  (0-0 HT / TERMINÉ), confiance % + cote, ligne marché/edge/value, barre « confiance live », badge GAGNÉ/PERDU,
+  « Pourquoi ce choix ». ⛔ Ne PAS re-proposer de basculer sur signature sans demande explicite.
+  Les styles **signature** (`app/card_signature.py`, classes `.sg-*`), **ticket** (talon/code-barres) et
+  **unibet** (E plat) restent **conservés intacts** (code mort, gate par flag) → réactivables via l'env
+  **`BETSFIX_CARD_STYLE=signature|ticket|unibet`** (reload auto). Mémoires [[signature-card-style]], [[ticket-card-style]].
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
