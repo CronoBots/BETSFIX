@@ -1177,11 +1177,11 @@ CSS = """
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
   .row.mc::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
        opacity:.05;background:url('/static/logo.png') center center/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
-  /* LIVE : la carte est HAUTE et porte un pli « Pourquoi » qui se déplie -> offset Y FIXE en px (pas `center
-     center`) pour que le logo NE BOUGE PAS au dépli (la carte grandit vers le bas, l'offset top reste constant),
-     tout en restant CENTRÉ sur le cadre replié (~371 px -> centre ~185 -> logo top 119). User 2026-09-06. */
-  .row.mc.mc-islive::before{background-position:center 119px}
-  .row.mc>*{position:relative;z-index:1}
+  /* CARTES DÉPLIABLES (pli « Pourquoi » : premium à-venir `mc-flat` ~339px ET live `mc-islive` ~371px) : offset Y
+     FIXE en px (pas `center center`) -> le logo NE BOUGE PAS au dépli (la carte grandit vers le bas, l'offset top
+     reste constant), tout en restant ~centré sur le cadre replié. User 2026-09-06 (« de nouveau déplacé »). */
+  .row.mc.mc-flat::before,.row.mc.mc-islive::before{background-position:center 110px}
+  .row.mc>*:not(.mc-corner):not(.mc-bell){position:relative;z-index:1}   /* badge coin ✓/✗ + 🔔 gardent position:absolute */
   /* COMBINÉ (user 2026-09-06) : le filigrane vit dans le cadre des JAMBES (.cleg::before), PAS sur le cadre
      global doré -> on le neutralise sur la coquille du combiné (le corps ne fait que rassembler les jambes). */
   .row.mc.mc-tg-gold::before{content:none}
@@ -1202,13 +1202,22 @@ CSS = """
        border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
   /* 🔔 NOTIFS PAR MATCH (user 2026-09-06) : bouton en haut-GAUCHE, VISIBLE UNIQUEMENT en PWA installée
      (classe `html.pwa` posée par JS). État suivi = doré. Clic géré par bfxMatchBell (stopPropagation). */
-  .mc-bell{display:none;position:absolute;top:38px;left:12px;z-index:5;width:27px;height:27px;border-radius:50%;
-       align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.32);background:rgba(255,255,255,.08);
-       color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}   /* BLANC (visible sur fond sombre) ;
-       top calé sur la LIGUE (centrée ~52px sur .row.mc). */
-  .cleg .mc-bell{top:11px}   /* la jambe est moins haute -> ligue ~25px */
+  /* Placé EXACTEMENT comme le badge ✓/✗ (.mc-corner : top:9px;right:10px;26px) — user 2026-09-06. Blanc, visible. */
+  .mc-bell{display:none;position:absolute;top:9px;right:10px;left:auto;z-index:5;width:26px;height:26px;border-radius:50%;
+       align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.09);
+       color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
+  /* BOUTON « HAUT DE PAGE » (user 2026-09-06) : coin bas-DROITE, au-dessus de la nav, style du site (dégradé
+     accent). Apparaît après un peu de scroll. */
+  #bfx-totop{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:60;
+       width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);
+       background:rgba(26,34,50,.5);color:#cfe0f5;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+       font-size:20px;font-weight:800;line-height:1;display:none;align-items:center;justify-content:center;
+       box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer;
+       -webkit-tap-highlight-color:transparent;opacity:0;transition:opacity .2s ease}   /* DISCRET + légèrement transparent (user 2026-09-06) */
+  #bfx-totop.show{display:inline-flex;opacity:.72}
+  #bfx-totop:active{transform:scale(.9)}
   html.pwa .mc-bell{display:inline-flex}
-  .mc-bell svg{width:15px;height:15px;display:block}
+  .mc-bell svg{width:14px;height:14px;display:block}
   .mc-bell.on{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 60%,transparent);
        background:color-mix(in srgb,var(--gold) 18%,transparent)}
   .mc-bell:active{transform:scale(.92)}
@@ -5017,6 +5026,21 @@ _BELL_JS = (
     "})();"
 )
 
+# BOUTON « HAUT DE PAGE » (user 2026-09-06) : coin bas-droite ; apparaît après ~300px de scroll ; remonte en
+# douceur la fenêtre ET le conteneur scrollable interne (SPA) le cas échéant.
+_TOTOP_HTML = '<button id="bfx-totop" type="button" aria-label="Haut de page">↑</button>'
+_TOTOP_JS = (
+    "(function(){var b=document.getElementById('bfx-totop');if(!b)return;"
+    "function sc(){return document.scrollingElement||document.documentElement;}"
+    "b.addEventListener('click',function(){try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){window.scrollTo(0,0);}"
+    "var m=document.getElementById('panels');if(m&&m.scrollTop>0){try{m.scrollTo({top:0,behavior:'smooth'});}catch(_){m.scrollTop=0;}}});"
+    "function upd(){var y=(window.scrollY||sc().scrollTop||0);var m=document.getElementById('panels');"
+    "if(m&&m.scrollTop>y)y=m.scrollTop;b.classList.toggle('show',y>300);}"
+    "window.addEventListener('scroll',upd,{passive:true});"
+    "var m=document.getElementById('panels');if(m)m.addEventListener('scroll',upd,{passive:true});"
+    "if(document.readyState!=='loading')upd();else document.addEventListener('DOMContentLoaded',upd);})();"
+)
+
 # Sélecteur de sport de Pronos (demande user 2026-07-26) : clic sur une puce -> recharge #day-content via
 # /jour?date=<jour>&sport=<sk> (le fragment contient le sélecteur avec la puce active à jour). Délégué au
 # document (survit aux remplacements de #day-content).
@@ -5172,7 +5196,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
+</div>{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -5218,7 +5242,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
