@@ -336,6 +336,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
+  - **CARTE IMAGE = LE PRONO DU SITE (MAJ 2026-09-06)** : `tools/card_image.py` (HTML→screenshot Chrome) rend
+    désormais le MÊME bloc verdict que le site (`_verdict_site_html` reproduit `analyses.verdict_line` compacte) :
+    « Confiance X% \<qualificatif\> · Cote Y » + barre (repère marché) + « marché Z% », **edge/value affichés
+    SEULEMENT si positifs** (fini la grille 4 colonnes avec négatifs en rouge). Fiche résultat = Confiance+Cote
+    seuls (`settled=True`). Ancienne `_verdict_cells_html`/`.vgrid` supprimées. ⚠️ Reste 1 écart : le **total du
+    combiné** Telegram = boîte dorée « Cote combinée » (le site montre « Confiance X% · Cote ») — card_data ne
+    passe pas la confiance totale du combiné.
 - **Push PWA** (MAJ 2026-09-02) : notifie **simples + JAMBES + COMBINÉS** (`app/push.py` : `notify_leg`/
   `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
   `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
