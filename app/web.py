@@ -845,7 +845,11 @@ CSS = """
   /* CLIP horizontal (user 2026-09-04) : la transition de tab glisse le panneau via translateX(28px) -> ~12px
      de débordement horizontal transitoire (décalage visuel à chaque changement d'onglet). `overflow-x:clip`
      le rogne SANS créer de conteneur de scroll (contrairement à `hidden`, qui forcerait overflow-y:auto). */
-  #panels{overflow-x:clip}
+  /* La BOÎTE de clip de #panels s'étend jusqu'aux BORDS DE L'ÉCRAN (marge négative -16 = padding 16 de .wrap,
+     recompensée par padding 16) : les cartes restent à x=16 MAIS leur glow bleu peut désormais aller DANS la
+     marge (user 2026-09-06 « le halo peut aller dans la marge ») au lieu d'être coupé net au bord de la carte.
+     Le clip du glissement d'onglet se fait maintenant au bord de l'écran (inchangé côté « pas de décalage »). */
+  #panels{overflow-x:clip;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
   .panel{display:none}
   .panel.on{display:block;animation:panein .22s cubic-bezier(.22,.85,.3,1)}
   /* Transition DIRECTIONNELLE au changement d'onglet (clic OU swipe, user 2026-08-22) : le panneau entrant
@@ -864,7 +868,7 @@ CSS = """
      -> uniforme avec les onglets sport (demande user). Mêmes valeurs littérales que .row.pick. */
   .live-empty{position:relative;overflow:hidden;text-align:center;margin:14px 0 8px;padding:32px 22px;
        border:1px solid rgba(34,184,255,.60);border-radius:var(--radius);display:flex;flex-direction:column;
-       align-items:center;justify-content:center;box-shadow:0 0 14px rgba(34,184,255,.22);
+       align-items:center;justify-content:center;box-shadow:0 0 18px rgba(34,184,255,.22);
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
   /* Cadre Live vide : REMPLIT la hauteur dispo jusqu'à la barre du bas, en laissant la place au « 18+ »
      (qui vit sous #panels dans .wrap) — user 2026-08-22. */
@@ -940,7 +944,7 @@ CSS = """
   /* MÊME fond que les cartes de match (.row.pick) : dégradé cyan + bordure + glow cyan */
   .spf{display:block;text-decoration:none;position:relative;overflow:hidden;margin:2px 0 16px;
        padding:14px 15px 12px;border:1px solid rgba(34,184,255,.60);border-radius:16px;
-       box-shadow:0 0 14px rgba(34,184,255,.22),var(--shadow-sm);
+       box-shadow:0 0 18px rgba(34,184,255,.22),var(--shadow-sm);
        background:rgba(34,184,255,.055)}   /* teinte UNIE (pas de dégradé) : le fond ne bouge plus quand
                                               l'historique s'ouvre et agrandit la carte — demande user 2026-07-24 */
   .spf-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -1163,9 +1167,9 @@ CSS = """
      redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
             background:#0d1119;   /* fond OPAQUE/uni (user 2026-08-16) : le translucide laissait voir les halos de page -> changeait au dépli */
-            /* GLOW borné 14px (< marge latérale 16px) : au-delà, le halo bleu débordait de l'écran et le bord
-               du viewport le COUPAIT net (« halo coupé sur les bords », user 2026-09-06). 14px tient dans la marge. */
-            box-shadow:0 0 14px rgba(34,184,255,.22)}
+            /* GLOW 18px : occupe la marge latérale (16px) et se fond au bord de l'écran. Le halo peut aller
+               DANS la marge grâce au clip élargi de #panels (avant il était coupé net au bord de la carte). */
+            box-shadow:0 0 18px rgba(34,184,255,.22)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
   /* TOUTES les cartes de pari (base) : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande
