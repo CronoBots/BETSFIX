@@ -807,6 +807,39 @@ async def push_unsubscribe(request: Request):
     return {"ok": True}
 
 
+# ---- NOTIFS PAR MATCH (🔔 début/but/mi-temps/fin, PWA — user 2026-09-06) --------------------------
+@router.post("/push/match/subscribe", include_in_schema=False)
+async def push_match_subscribe(request: Request):
+    from app import push as _push
+    try:
+        b = await request.json()
+    except Exception:
+        return {"ok": False}
+    return {"ok": _push.add_match_sub((b or {}).get("mid", ""), (b or {}).get("endpoint", ""))}
+
+
+@router.post("/push/match/unsubscribe", include_in_schema=False)
+async def push_match_unsubscribe(request: Request):
+    from app import push as _push
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    _push.remove_match_sub((b or {}).get("mid", ""), (b or {}).get("endpoint", ""))
+    return {"ok": True}
+
+
+@router.post("/push/match/list", include_in_schema=False)
+async def push_match_list(request: Request):
+    """match_ids suivis par cet endpoint (POST : l'endpoint est long -> corps JSON). État des 🔔 au chargement."""
+    from app import push as _push
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    return {"mids": _push.match_subs_for((b or {}).get("endpoint", ""))}
+
+
 @router.get("/directs", response_class=HTMLResponse)
 async def directs_page(
     unibet: UnibetProvider = Depends(get_unibet),

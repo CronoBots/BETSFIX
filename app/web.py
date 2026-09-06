@@ -1200,6 +1200,15 @@ CSS = """
        border-color:color-mix(in srgb,var(--st-won) 44%,transparent)}
   .mc-corner.lost{color:var(--st-lost);background:color-mix(in srgb,var(--st-lost) 16%,transparent);
        border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
+  /* 🔔 NOTIFS PAR MATCH (user 2026-09-06) : bouton en haut-GAUCHE, VISIBLE UNIQUEMENT en PWA installée
+     (classe `html.pwa` posée par JS). État suivi = doré. Clic géré par bfxMatchBell (stopPropagation). */
+  .mc-bell{display:none;position:absolute;top:8px;left:9px;z-index:5;width:30px;height:30px;border-radius:50%;
+       align-items:center;justify-content:center;border:1px solid var(--cardline);background:rgba(255,255,255,.05);
+       font-size:14px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;opacity:.5;padding:0}
+  html.pwa .mc-bell{display:inline-flex}
+  .mc-bell.on{opacity:1;color:var(--gold);border-color:color-mix(in srgb,var(--gold) 55%,transparent);
+       background:color-mix(in srgb,var(--gold) 16%,transparent)}
+  .mc-bell:active{transform:scale(.92)}
   /* Badge ✓/✗ INLINE (combiné) : à droite des points par jambe, dans l'en-tête (pas en absolu). */
   .mc-vdot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
        margin-left:7px;vertical-align:middle;border:1px solid;flex:none}
@@ -4956,6 +4965,55 @@ _PUSH_JS = (
     "else document.addEventListener('DOMContentLoaded',bfxPushRefresh);})();"
 )
 
+# NOTIFS PAR MATCH (🔔, user 2026-09-06) — un bouton par carte, VISIBLE UNIQUEMENT en PWA (classe html.pwa).
+# Clic -> garantit un abonnement push (permission demandée DANS le geste, iOS-safe) puis abonne/désabonne CE
+# match (/push/match/(un)subscribe). L'état (doré = suivi) est récupéré une fois (/push/match/list) puis
+# ré-appliqué à chaque swap de contenu SPA via un MutationObserver (juste des classes, pas de re-fetch).
+_BELL_JS = (
+    "(function(){"
+    "function pwa(){return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches"
+    "||matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: minimal-ui)').matches))"
+    "||window.navigator.standalone===true;}"
+    "if(pwa())document.documentElement.classList.add('pwa');"
+    "window._bfxMids=window._bfxMids||{};"
+    "function u8(b){var p='='.repeat((4-b.length%4)%4),s=(b+p).replace(/-/g,'+').replace(/_/g,'/');"
+    "var r=atob(s),a=new Uint8Array(r.length),i;for(i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}"
+    "window.bfxEnsurePush=function(){return new Promise(function(res,rej){"
+    "if(!('serviceWorker' in navigator)||!('PushManager' in window)){rej('unsupported');return;}"
+    "navigator.serviceWorker.ready.then(function(reg){reg.pushManager.getSubscription().then(function(s){"
+    "if(s){res(s);return;}"
+    "fetch('/push/vapid').then(function(r){return r.json();}).then(function(x){var k=x&&x.key;if(!k){rej('nokey');return;}"
+    "reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(k)}).then(function(ns){"
+    "fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ns)});"
+    "res(ns);}).catch(rej);});}).catch(rej);}).catch(rej);});};"
+    "window.bfxBellApply=function(){var e=document.getElementsByClassName('mc-bell'),i,m;"
+    "for(i=0;i<e.length;i++){m=e[i].getAttribute('data-mid');e[i].classList.toggle('on',!!window._bfxMids[m]);}};"
+    "window.bfxBellRefresh=function(){if(!pwa()||!('serviceWorker' in navigator)){bfxBellApply();return;}"
+    "navigator.serviceWorker.ready.then(function(reg){reg.pushManager.getSubscription().then(function(s){"
+    "if(!s){bfxBellApply();return;}"
+    "fetch('/push/match/list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:s.endpoint})})"
+    ".then(function(r){return r.json();}).then(function(x){window._bfxMids={};(x.mids||[]).forEach(function(m){window._bfxMids[m]=1;});bfxBellApply();})"
+    ".catch(function(){bfxBellApply();});}).catch(function(){});}).catch(function(){});};"
+    "window.bfxBellToggle=function(btn,mid){var on=btn.classList.contains('on');"
+    "bfxEnsurePush().then(function(sub){var ep=sub.endpoint;"
+    "var url=on?'/push/match/unsubscribe':'/push/match/subscribe';"
+    "fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mid:mid,endpoint:ep})})"
+    ".then(function(){if(on){delete window._bfxMids[mid];}else{window._bfxMids[mid]=1;}bfxBellApply();});"
+    "}).catch(function(){});};"
+    "window.bfxMatchBell=function(btn){var mid=btn.getAttribute('data-mid');if(!mid)return;"
+    "if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){"
+    "alert('Notifications indisponibles. Sur iPhone : ajoute d\\'abord le site \\u00e0 l\\'\\u00e9cran d\\'accueil.');return;}"
+    "if(Notification.permission==='denied'){alert('Notifications bloqu\\u00e9es (\\u00e0 r\\u00e9activer dans les r\\u00e9glages).');return;}"
+    "if(Notification.permission!=='granted'){Notification.requestPermission().then(function(pm){"
+    "if(pm==='granted')bfxBellToggle(btn,mid);});return;}"
+    "bfxBellToggle(btn,mid);};"
+    "var _t;var mo=new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(bfxBellApply,120);});"
+    "function start(){try{mo.observe(document.body,{childList:true,subtree:true});}catch(_){}bfxBellRefresh();}"
+    "if(document.readyState!=='loading')start();else document.addEventListener('DOMContentLoaded',start);"
+    "window.addEventListener('pageshow',function(){if(pwa())document.documentElement.classList.add('pwa');bfxBellRefresh();});"
+    "})();"
+)
+
 # Sélecteur de sport de Pronos (demande user 2026-07-26) : clic sur une puce -> recharge #day-content via
 # /jour?date=<jour>&sport=<sk> (le fragment contient le sélecteur avec la puce active à jour). Délégué au
 # document (survit aux remplacements de #day-content).
@@ -5111,7 +5169,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
+</div>{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -5157,7 +5215,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <style>{CSS}{_sig_extra_css()}</style></head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""
@@ -11615,6 +11673,16 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
     return f'<div class="row pick mc ue cbo{_rcls}">{_head}</div>'
 
 
+def _notif_bell(mid) -> str:
+    """Bouton 🔔 « notifications de ce match » (début/but/mi-temps/fin). VISIBLE UNIQUEMENT en PWA (CSS
+    `html.pwa`) ; le clic (bfxMatchBell) abonne/désabonne cet appareil aux push de CE match. '' si pas d'id."""
+    if not mid:
+        return ""
+    return (f'<button type="button" class="mc-bell" data-mid="{html.escape(str(mid))}" '
+            f'aria-label="Notifications de ce match" '
+            f'onclick="event.stopPropagation();bfxMatchBell(this)">\U0001F514</button>')
+
+
 def _sport_row(r: dict) -> str:
     """Ligne de match unifiée (tous sports). r : tour, status, time, score, home,
     away, prob (float ou 3-tuple), sub, badge, url, pick."""
@@ -12086,12 +12154,15 @@ def _sport_row(r: dict) -> str:
     elif " mc-r-lost" in _rcls:
         _corner = ('<span class="mc-corner lost" aria-label="Perdu">'
                    '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
+    # 🔔 NOTIFS PAR MATCH (PWA, user 2026-09-06) : bouton en haut-gauche pour un match FOOT NON terminé
+    # (à venir / live). Caché hors PWA (CSS `html.pwa`). Un match réglé n'a plus rien à notifier -> pas de 🔔.
+    _bell = _notif_bell(_pmid) if (sport_key == "foot" and not is_finished and _pmid) else ""
     # (La montante est injectée en carte dédiée EN TÊTE de Confiance + exclue de play -> plus de décoration
     #  in-place ici, cf. _today_zones. user 2026-08-08.)
     # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
-        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{_corner}{head}</div>')
+        return (f'<div class="row pick mc prog-card mc-compact{_rcls}">{_corner}{_bell}{head}</div>')
     # ===== STYLE E (liste plate façon Unibet) : résumé compact + DÉTAIL riche au dépli (user 2026-09-03) =====
     # Le résumé replié devient une ligne plate ; le corps déplié réutilise TEL QUEL le détail classique
     # (ligue + équipes/logos + grille verdict/barres + analyse). Combinés gérés à part (_ue_combo).
@@ -12170,9 +12241,9 @@ def _sport_row(r: dict) -> str:
             return (f'<div class="row pick mc ue{_rcls}">{_uehead}'
                     f'<div class="mc-body" hidden>{_uedetail}</div></div>')
     if _no_expand:
-        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{_corner}{head}</div>')
+        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{_corner}{_bell}{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}{_rcls}">{_corner}{head}'
+            f'{" mc-islive" if is_live else ""}{_rcls}">{_corner}{_bell}{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'

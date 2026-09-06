@@ -240,6 +240,45 @@ async def _odds_loop():
         await asyncio.sleep(10 * 60)
 
 
+async def _match_events_loop():
+    """NOTIFS PAR MATCH (PWA, user 2026-09-06) : début/but/mi-temps/fin pour les matchs suivis (🔔).
+    Poll live toutes les ~45 s UNIQUEMENT s'il y a des abonnements par match (0 charge sinon)."""
+    from app import push, match_select, analyses
+    await asyncio.sleep(50)                       # laisse l'app démarrer + le cache live se remplir
+    while True:
+        try:
+            mids = push.subscribed_match_ids()
+            if mids:
+                await match_select.fetch_live_odds("foot")    # rafraîchit le cache live (best-effort)
+                for mid in mids:
+                    try:
+                        d = analyses.meta("foot", str(mid)) or {}
+                        home, away = d.get("home", ""), d.get("away", "")
+                        if not (home and away):
+                            continue
+                        ld = match_select.live_state_for("foot", home, away)
+                        hs = as_ = minute = None
+                        running = None
+                        period = ""
+                        if isinstance(ld, dict):
+                            sc = ld.get("score") or {}
+                            hs, as_ = sc.get("home"), sc.get("away")
+                            clk = match_select.live_clock(ld)      # (minute, sec, running, period_id)
+                            if clk:
+                                minute, _sec, running, period = clk
+                        push.notify_match_events(
+                            mid, home, away,
+                            hs if isinstance(hs, int) else None,
+                            as_ if isinstance(as_, int) else None,
+                            period, running, minute, bool(analyses.is_settled(d)))
+                    except Exception:
+                        continue
+                push.prune_match_state()
+        except Exception as exc:
+            log.warning("match events loop error: %s", exc)
+        await asyncio.sleep(45)
+
+
 def _apply_pending_reset(data: str | None = None) -> bool:
     """Si data/.reset-pending existe : vide les stores de suivi (tennis/foot/basket) + les analyses,
     puis retire la sentinelle. Permet une remise à zéro PROPRE au PROCHAIN démarrage, sans devoir
@@ -288,7 +327,8 @@ async def lifespan(app: FastAPI):
         tasks += [asyncio.create_task(_settle_loop()),       # nouveau système (analyste) uniquement
                   asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
                   asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
-                  asyncio.create_task(_combo_warm_loop())]   # pré-chauffe stats live des combinés CdM
+                  asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
+                  asyncio.create_task(_match_events_loop())]  # 🔔 notifs par match (début/but/MT/fin), PWA
     else:
         log.info("RÔLE=server : boucles de collecte désactivées (le cloud sert, ne scrape pas).")
     yield

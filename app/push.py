@@ -179,6 +179,170 @@ def send_push(title: str, body: str, url: str = "/", tag: str = "prono") -> int:
     return ok
 
 
+# ═══════════════════════════════════════════════════════════════════════════ #
+# NOTIFS PAR MATCH (PWA, user 2026-09-06) — un 🔔 par match : début / but / mi-temps / fin.  #
+# Abonnement PAR MATCH, indépendant du push global : {match_id: [endpoint,...]}. Détection   #
+# des transitions vs l'état stocké -> push aux abonnés de CE match seulement (pas broadcast). #
+# ═══════════════════════════════════════════════════════════════════════════ #
+_MATCH_SUBS = os.path.join(_DATA, "push_match_subs.json")    # {match_id: [endpoint,...]}
+_MATCH_STATE = os.path.join(_DATA, "push_match_state.json")  # {match_id: {score, kickoff, ht, ft}}
+
+
+def _load_json(path: str, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def _save_json(path: str, data) -> None:
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception as exc:
+        log.debug("push save %s: %s", path, exc)
+
+
+def add_match_sub(match_id, endpoint) -> bool:
+    """Abonne un endpoint aux événements d'UN match (🔔). Dédupliqué."""
+    if not (match_id and endpoint):
+        return False
+    with _LOCK:
+        d = _load_json(_MATCH_SUBS, {})
+        lst = d.setdefault(str(match_id), [])
+        if endpoint not in lst:
+            lst.append(endpoint)
+        _save_json(_MATCH_SUBS, d)
+    return True
+
+
+def remove_match_sub(match_id, endpoint) -> None:
+    with _LOCK:
+        d = _load_json(_MATCH_SUBS, {})
+        key = str(match_id)
+        if key in d:
+            d[key] = [e for e in d[key] if e != endpoint]
+            if not d[key]:
+                d.pop(key, None)
+            _save_json(_MATCH_SUBS, d)
+
+
+def match_subs_for(endpoint) -> list:
+    """match_ids suivis par CET endpoint (état des boutons 🔔 au chargement de la page)."""
+    if not endpoint:
+        return []
+    return [mid for mid, lst in _load_json(_MATCH_SUBS, {}).items() if endpoint in (lst or [])]
+
+
+def subscribed_match_ids() -> list:
+    return list(_load_json(_MATCH_SUBS, {}).keys())
+
+
+def _match_endpoints(match_id) -> list:
+    return list(_load_json(_MATCH_SUBS, {}).get(str(match_id), []))
+
+
+def send_push_to(endpoints: list, title: str, body: str = "", url: str = "/", tag: str = "match") -> int:
+    """Envoie à un SOUS-ENSEMBLE d'endpoints (notifs par match). PAS d'anti-doublon par titre (deux matchs
+    peuvent partager « BUT ! ») — la dédup est portée par l'état d'événement de chaque match."""
+    if not endpoints:
+        return 0
+    try:
+        from pywebpush import webpush, WebPushException
+    except Exception:
+        return 0
+    try:
+        _ensure_keys()
+    except Exception:
+        return 0
+    payload = json.dumps({"title": title, "body": body, "url": url, "tag": tag}, ensure_ascii=False)
+    subs = [s for s in _load_subs() if s.get("endpoint") in endpoints]
+    ok, dead = 0, []
+    for s in subs:
+        try:
+            webpush(subscription_info={"endpoint": s["endpoint"], "keys": s["keys"]},
+                    data=payload, vapid_private_key=_VAPID_PEM,
+                    vapid_claims={"sub": _SUB_CLAIM}, ttl=3600)
+            ok += 1
+        except WebPushException as exc:
+            code = getattr(getattr(exc, "response", None), "status_code", None)
+            if code in (404, 410):
+                dead.append(s.get("endpoint"))
+        except Exception:
+            pass
+    if dead:
+        with _LOCK:
+            _save_subs([s for s in _load_subs() if s.get("endpoint") not in dead])
+        for _mid in subscribed_match_ids():          # purge aussi les abos par match morts
+            for _ep in dead:
+                remove_match_sub(_mid, _ep)
+    return ok
+
+
+def _is_halftime(period_id, running, minute) -> bool:
+    """Mi-temps foot : période « pause/mi-temps » explicite, OU 1re MT terminée (horloge ARRÊTÉE à ≥45')."""
+    pid = str(period_id or "").upper()
+    if any(k in pid for k in ("HALFTIME", "HALF_TIME", "PAUSE", "BREAK")):
+        return True
+    return ("FIRST" in pid) and (running is False) and isinstance(minute, int) and minute >= 45
+
+
+def notify_match_events(match_id, home, away, hs, as_, period_id, running, minute, finished: bool) -> None:
+    """Détecte les transitions live d'un match et pousse aux abonnés 🔔 (idempotent via l'état stocké) :
+    DÉBUT (1re fois vu en direct) · BUT (total de buts en hausse) · MI-TEMPS · FIN (réglé). Best-effort."""
+    eps = _match_endpoints(match_id)
+    if not eps:
+        return
+    hn, an = str(home or ""), str(away or "")
+    score = f"{hs}-{as_}" if (isinstance(hs, int) and isinstance(as_, int)) else None
+    is_live = (score is not None) or (isinstance(minute, int) and minute > 0)
+    events: list = []
+    with _LOCK:
+        all_st = _load_json(_MATCH_STATE, {})
+        st = all_st.get(str(match_id), {})
+        if is_live and not st.get("kickoff"):                          # DÉBUT
+            st["kickoff"] = True
+            events.append(("kickoff", f"⚽ Coup d'envoi — {hn} vs {an}"))
+        prev = st.get("score")
+        if score and prev and score != prev:                           # BUT (total de buts en hausse)
+            try:
+                ph, pa = (int(x) for x in prev.split("-"))
+                if (hs + as_) > (ph + pa):
+                    scorer = hn if hs > ph else an
+                    events.append(("goal", f"⚽ BUT {scorer} ! {hn} {hs}-{as_} {an}"))
+            except (ValueError, TypeError):
+                pass
+        if score:
+            st["score"] = score
+        if not st.get("ht") and _is_halftime(period_id, running, minute):   # MI-TEMPS
+            st["ht"] = True
+            events.append(("ht", f"⏸️ Mi-temps — {hn} {score or ''} {an}"))
+        if finished and not st.get("ft"):                              # FIN
+            st["ft"] = True
+            events.append(("ft", f"🏁 Fin du match — {hn} {score or st.get('score') or ''} {an}"))
+        all_st[str(match_id)] = st
+        _save_json(_MATCH_STATE, all_st)
+    for tag, title in events:
+        send_push_to(eps, re.sub(r"\s{2,}", " ", title).strip(), "",
+                     f"/foot/match/{match_id}", f"m{match_id}-{tag}")
+    if any(t == "ft" for t, _ in events):                              # match fini -> plus rien à notifier
+        with _LOCK:
+            d = _load_json(_MATCH_SUBS, {})
+            d.pop(str(match_id), None)
+            _save_json(_MATCH_SUBS, d)
+
+
+def prune_match_state() -> None:
+    """Retire l'état des matchs qui n'ont plus d'abonnés (nettoyage best-effort, appelé par la boucle)."""
+    with _LOCK:
+        subs = _load_json(_MATCH_SUBS, {})
+        st = _load_json(_MATCH_STATE, {})
+        keep = {k: v for k, v in st.items() if k in subs}
+        if len(keep) != len(st):
+            _save_json(_MATCH_STATE, keep)
+
+
 # ───────────────────────────────────────────────────────────────────────────── #
 # MESSAGES DES NOTIFICATIONS PUSH (PWA) — PERSONNALISABLES (user 2026-08-24).      #
 # C'est le SEUL endroit à éditer pour changer les textes reçus sur le téléphone.   #
