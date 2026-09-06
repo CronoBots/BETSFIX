@@ -1181,9 +1181,10 @@ CSS = """
   /* COMBINÉ (user 2026-09-06) : le filigrane vit dans le cadre des JAMBES (.cleg::before), PAS sur le cadre
      global doré -> on le neutralise sur la coquille du combiné (le corps ne fait que rassembler les jambes). */
   .row.mc.mc-tg-gold::before{content:none}
-  /* RÉSULTAT gagné/perdu : PLUS de cadre coloré (user 2026-09-06) — bordure NEUTRE + badge dans le COIN
-     haut-droit ✓/✗ (comme le style signature testé cette semaine). Push (remboursé)/live gardent leur teinte. */
-  .row.mc.mc-r-won,.row.mc.mc-r-lost{border-color:var(--border2)}
+  /* RÉSULTAT gagné/perdu : le CADRE coloré est CONSERVÉ (user 2026-09-06) + badge ✓/✗ dans le coin haut-droit.
+     C'est le GROS bandeau GAGNÉ/PERDU sous les stats qui est retiré (pas le cadre). */
+  .row.mc.mc-r-won{border-color:var(--st-won)}
+  .row.mc.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-r-push{border-color:var(--st-void)}
   .row.mc.mc-r-live{border-color:var(--st-live)}
   /* Badge RÉSULTAT dans le coin haut-droit : pastille ronde ✓ (gagné) / ✗ (perdu), colorée, par-dessus l'en-tête. */
@@ -2850,10 +2851,8 @@ CSS = """
   .cleg.won{border-color:var(--st-won)}
   .cleg.lost{border-color:var(--st-lost)}
   .cleg.push,.cleg.void{border-color:var(--st-void)}
-  /* CARTE RÉSULTAT (cleg-res-live, standalone — PAS une jambe de combiné) : PLUS de cadre coloré gagné/perdu
-     (user 2026-09-06) — bordure NEUTRE + badge ✓/✗ dans le coin haut-droit. Les jambes de combiné (.cleg sans
-     cleg-res-live) GARDENT leur bord coloré (il indique quelle jambe a passé). */
-  .cleg.cleg-res-live.won,.cleg.cleg-res-live.lost{border-color:var(--border2)}
+  /* CARTE RÉSULTAT (cleg-res-live) : le CADRE coloré gagné/perdu est CONSERVÉ (user 2026-09-06) + badge ✓/✗
+     dans le coin haut-droit. C'est le GROS bandeau GAGNÉ/PERDU sous les stats qui est retiré (pas le cadre). */
   .cleg-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
   .cleg-comp{flex:1;min-width:0;font-size:12px;font-weight:800;color:#8fa2b8;letter-spacing:.02em;
        text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* LIGUE = couleur du glose + MAJUSCULE + MÊME taille que la carte de pari (user 2026-08-08) */
@@ -7292,9 +7291,9 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
                         f'<span class="tm-fin">Terminé</span></span>')
             else:
                 _ctr = '<span class="tm-fin">Terminé</span>'
-            # BADGE RÉSULTAT (user 2026-08-15) DANS le cadre des chiffres à la place de la barre live.
-            _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"),
-                          "push": ("REMBOURSÉ", "n"), "void": ("ANNULÉ", "n")}.get(_res, ("", "n"))
+            # GROS BANDEAU GAGNÉ/PERDU sous les stats RETIRÉ pour won/lost (user 2026-09-06) : le badge ✓/✗ du
+            # coin haut-droit le remplace. CONSERVÉ pour REMBOURSÉ/ANNULÉ (push/void), qui n'ont pas de badge coin.
+            _rbt, _rbc = {"push": ("REMBOURSÉ", "n"), "void": ("ANNULÉ", "n")}.get(_res, ("", "n"))
             _resbadge = (f'<div class="cleg-resbadge cleg-rb-{_rbc}">{_res_ico(_rbc)}{_rbt}</div>'
                          if _rbt else "")
         elif (_lfz or {}).get("score"):                           # EN DIRECT : score + horloge M:SS + barre live

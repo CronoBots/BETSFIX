@@ -313,11 +313,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   Les styles **signature** (`app/card_signature.py`, classes `.sg-*`), **ticket** (talon/code-barres) et
   **unibet** (E plat) restent **conservés intacts** (code mort, gate par flag) → réactivables via l'env
   **`BETSFIX_CARD_STYLE=signature|ticket|unibet`** (reload auto). Mémoires [[signature-card-style]], [[ticket-card-style]].
-  - **RÉSULTAT gagné/perdu (MAJ 2026-09-06)** : PLUS de **cadre coloré** (bordure won/lost neutralisée) → **badge
-    ✓/✗ dans le COIN haut-droit** (`.mc-corner`, SVG coche/croix), sur les cartes de pari (`.row.mc`, `_sport_row`
-    — le score passe au centre + « Terminé », plus de chip score) ET les cartes résultat (`.cleg.cleg-res-live`,
-    `_leg_card` live_layout). Les **jambes de combiné** (`.cleg` **sans** `cleg-res-live`) **gardent** leur bord
-    coloré (indique la jambe qui passe). La barre pleine largeur « GAGNÉ/PERDU » reste (info détaillée).
+  - **RÉSULTAT gagné/perdu (MAJ 2026-09-06)** : le **CADRE coloré est CONSERVÉ** (vert gagné / rouge perdu) + un
+    **badge ✓/✗ dans le COIN haut-droit** (`.mc-corner`, SVG coche/croix). Ce qui DISPARAÎT = le **gros bandeau
+    plein-largeur « GAGNÉ/PERDU » sous les stats** (`cleg-resbadge`, retiré pour won/lost ; **conservé** pour
+    REMBOURSÉ/ANNULÉ push/void qui n'ont pas de badge coin). Sur `.row.mc` (`_sport_row`) le score passe au
+    centre + « Terminé » (plus de chip score haut-droite) ; sur `.cleg.cleg-res-live` (`_leg_card` live_layout,
+    = cartes résultat + montante) idem. Les **combinés** (`_combo_gold_card`) gardent leur bandeau `mc-combo-res`
+    (layout à part : dots par jambe). ⚠️ NE PAS confondre « cadre » (bordure, gardée) et « bandeau » (retiré).
   - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes. `.row.mc::before` + **`.cleg::before`** (jambes/
     cartes-résultat/montante). Pour les **combinés**, le logo vit dans le **cadre des JAMBES**, PAS sur le cadre
     global doré (`.row.mc.mc-tg-gold::before{content:none}`).
