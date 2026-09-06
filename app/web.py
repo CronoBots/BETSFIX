@@ -1196,6 +1196,15 @@ CSS = """
        border-color:color-mix(in srgb,var(--st-won) 44%,transparent)}
   .mc-corner.lost{color:var(--st-lost);background:color-mix(in srgb,var(--st-lost) 16%,transparent);
        border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
+  /* Badge ✓/✗ INLINE (combiné) : à droite des points par jambe, dans l'en-tête (pas en absolu). */
+  .mc-vdot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+       margin-left:7px;vertical-align:middle;border:1px solid;flex:none}
+  .mc-vdot svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.7;
+       stroke-linecap:round;stroke-linejoin:round}
+  .mc-vdot.won{color:var(--st-won);background:color-mix(in srgb,var(--st-won) 16%,transparent);
+       border-color:color-mix(in srgb,var(--st-won) 44%,transparent)}
+  .mc-vdot.lost{color:var(--st-lost);background:color-mix(in srgb,var(--st-lost) 16%,transparent);
+       border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
   /* Séparateur DISCRET entre deux cadres de paris (demande user 2026-07-18 : « mieux séparer les
      cadres entre eux »). Fine ligne dégradée qui s'estompe aux extrémités -> respire sans alourdir.
      Inséré entre cartes (jamais après un en-tête de jour ni en tête de zone). */
@@ -7434,11 +7443,19 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
     par l'appelant ; `title` = libellé fixe. `state` (won/lost/push) colore le bord GAUCHE (2026-07-25).
     `dots` (user 2026-08-18) = points par jambe, rendus ALIGNÉS À DROITE (avant le badge), pas collés au sous-titre."""
     _rcls = f" mc-r-{state}" if state in ("won", "lost", "push") else ""
-    # BADGE RÉSULTAT EN BAS DU CADRE (user 2026-08-19) : comme les cartes Confiance/Value — barre pleine largeur
-    # GAGNÉ/PERDU/REMBOURSÉ sous le corps, PLUS dans l'en-tête. Les points par jambe (`dots`) restent en tête.
-    _rbt, _rbc = {"won": ("GAGNÉ", "w"), "lost": ("PERDU", "l"), "push": ("REMBOURSÉ", "n")}.get(state, ("", "n"))
+    # GROS BANDEAU GAGNÉ/PERDU EN BAS RETIRÉ pour won/lost (user 2026-09-06) : remplacé par un badge ✓/✗ à DROITE
+    # des points par jambe (en-tête). CONSERVÉ pour REMBOURSÉ (push), qui n'a pas de badge ✓/✗.
+    _rbt, _rbc = {"push": ("REMBOURSÉ", "n")}.get(state, ("", "n"))
     _botbar = (f'<div class="cleg-resbadge cleg-rb-{_rbc} mc-combo-res">{_res_ico(_rbc)}{_rbt}</div>'
                if _rbt else "")
+    # BADGE ✓ (gagné) / ✗ (perdu) INLINE à droite des points par jambe (user 2026-09-06).
+    _vbadge = ""
+    if state == "won":
+        _vbadge = ('<span class="mc-vdot won" aria-label="Gagné">'
+                   '<svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></span>')
+    elif state == "lost":
+        _vbadge = ('<span class="mc-vdot lost" aria-label="Perdu">'
+                   '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
     return (
         f'<div class="row pick mc mc-tg mc-tg-gold{_rcls}{(" mc-tg-" + accent) if accent else ""}">'
         '<div class="mc-head"><div class="mc-main">'
@@ -7446,10 +7463,10 @@ def _combo_gold_card(*, title: str, subtitle: str, badge: str, body: str, state:
         '<div class="mc-line">'
         f'<span class="mc-comp"><b class="mc-sport mc-sport-w">{title}</b>'
         f'<span class="mc-comp-sep"> • </span>{subtitle}</span>'
-        f'{dots}</div>'                 # `.mc-comp` en flex:1 pousse les points À DROITE (badge résultat -> en bas)
+        f'{dots}{_vbadge}</div>'        # `.mc-comp` en flex:1 pousse points + badge ✓/✗ À DROITE
         '<div class="mc-div"></div>'
         + body
-        + _botbar                        # badge résultat pleine largeur EN BAS (comme Confiance/Value)
+        + _botbar                        # bandeau REMBOURSÉ (push) seulement — GAGNÉ/PERDU passe en badge en-tête
         + '</div></div></div>')
 
 
