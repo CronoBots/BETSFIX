@@ -2869,7 +2869,7 @@ CSS = """
      reste À LA MÊME PLACE quand le pli « Pourquoi » se déplie (la carte grandit vers le bas, l'offset top ne bouge pas). */
   .cleg::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
        opacity:.05;background:url('/static/logo.png') center 80px/120px no-repeat;filter:grayscale(.3) brightness(1.3)}
-  .cleg>*:not(.mc-corner){position:relative;z-index:1}   /* le badge coin garde son position:absolute (mc-corner) */
+  .cleg>*:not(.mc-corner):not(.mc-bell){position:relative;z-index:1}   /* badge coin + 🔔 gardent leur position:absolute */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
      défaut) ; GAGNÉ/acquise = VERT ; PERDU = ROUGE ; ANNULÉ/remboursé (void/push) = GRIS. Le live ne doit
@@ -7421,7 +7421,9 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         elif _res == "lost":
             _corner_c = ('<span class="mc-corner lost" aria-label="Perdu">'
                          '<svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
-        return (f'<div class="cleg {_state} cleg-res-live mc-prem">{_corner_c}'
+        # 🔔 notifs de CETTE jambe (= son match) tant qu'elle n'est pas réglée (PWA). `l["mid"]` = id du match.
+        _bell_c = _notif_bell(l.get("mid")) if (l.get("mid") and not _res) else ""
+        return (f'<div class="cleg {_state} cleg-res-live mc-prem">{_corner_c}{_bell_c}'
                 f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{_comp_c}</span></div>'
                 f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
@@ -9690,7 +9692,8 @@ def _status_card(m: dict, dt, kind: str) -> str:
     else:
         _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
                 '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
-    return (f'<div class="row mc mc-prem mc-statcard mc-st-{kind}">'
+    _bell = _notif_bell(m.get("id"))    # 🔔 notifs de ce match (PWA) — même sur les matchs sans pari (live/à venir)
+    return (f'<div class="row mc mc-prem mc-statcard mc-st-{kind}">{_bell}'
             f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line mc-line-c"><span class="mc-comp">{comp_c}</span></div>'
             f'<div class="mc-teams">{teams}</div>'
