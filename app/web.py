@@ -1176,7 +1176,7 @@ CSS = """
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
   .row.mc::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center center/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
+       opacity:.05;background:url('/static/logo.png') center center/135px no-repeat;filter:grayscale(.3) brightness(1.3)}
   /* CARTES DÉPLIABLES (pli « Pourquoi » : premium à-venir `mc-flat` ~339px ET live `mc-islive` ~371px) : offset Y
      FIXE en px (pas `center center`) -> le logo NE BOUGE PAS au dépli (la carte grandit vers le bas, l'offset top
      reste constant), tout en restant ~centré sur le cadre replié. User 2026-09-06 (« de nouveau déplacé »). */
@@ -2880,7 +2880,7 @@ CSS = """
      carte + position Y FIXE en px (80px = centre d'un cadre replié ~266px : logo 120×106, 133−53) -> le logo
      reste À LA MÊME PLACE quand le pli « Pourquoi » se déplie (la carte grandit vers le bas, l'offset top ne bouge pas). */
   .cleg::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center 80px/120px no-repeat;filter:grayscale(.3) brightness(1.3)}
+       opacity:.05;background:url('/static/logo.png') center 80px/135px no-repeat;filter:grayscale(.3) brightness(1.3)}
   .cleg>*:not(.mc-corner):not(.mc-bell){position:relative;z-index:1}   /* badge coin + 🔔 gardent leur position:absolute */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
