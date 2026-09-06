@@ -352,6 +352,15 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
   `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
   `.mc-gloss/.cleg-gloss/.sgl` → `display:none`). Mémoire `push-pwa-legs-combos-dedup`.
+- **NOTIFS PAR MATCH (🔔, MAJ 2026-09-06)** : un bouton 🔔 par carte de match FOOT non terminée, **VISIBLE
+  UNIQUEMENT en PWA** installée (classe `html.pwa` posée par JS `_BELL_JS` ; CSS `.mc-bell`). Abonnement
+  **PAR MATCH, indépendant** du push global (`data/push_match_subs.json` `{mid:[endpoint]}`). La boucle
+  `main._match_events_loop` poll le live ~45 s **seulement s'il y a des abonnés** (0 charge sinon) et
+  `push.notify_match_events` détecte les transitions vs `data/push_match_state.json` : **début · but ·
+  mi-temps · fin** (idempotent ; abos retirés à FT). Routes `/push/match/{subscribe,unsubscribe,list}`.
+  ⚠️ **Live Activities iOS / Dynamic Island = natif only** (Swift/ActivityKit) → **hors de portée en PWA**
+  (pas de Mac/App Store côté user, tranché 2026-09-06) ; le push PWA = bannières sur écran verrouillé, pas
+  de carte persistante. Mémoire `push-pwa-per-match-notifications`.
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
