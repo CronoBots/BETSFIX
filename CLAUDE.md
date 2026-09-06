@@ -324,7 +324,8 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     est RETIRÉE (métrique de value d'avant-match, inutile une fois réglé) via `hide_context=True`
     (`analyses.verdict_line` / `web._verdict_block`), passé par `_leg_card` quand won/lost/push/void. Avant
     règlement (à venir/live) : légende inchangée.
-  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes, **opacité .05** (discret, validé user).
+  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes, **opacité .05** (discret, validé user),
+    **taille UNIFIÉE 135px** (`.row.mc::before` ET `.cleg::before` ; avant 150 vs 120 = tailles différentes).
     `.row.mc::before` + **`.cleg::before`** (jambes/cartes-résultat/montante). Pour les **combinés**, le logo vit
     dans le **cadre des JAMBES**, PAS sur le cadre global doré (`.row.mc.mc-tg-gold::before{content:none}`).
     **`.cleg::before` CENTRÉ verticalement** dans le cadre REPLIÉ (`top:0;bottom:0` + `background center 80px`,
@@ -333,6 +334,14 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   - **PASTILLE calendrier horizontal (MAJ 2026-09-06)** : couleur pilotée par la **Confiance SEULE**
     (`_daily_conf_results_map`, plus `_daily_all_results_map`). Règle : VERT = tout gagné · JAUNE dès la **moitié**
     (`won*2 >= settled`) · ROUGE seulement si **strictement < moitié**. Cliquabilité du jour = tous paris (`rmap`).
+  - **HALO/GLOW des cartes DANS la marge + bouton « haut de page » (MAJ 2026-09-06)** : le glow bleu des cartes
+    (`0 0 18px rgba(34,184,255,.22)` sur `.row.pick/.spf/.live-empty`) semblait « coupé » car `#panels{overflow-x:
+    clip}` (rogne le glissement d'onglet) avait sa boîte de clip à x=16 (= bord de carte, via `.wrap{padding:0 16px}`).
+    Fix : `#panels` garde le clip mais sa boîte s'étend aux **bords de l'écran** (`margin -16 + padding 16`) → cartes
+    toujours à x=16, le glow va DANS la marge et se fond au bord (blur ≤ marge 16px sinon léger cut). Idem glow bas
+    de la pastille du jour (`.daycal-track` padding-bas 15px). **Bouton `#bfx-totop`** (coin bas-droit, discret) :
+    smooth-scroll **MANUEL (rAF)** — `window.scrollTo({behavior:'smooth'})` est ignoré SANS erreur en PWA iOS.
+    Mémoire `ui-halo-glow-clip-and-ios-scroll`.
 - **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
   (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
   n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
