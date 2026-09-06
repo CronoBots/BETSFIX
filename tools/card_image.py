@@ -203,23 +203,25 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 /* GLOSE RETIRÉE des cartes Telegram (user 2026-09-02, cohérent avec le site — direction « sobriété ») :
    le pari nommé se suffit. Réversible : retirer ce display:none. La glose reste calculée (card_data). */
 .sgl{display:none;text-align:center;font-size:25px;font-weight:600;color:#8fa2b8;line-height:1.32;margin-top:9px}
-.vbar{position:relative;height:16px;border-radius:99px;overflow:hidden;margin:22px 0 2px;
+/* VERDICT façon SITE (verdict_line compacte) — carte Telegram == prono du site (user 2026-09-06). Échelle ~2x. */
+.svd{margin-top:30px}
+.svhd{display:flex;align-items:baseline;justify-content:space-between;gap:22px}
+.svconf{font-size:29px;font-weight:800;display:inline-flex;align-items:baseline;gap:10px;white-space:nowrap}
+.svconf b{font-size:46px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.svconf i{font-style:normal;font-size:23px;font-weight:800;text-transform:lowercase;opacity:.85}
+.svcote{font-size:26px;font-weight:800;color:#b9c6d6;display:inline-flex;align-items:baseline;gap:10px;white-space:nowrap;flex:none}
+.svcote b{font-size:46px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.svbar{position:relative;height:18px;border-radius:99px;overflow:hidden;margin:22px 0 0;
   background:linear-gradient(180deg,#191b22,#212430);box-shadow:inset 0 1px 2px rgba(0,0,0,.55)}
-.vbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
-.ve{position:absolute;top:0;bottom:0}
-.vepos{background:rgba(255,255,255,.36)}
-.veneg{background:repeating-linear-gradient(45deg,rgba(255,255,255,.13) 0 5px,transparent 5px 11px)}
-.vmk{position:absolute;top:0;bottom:0;width:3px;margin-left:-1.5px;background:rgba(244,248,255,.55);border-radius:2px}
-.vgrid{display:flex;width:100%;border-top:2px solid rgba(255,255,255,.10);margin-top:28px;padding-top:24px}
-.vc{flex:1;display:flex;flex-direction:column;align-items:center;gap:9px}
-.vc + .vc{border-left:2px solid rgba(255,255,255,.07)}
-.vl{font-size:19px;font-weight:800;color:#90a4be;text-transform:uppercase;letter-spacing:.08em}
-.vv{font-size:37px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.vconf{color:#64cd8d}
-.vcote{color:#fff}
-.vpos{color:#34d27b}
-.vmid{color:#f6c54a}
-.vneg{color:#ff6b6b}
+.svbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.sve{position:absolute;top:0;bottom:0}
+.svepos{background:rgba(255,255,255,.30)}
+.sveneg{background:repeating-linear-gradient(45deg,rgba(255,255,255,.13) 0 5px,transparent 5px 11px)}
+.svtick{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1.5px;background:#f4f8ff;border-radius:2px}
+.svctx{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0 16px;margin-top:18px;
+  font-size:26px;font-weight:700;color:#8b97a8}
+.svx b{font-weight:900;color:#c8d3e2}
+.svs{color:#5b6675;opacity:.7}
 /* ANALYSE en PUCES comme le site (« Pourquoi ce choix », user 2026-08-17) : une phrase = une puce à point
    gris, texte léger. Pas de barre verticale. */
 .swhy{font-size:23px;font-weight:500;color:#a7bcd6;line-height:1.44;margin-top:34px;padding:0;list-style:none}
@@ -283,23 +285,54 @@ def _team_logo_html(name, url, e) -> str:
     return f'<span class="tlwrap"><span class="tlogo mono" style="{_bg}">{e(ini)}</span></span>'
 
 
-def _verdict_cells_html(d: dict, e) -> str:
-    """Grille verdict Confiance/Edge/Value/Cote (cellules `.vc`) — PARTAGÉE carte pari + carte résultat."""
-    conf, edge, val, cote = d.get("conf"), d.get("edge"), d.get("value"), d.get("cote")
-    cells = []
-    if conf is not None:
-        cells.append(f'<div class="vc"><span class="vl">Confiance</span><span class="vv vconf">{e(conf)}%</span></div>')
-    if edge is not None:
-        cells.append(f'<div class="vc"><span class="vl">Edge</span>'
-                     f'<span class="vv {"vpos" if edge >= 2 else "vmid" if edge >= 0 else "vneg"}">'
-                     f'{"+" if edge >= 0 else ""}{e(edge)} pts</span></div>')
-    if val is not None:
-        cells.append(f'<div class="vc"><span class="vl">Value</span>'
-                     f'<span class="vv {"vpos" if val >= 3 else "vmid" if val >= 1 else "vneg"}">'
-                     f'{"+" if val >= 0 else ""}{e(val)}%</span></div>')
-    if cote:
-        cells.append(f'<div class="vc"><span class="vl">Cote</span><span class="vv vcote">{e(cote)}</span></div>')
-    return "".join(cells)
+def _verdict_site_html(d: dict, e, settled: bool = False) -> str:
+    """Bloc verdict EXACTEMENT comme le SITE (`analyses.verdict_line`, version compacte 2026-09-06) pour que
+    la carte Telegram == le prono publié sur le site : en-tête « Confiance X% <qualificatif> » (coloré par
+    niveau) + « Cote Y », barre de confiance (remplissage + surbrillance edge + repère marché), puis ligne de
+    contexte « marché Z% · edge · value » — edge/value AFFICHÉS SEULEMENT s'ils sont POSITIFS (comme le site).
+    `settled=True` (fiche résultat) : on RETIRE la barre + la ligne de contexte (marché/edge/value = métrique
+    d'avant-match) -> il ne reste que « Confiance X% · Cote Y », comme le site réglé."""
+    conf, cote, val = d.get("conf"), d.get("cote"), d.get("value")
+    try:
+        cfi = int(round(float(conf)))
+        cv = float(str(cote).replace(",", "."))
+        be = round(100.0 / cv)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return ""
+    if cv <= 1:
+        return ""
+    # Couleur + qualificatif = MÊMES seuils que analyses.verdict_line (branche calibrée).
+    if cfi < 55:
+        col, grad, word = "#ff6b6b", "linear-gradient(90deg,#b23b3b,#ff6b6b)", "Faible"
+    elif cfi < 68:
+        col, grad, word = "#f6c54a", "linear-gradient(90deg,#c9902f,#f6c54a)", "Modérée"
+    elif cfi < 80:
+        col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Élevée"
+    else:
+        col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Très élevée"
+    _head = (f'<div class="svhd"><span class="svconf" style="color:{col}">Confiance '
+             f'<b>{cfi}%</b> <i>{e(word.lower())}</i></span>'
+             f'<span class="svcote">Cote <b>{e(cote)}</b></span></div>')
+    if settled:                                    # fiche résultat : Confiance + Cote seuls (comme le site réglé)
+        return f'<div class="svd">{_head}</div>'
+    _edge = cfi - be
+    ep = int(round(float(val))) if val is not None else None
+    _cfic, _bec = max(0, min(cfi, 100)), max(0, min(be, 100))
+    if _cfic >= _bec:                              # edge POSITIF : marché..nous en surbrillance
+        _ov = f'<i class="sve svepos" style="left:{_bec}%;width:{_cfic - _bec}%"></i>'
+    else:                                          # edge NÉGATIF : nous..marché hachuré
+        _ov = f'<i class="sve sveneg" style="left:{_cfic}%;width:{_bec - _cfic}%"></i>'
+    _tick = f'<b class="svtick" style="left:{_bec}%"></b>' if 0 < _bec < 100 else ""
+    _bar = f'<div class="svbar"><i style="width:{_cfic}%;background:{grad}"></i>{_ov}{_tick}</div>'
+    _bits = [f'<span class="svx">marché <b>{be}%</b></span>']
+    if _edge >= 0:                                 # edge affiché seulement si POSITIF (comme le site)
+        _ec = "#4be39b" if _edge >= 2 else "#f6c54a"
+        _bits.append(f'<span class="svx">edge <b style="color:{_ec}">+{_edge} pts</b></span>')
+    if ep is not None and ep >= 0:                 # value affichée seulement si POSITIVE (comme le site)
+        _vc = "#4be39b" if ep >= 3 else "#f6c54a" if ep >= 1 else "#9aa7b8"
+        _bits.append(f'<span class="svx">value <b style="color:{_vc}">+{ep}%</b></span>')
+    _ctx = '<div class="svctx">' + '<span class="svs">·</span>'.join(_bits) + '</div>'
+    return f'<div class="svd">{_head}{_bar}{_ctx}</div>'
 
 
 def _why_bullets_html(d: dict, e) -> str:
@@ -358,18 +391,7 @@ def _simple_card_html(d: dict) -> str:
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
     _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
     _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
-    _cells = _verdict_cells_html(d, e)
-    conf, cote = d.get("conf"), d.get("cote")
-    _bar = ""
-    try:
-        cf, be = int(round(float(conf))), round(100.0 / float(cote))
-        _col = "#64cd8d" if cf >= 68 else ("#f6c54a" if cf >= 55 else "#ff6b6b")
-        _ov = (f'<i class="ve vepos" style="left:{be}%;width:{cf - be}%"></i>' if cf >= be
-               else f'<i class="ve veneg" style="left:{cf}%;width:{be - cf}%"></i>')
-        _mk = f'<b class="vmk" style="left:{min(be, 100)}%"></b>' if 0 < be < 100 else ""
-        _bar = f'<div class="vbar"><i style="width:{min(cf, 100)}%;background:{_col}"></i>{_ov}{_mk}</div>'
-    except (TypeError, ValueError):
-        _bar = ""
+    _verdict = _verdict_site_html(d, e)           # bloc verdict EXACTEMENT comme le site (Confiance+qual · Cote · marché)
     inner = (
         f'<div class="glow"></div>'
         f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
@@ -383,8 +405,7 @@ def _simple_card_html(d: dict) -> str:
         f'<div class="sbet">'                             # CADRE « partie Paris » (comme le site, user 2026-08-17)
         f'<div class="spk">{e(_strip_dc_paren(d.get("pick", "")))}</div>'
         + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
-        + f'<div class="vgrid">{_cells}</div>'           # GRILLE d'abord
-        + f'{_bar}'                                       # BARRE SOUS les stats (comme le site, user 2026-08-17)
+        + _verdict                                        # VERDICT façon site (Confiance+qual · Cote · barre · marché)
         + '</div>')                                       # « POURQUOI » TOUJOURS RETIRÉ de l'image (user 2026-08-22,
         # tous types) : sur Telegram, l'image ne porte QUE le pari + les chiffres, aucune analyse dans le PNG.
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
@@ -418,7 +439,7 @@ def _result_simple_card_html(d: dict) -> str:
     _score = str(d.get("score") or "").strip().replace("-", " - ")
     _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
                if _score else '<span class="rfin">Terminé</span>')
-    _cells = _verdict_cells_html(d, e)
+    _verdict = _verdict_site_html(d, e, settled=True)     # fiche résultat = Confiance + Cote seuls (comme le site réglé)
     _pick = _strip_dc_paren(d.get("pick") or sp.get("label", ""))
     _gloss = d.get("gloss") or sp.get("gloss") or ""
     inner = (
@@ -434,7 +455,7 @@ def _result_simple_card_html(d: dict) -> str:
         f'<div class="sbet">'
         f'<div class="spk">{e(_pick)}</div>'
         + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
-        + f'<div class="vgrid">{_cells}</div>'
+        + _verdict
         + '</div>')                                       # verdict désormais dans la signature (marquage haut de carte) ; PAS d'analyse (user 2026-08-17)
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
             f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
@@ -458,7 +479,7 @@ def _combo_card_html(d: dict) -> str:
             _center = f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
         else:
             _center = e(lg.get("time", "")) or "•"
-        _cells = _verdict_cells_html(lg, e)
+        _verdict = _verdict_site_html(lg, e, settled=bool(mark))   # à venir : Confiance+qual·Cote·barre·marché ; réglé : Confiance+Cote
         _pick = _strip_dc_paren(lg.get("pick", ""))
         _gl = f'<div class="sgl">{e(lg.get("gloss"))}</div>' if lg.get("gloss") else ""
         if mark:
@@ -476,7 +497,7 @@ def _combo_card_html(d: dict) -> str:
             f'<div class="stm">{_team_logo_html(away, lg.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
             f'</div>'
             f'<div class="spk">{e(_pick)}</div>{_gl}'
-            f'<div class="vgrid">{_cells}</div>{_extra}'
+            f'{_verdict}{_extra}'
             '</div>')
     _tot = (f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
             f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
