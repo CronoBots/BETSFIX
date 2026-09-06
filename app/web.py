@@ -1202,12 +1202,15 @@ CSS = """
        border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
   /* 🔔 NOTIFS PAR MATCH (user 2026-09-06) : bouton en haut-GAUCHE, VISIBLE UNIQUEMENT en PWA installée
      (classe `html.pwa` posée par JS). État suivi = doré. Clic géré par bfxMatchBell (stopPropagation). */
-  .mc-bell{display:none;position:absolute;top:8px;left:9px;z-index:5;width:30px;height:30px;border-radius:50%;
-       align-items:center;justify-content:center;border:1px solid var(--cardline);background:rgba(255,255,255,.05);
-       font-size:14px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;opacity:.5;padding:0}
+  .mc-bell{display:none;position:absolute;top:38px;left:12px;z-index:5;width:27px;height:27px;border-radius:50%;
+       align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.32);background:rgba(255,255,255,.08);
+       color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}   /* BLANC (visible sur fond sombre) ;
+       top calé sur la LIGUE (centrée ~52px sur .row.mc). */
+  .cleg .mc-bell{top:11px}   /* la jambe est moins haute -> ligue ~25px */
   html.pwa .mc-bell{display:inline-flex}
-  .mc-bell.on{opacity:1;color:var(--gold);border-color:color-mix(in srgb,var(--gold) 55%,transparent);
-       background:color-mix(in srgb,var(--gold) 16%,transparent)}
+  .mc-bell svg{width:15px;height:15px;display:block}
+  .mc-bell.on{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 60%,transparent);
+       background:color-mix(in srgb,var(--gold) 18%,transparent)}
   .mc-bell:active{transform:scale(.92)}
   /* Badge ✓/✗ INLINE (combiné) : à droite des points par jambe, dans l'en-tête (pas en absolu). */
   .mc-vdot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
@@ -11682,8 +11685,11 @@ def _notif_bell(mid) -> str:
     if not mid:
         return ""
     return (f'<button type="button" class="mc-bell" data-mid="{html.escape(str(mid))}" '
-            f'aria-label="Notifications de ce match" '
-            f'onclick="event.stopPropagation();bfxMatchBell(this)">\U0001F514</button>')
+            f'aria-label="Notifications de ce match" onclick="event.stopPropagation();bfxMatchBell(this)">'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+            f'stroke-linecap="round" stroke-linejoin="round">'
+            f'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>'
+            f'<path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>')
 
 
 def _sport_row(r: dict) -> str:
