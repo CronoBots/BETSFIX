@@ -2889,6 +2889,10 @@ CSS = """
      d'avant-match, muet une fois le résultat connu + doublon du « CONFIANCE % ») — demande user 2026-07-28.
      Le % reste dans la grille verdict ; le scoreboard devient le point focal. À venir/live : barre gardée. */
   .cleg.won .vb-bar, .cleg.lost .vb-bar, .cleg.push .vb-bar, .cleg.void .vb-bar{display:none}
+  /* Idem sur le TOTAL d'un COMBINÉ réglé (user 2026-09-06) : la barre du « Total du combiné » vit dans le
+     cadre doré (.mc-tg-gold), pas dans une .cleg -> la règle ci-dessus ne l'atteignait pas. */
+  .row.mc.mc-tg-gold.mc-r-won .vb-bar, .row.mc.mc-tg-gold.mc-r-lost .vb-bar,
+  .row.mc.mc-tg-gold.mc-r-push .vb-bar{display:none}
   /* Badge « en cours » : ORANGE (pas décidé), plus vert (demande user 2026-07-18). */
   .cleg-bdg.live{background:rgba(52,210,123,.16);color:#34d27b}   /* « 🟢 LIVE » vert comme les cartes (2026-07-21) */
   /* Équipes de la jambe sur leur propre ligne, en gros — comme les provisoires (.mc-teams). */
