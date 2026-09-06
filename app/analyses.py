@@ -1085,77 +1085,52 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
     # Remplace la colonne « Marché » (le marché reste montré par le repère blanc sur la barre) : lecture
     # gauche->droite Confiance -> Edge (on bat le marché de X) -> Value (ce que ça rapporte) -> Cote.
     _edge = cfi - be
-    cells = [f'<div class="vm-cell vm-conf"><span class="vm-l">Confiance</span>'
-             f'<span class="vm-v" style="color:{col}">{cfi}%</span>'
-             f'<span class="vm-sub" style="color:{col}">{word.lower()}</span></div>']
-    # SOBRIÉTÉ FINANCIÈRE (refonte 2026-09-02, direction choisie par le user après audit ui-ux-pro-max) :
-    # la grille montrait QUATRE colonnes de poids ÉGAL (Confiance/Edge/Value/Cote) — l'œil ne savait pas
-    # quoi lire en premier, et deux métriques de CONTEXTE (edge, value) pesaient autant que les deux
-    # métriques de DÉCISION (confiance, cote). Désormais : 2 chiffres HÉROS (Confiance + Cote) puis une
-    # LIGNE DE CONTEXTE discrète « marché X% · edge ±N pts · value ±N% ».
-    # Aucune information n'est PERDUE (la transparence voulue le 2026-07-24 est intacte) — elle est
-    # HIÉRARCHISÉE. C'est le patron que le combiné utilisait déjà via `bare` (Confiance + Cote seuls) :
-    # les cartes simples s'alignent dessus au lieu d'avoir leur propre densité.
+    # ═══ COMPACT (user 2026-09-06 « intègre cote + confiance/edge/value À LA BARRE pour réduire la longueur ») :
+    # Confiance + Cote passent en EN-TÊTE INLINE de la barre (fini la grosse grille 26px empilée), edge/value en
+    # LÉGENDE FINE sous la barre -> carte PLUS COURTE, récit + transparence INCHANGÉS. En-tête gauche = Confiance
+    # (ou « Confiance live »/« Gagné »/« Perdu » en direct/réglé, couleur par niveau), droite = Cote. `bare`
+    # (combiné) : Confiance + Cote seuls (pas de légende marché/edge/value). L'ANCIENNE grille `.vm-grid` reste
+    # utilisée par le repli « pari sans verdict » de web._verdict_block (cote seule) -> classes .vm-* conservées.
     _ctx = ""
     if not bare:
-        _ecls, _eword = _edge_word(_edge)                  # couleur LOGIQUE + qualificatif (comme la Confiance)
-        _bits = [f'<span class="vx-i">marché <b>{be}%</b></span>',
-                 f'<span class="vx-i {_ecls}">edge <b>{"+" if _edge >= 0 else ""}{_edge} pts</b></span>']
-        # VALUE : toujours présente sur une carte de SIMPLE (transparence totale, même négative/nulle) ;
-        # sur un provisoire/sans edge (« 💎 si EV+ » strict) on n'affiche pas un chiffre trompeur.
-        if ep >= 1 or (calibrated and not hide_neg_value):
-            _vcls, _vword = _value_word(ep)                # couleur LOGIQUE (0 = gris neutre, plus rouge)
-            _bits.append(f'<span class="vx-i {_vcls}">value <b>{"+" if ep >= 0 else ""}{ep}%</b></span>')
+        # EDGE/VALUE MASQUÉS SI NÉGATIFS (user 2026-09-06) : sur un favori court (confiance haute, pas de value),
+        # edge/value sont souvent négatifs -> on ne les affiche PAS (bruit). On garde « marché » (référence).
+        _bits = [f'<span class="vx-i">marché <b>{be}%</b></span>']
+        if _edge >= 0:
+            _ecls, _eword = _edge_word(_edge)
+            _bits.append(f'<span class="vx-i {_ecls}">edge <b>+{_edge} pts</b></span>')
+        if ep >= 0 and (ep >= 1 or (calibrated and not hide_neg_value)):
+            _vcls, _vword = _value_word(ep)
+            _bits.append(f'<span class="vx-i {_vcls}">value <b>+{ep}%</b></span>')
         _ctx = '<div class="vm-ctx">' + '<span class="vx-s">·</span>'.join(_bits) + '</div>'
-    if with_cote:
-        # COTE affichée à 2 DÉCIMALES MAX (user 2026-08-20) : la cote d'un combiné est un PRODUIT (ex. 2.016) ->
-        # arrondie à l'affichage comme les simples (2.02). Display-only, la valeur stockée reste intacte.
-        cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
-                     f'<span class="vm-v">{round(cv, 2):g}</span></div>')
-    # Pari+glose (user 2026-08-15) : DANS le cadre `.vm`, centré, AU-DESSUS de la grille de chiffres
-    # (le séparateur sous les équipes est retiré côté carte). Les cellules passent dans `.vm-grid`
-    # (l'ancienne rangée flex de `.vm`) -> alignement identique pour tous les types de cartes.
+    _cote_h = (f'<span class="cvb-cote">Cote <b>{round(cv, 2):g}</b></span>' if with_cote else "")
     _pk = f'<div class="vm-pick">{pick_html}</div>' if pick_html else ""
-    # BARRE : statique = confiance calibrée (avant-match). LIVE (user 2026-08-15) = la MÊME barre DEVIENT
-    # « Confiance live » = chance en direct (remplissage = live_pct), NOS couleurs (émeraude/ambre/rouge par
-    # niveau), MARQUEUR marché d'avant-match conservé (le `mark`). Verrou acquis/perdu -> « Gagné »/« Perdu ».
     if isinstance(live_pct, int):
         lp = max(0, min(100, live_pct))
-        # `_hrgb` = triplet RGB de la couleur de remplissage -> le HALO prend LA MÊME couleur (user 2026-08-15),
-        # via les variables CSS --hlo/--hhi (rgba avec opacité) lues par le keyframe vblivehalo.
         if lp < 50:
-            lgrad, _hrgb = _RED, "255,107,107"
+            lgrad, _hrgb, _lcol = _RED, "255,107,107", "#ff7484"
         elif lp < 68:
-            lgrad, _hrgb = _AMB, "246,197,74"
+            lgrad, _hrgb, _lcol = _AMB, "246,197,74", "#f6c54a"
         else:
-            lgrad, _hrgb = _GRN, "100,205,141"
+            lgrad, _hrgb, _lcol = _GRN, "100,205,141", _GRN_C
         _ar = {"up": "▲", "down": "▼"}.get(live_trend, "")
         if live_state == "acquis":
-            _lt, lgrad, _hrgb = "Gagné", _GRN, "100,205,141"
+            _lt, lgrad, _hrgb, _lcol = "Gagné", _GRN, "100,205,141", _GRN_C
         elif live_state == "perdu":
-            _lt, lgrad, _hrgb = "Perdu", _RED, "255,107,107"
+            _lt, lgrad, _hrgb, _lcol = "Perdu", _RED, "255,107,107", "#ff7484"
         else:
             _lt = "Confiance live"
-        # TÉMOINS D'AVANT-MATCH (user 2026-08-15) : sur la barre live, deux marqueurs = notre confiance
-        # d'avant-match (VERT, cohérent avec « Confiance » de la grille) et celle des bookmakers (BLANC = `mark`,
-        # proba implicite `be`, cohérent avec « Marché »). Les valeurs chiffrées sont DÉJÀ dans la grille en
-        # dessous -> pas de légende texte (retirée à la demande user).
+        # En-tête = « Confiance live NN% ▲ » (couleur par niveau) ; la barre garde ses témoins avant-match.
+        _conf_h = (f'<span class="cvb-conf" style="color:{_lcol}">{_lt} <b>{lp}%</b>'
+                   f'<span class="cvb-ar">{_ar}</span></span>')
         _mk_us = f'<b class="vb-mark vb-mk-us" style="left:{cfi}%"></b>' if 0 < cfi < 100 else ""
-        _bar = ('<div class="vb-live">'
-                f'<div class="vb-live-hd"><span class="vb-live-t">{_lt}</span>'
-                f'<span class="vb-live-v">{lp}%<span class="vb-live-ar">{_ar}</span></span></div>'
-                f'<div class="vb-bar"><i style="width:{lp}%;background:{lgrad};'
-                f'--hlo:rgba({_hrgb},.18);--hhi:rgba({_hrgb},.52)"></i>{_mk_us}{mark}</div>'
-                '</div>')
+        _bar = (f'<div class="vb-live"><div class="vb-bar"><i style="width:{lp}%;background:{lgrad};'
+                f'--hlo:rgba({_hrgb},.18);--hhi:rgba({_hrgb},.52)"></i>{_mk_us}{mark}</div></div>')
     elif bare:
-        # COMBINÉ (user 2026-08-17) : barre PROPRE = juste NOTRE confiance/réussite, SANS repère marché ni
-        # zone edge (cohérent avec le retrait des colonnes Edge/Value — le marché n'est pas le sujet ici).
+        _conf_h = f'<span class="cvb-conf" style="color:{col}">Confiance <b>{cfi}%</b> <i>{word.lower()}</i></span>'
         _bar = f'<div class="vb-bar"><i style="width:{min(cfi, 100)}%;background:{grad}"></i></div>'
     else:
-        # BARRE = ZONE EDGE (user 2026-08-17) : le remplissage va jusqu'à NOTRE confiance ; la portion qui
-        # DÉPASSE le marché (= notre edge) est en SURBRILLANCE (edge+), ou le manque jusqu'au marché est
-        # HACHURÉ (edge-). Repère marché DISCRET = frontière de la zone. Remplace le trait blanc « marché »
-        # (jugé ambigu maintenant qu'on affiche l'Edge en colonne, pas la proba marché).
+        _conf_h = f'<span class="cvb-conf" style="color:{col}">Confiance <b>{cfi}%</b> <i>{word.lower()}</i></span>'
         _cfic = max(0, min(cfi, 100))
         _bec = max(0, min(be, 100))
         if _cfic >= _bec:                          # edge POSITIF : marché..nous en surbrillance (notre avantage)
@@ -1165,15 +1140,12 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
         _tick = f'<b class="vb-mktb" style="left:{_bec}%"></b>' if 0 < _bec < 100 else ""
         _bar = (f'<div class="vb-bar"><i style="width:{_cfic}%;background:{grad}"></i>'
                 f'{_ov}{_tick}</div>')
-    # CARTE RÉGLÉE (user 2026-08-15) : le badge « Gagné/Perdu » REMPLACE la barre et vit AUSSI DANS le cadre.
-    if result_html:
-        _bar = f'<div class="vm-res">{result_html}</div>'
-    # BARRE INTÉGRÉE DANS LE CADRE (user 2026-08-15) : la barre de confiance / « Confiance live » vit
-    # DÉSORMAIS À L'INTÉRIEUR du cadre `.vm`, SOUS la grille de chiffres (plus en dehors/dessous).
-    return (
-        '<div class="vb">'
-        f'<div class="vm">{_pk}<div class="vm-grid">{"".join(cells)}</div>{_ctx}{_bar}</div>'
-        '</div>')
+    _head = f'<div class="cvb-hd">{_conf_h}{_cote_h}</div>'
+    if result_html:                        # RÉGLÉ : le badge Gagné/Perdu remplace barre + légende
+        _bar, _ctx = f'<div class="vm-res">{result_html}</div>', ""
+    return ('<div class="vb"><div class="vm">'
+            f'{_pk}<div class="cvb">{_head}{_bar}{_ctx}</div>'
+            '</div></div>')
 
 
 def _bets_table(body: str, results: dict | None = None, compact: bool = False,

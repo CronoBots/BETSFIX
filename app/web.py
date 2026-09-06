@@ -1171,8 +1171,13 @@ CSS = """
      remboursé = gris. Posé via la classe `mc-r-*`. */
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
-  .row.mc{padding:0;margin:7px 0;overflow:hidden;
+  .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
        border:1px solid var(--st-soon)}
+  /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré en haut, DERRIÈRE le
+     contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
+  .row.mc::before{content:"";position:absolute;top:0;left:0;right:0;height:180px;z-index:0;pointer-events:none;
+       opacity:.05;background:url('/static/logo.png') center 26px/150px no-repeat;filter:grayscale(.3) brightness(1.3)}
+  .row.mc>*{position:relative;z-index:1}
   .row.mc.mc-r-won{border-color:var(--st-won)}
   .row.mc.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-r-push{border-color:var(--st-void)}
@@ -1199,7 +1204,9 @@ CSS = """
      Modificateur scopé -> n'affecte PAS les autres cartes (programme .mc-tg, combiné, accueil). Le badge
      décompte/résultat reste en absolu à droite (.mc-line-c .mc-badge). */
   .mc-line-c.mc-lg-cleg{justify-content:flex-start}
+  .mc-line-c.mc-lg-cleg.mc-lg-ctr{justify-content:center}   /* ligue CENTRÉE sur la carte simple (user 2026-09-06) */
   .mc-line-c.mc-lg-cleg .mc-comp{flex:0 1 auto;text-align:left;padding:0 44px 0 0;color:#8fa2b8}
+  .mc-line-c.mc-lg-cleg.mc-lg-ctr .mc-comp{text-align:center;padding:0 44px}   /* ligue CENTRÉE sur la carte simple (user 2026-09-06) */
   .mc-ic{flex:none;font-size:13px;line-height:1}                 /* emoji sport DISCRET (plus petit) */
   /* L1 : nom du sport · circuit (ATP/WTA) · tournoi (ville capitalisée) — contextuel,
   discret. */
@@ -3613,7 +3620,8 @@ CSS = """
   .vm-grid{display:flex;width:100%}   /* rangée Confiance/Marché/Value/Cote (ex-.vm flex) */
   /* Pari+glose DANS le cadre, centré, au-dessus des chiffres (user 2026-08-15), avec filet de séparation. */
   .vm-pick{text-align:center;padding:2px 6px 10px;margin:0 12px 9px;border-bottom:1px solid var(--border2)}   /* séparateur = même largeur que la barre (user 2026-08-15) */
-  .vm-pick .mc-pick{text-align:center}
+  .vm-pick .mc-pick{text-align:center;font-size:15px;line-height:1.3}   /* PARI À JOUER agrandi mais qui TIENT sur une ligne (user 2026-09-06) */
+  .vm-pick{margin-left:4px;margin-right:4px;padding-left:2px;padding-right:2px}   /* + de place -> intitulé long sur 1 ligne */
   .vm-pick .mc-gloss{text-align:center;margin-top:4px}
   .vm-cell{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
        padding:2px 6px;text-align:center;border-left:1px solid rgba(255,255,255,.08)}
@@ -3647,6 +3655,18 @@ CSS = """
      sien, et ce bloc n'a plus NI fond NI bord — il ne reste que la carte. La séparation reste lisible par
      les FILETS existants (`.vm-pick` en bas, `.vm-res`/barre en haut), pas par une surface concurrente. */
   .vm{background:none;border:0;border-radius:14px;padding:11px 4px}
+  /* ===== VERDICT COMPACT (user 2026-09-06) : Confiance + Cote en EN-TÊTE INLINE de la barre + edge/value en
+     légende fine dessous -> carte plus courte. Remplace la grosse grille .vm-grid (26px empilée). ===== */
+  .cvb{width:100%}
+  .cvb-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 12px;max-width:100%}
+  .cvb-conf{font-size:13.5px;font-weight:800;display:inline-flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .cvb-conf b{font-size:21px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cvb-conf i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:lowercase;opacity:.85;white-space:nowrap}
+  .cvb-ar{font-size:9px;margin-left:2px}
+  .cvb-cote{font-size:12px;font-weight:800;color:#b9c6d6;display:inline-flex;align-items:baseline;gap:5px;white-space:nowrap;flex:none}
+  .cvb-cote b{font-size:21px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .cvb .vb-bar,.cvb .vb-live{margin:10px 12px 0;padding-top:0;border-top:none}   /* barre collée sous l'en-tête (pas de trait) */
+  .cvb .vm-ctx{margin:8px 12px 2px}
   .vb-reana{margin-top:11px;font-size:11px;font-weight:600;color:#7f93aa;text-align:center}
   .tkt-value{font-size:12.5px;font-weight:900;padding:2px 11px;border-radius:99px;
        font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -11922,7 +11942,7 @@ def _sport_row(r: dict) -> str:
     # calculée plus haut via `_live_pct`). PURE AFFICHAGE : aucun impact ROI/stats/calibration.
     _chev = "" if (_no_expand or r.get("_compact")) else '<span class="mc-chev">▸</span>'   # pas de chevron si carte non dépliable / compacte (prochains lives)
     head = (f'<div class="mc-head"><div class="mc-main">'
-            f'<div class="mc-line mc-line-c mc-lg-cleg">'   # ligue EN HAUT À GAUCHE + bleu jambes-combiné (#8fa2b8, user 2026-09-03) ; décompte en absolu à droite
+            f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr">'   # ligue CENTRÉE (user 2026-09-06) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
