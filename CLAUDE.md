@@ -343,9 +343,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     (`settled=True`). **Habillage aligné site** : fond `#0d1119`, **bord GOLD** `#f6c54a` (à venir)/vert/rouge/gris
     par état, **FILIGRANE** logo (`.swmk`, opacité .05, dans les JAMBES pour un combiné), **PLUS de logo BETSFIX
     ni de titre CONFIANCE/VALUE en tête** (user 2026-09-06). Résultat = cadre coloré + **badge ✓/✗ coin** (`.scorner`),
-    plus de « CONFIANCE GAGNÉE ». Combiné = titre « COMBINÉ DU JOUR » conservé. ⚠️ Reste 1 écart : le **total du
-    combiné** Telegram = boîte dorée « Cote combinée » (le site montre « Confiance X% · Cote »). Ancienne
-    `_verdict_cells_html`/`.vgrid` supprimées.
+    plus de « CONFIANCE GAGNÉE ». Combiné = titre « COMBINÉ DU JOUR » conservé, **total = « TOTAL DU COMBINÉ ·
+    Confiance X% \<qual\> · Cote »** (via `combo_conf`=round(prob·100) + `_verdict_site_html(bare, calibrated=False)`
+    → échelle combiné Audacieux/Équilibré/Solide/Très solide) = identique au site. Ancienne
+    `_verdict_cells_html`/`.vgrid` supprimées. **Filigrane CENTRÉ** (`center center`, site ET Telegram) — sinon
+    collé en haut sur les cartes live plus hautes.
 - **Push PWA** (MAJ 2026-09-02) : notifie **simples + JAMBES + COMBINÉS** (`app/push.py` : `notify_leg`/
   `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
   `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
