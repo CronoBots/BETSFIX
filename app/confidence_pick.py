@@ -69,7 +69,12 @@ def match_candidates(d: dict, markets=None, exclude_markets=None, require_omap: 
     historique + value inchangés : l'omap n'est fiable qu'en forward, cf. omap-unibet-cote-capture)."""
     _mk = None if exclude_markets is not None else (MARKETS if markets is None else markets)
     _om = (d.get("omap") or {}) if require_omap else None
-    preds = list(d.get("shadow") or [])
+    # EXCLURE les ghosts `pre_refresh` : ce sont les prédictions de l'analyse PRÉCÉDENTE, reportées par
+    # generate_analyses._carry_shadow_from_old UNIQUEMENT pour le CALIBRAGE (« le pari retenu pour le ROI/stats
+    # est TOUJOURS le dernier généré »). Ils ne doivent JAMAIS être candidats à la SÉLECTION du pari joué :
+    # seule l'analyse FRAÎCHE décide. (Bug 2026-09-07 : un vieux DC/handicap sûr fuyait en Confiance/Value alors
+    # que l'analyse fraîche abstenait — cas Cruz Azul.) Ils RESTENT dans `d["shadow"]` intacts → calibration inchangée.
+    preds = [s for s in (d.get("shadow") or []) if s.get("ghost_from") != "pre_refresh"]
     for b in (d.get("bets") or []):
         preds.append({"sel": b.get("sel"), "cote": b.get("odds") or b.get("cote"),
                       "prob": b.get("prob"), "code": b.get("code"), "result": b.get("result")})

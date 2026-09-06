@@ -185,6 +185,11 @@ mécaniques** backtestés :
   `retained_bet`/`stat_bet` qui ressuscitent le pari publié) + filigrane monotone remis à 0.
 - Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
   le pari mécanique) · `REVEAL_ONLY_FINAL=True` (voir flux Option B).
+- ⚠️ **INVARIANT (bug 2026-09-07)** : le vivier de sélection `confidence_pick.match_candidates` **EXCLUT**
+  les ghosts `ghost_from=="pre_refresh"` (prédictions de l'analyse PRÉCÉDENTE reportées par
+  `_carry_shadow_from_old` **pour le CALIBRAGE SEUL**). Sinon un vieux DC/handicap sûr est publié malgré une
+  **abstention fraîche** (cas Cruz Azul : Confiance apparue vs fiche QC « abstention »). Seule l'analyse FRAÎCHE
+  décide ; les `pre_refresh` restent dans `shadow` (calibration intacte). Mémoire `selection-excludes-pre-refresh-ghosts`.
 - **Montante = RÉACTIVÉE AUTO** (2026-09-01, refonte) — `app/montante.py`. Sélection MÉCANIQUE = moteur
   Confiance borné : `pick_confidence_day` pioche dans le vivier fantômes complet (familles Vainqueur/DC/Total
   équipe), **VRAIE cote Unibet (omap) bornée 1.25-1.55**, confiance ≥80, le + sûr ; **PASS si rien** (survie).
