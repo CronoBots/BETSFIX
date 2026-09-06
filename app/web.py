@@ -864,7 +864,7 @@ CSS = """
      -> uniforme avec les onglets sport (demande user). Mêmes valeurs littérales que .row.pick. */
   .live-empty{position:relative;overflow:hidden;text-align:center;margin:14px 0 8px;padding:32px 22px;
        border:1px solid rgba(34,184,255,.60);border-radius:var(--radius);display:flex;flex-direction:column;
-       align-items:center;justify-content:center;box-shadow:0 0 26px rgba(34,184,255,.20);
+       align-items:center;justify-content:center;box-shadow:0 0 14px rgba(34,184,255,.22);
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02))}
   /* Cadre Live vide : REMPLIT la hauteur dispo jusqu'à la barre du bas, en laissant la place au « 18+ »
      (qui vit sous #panels dans .wrap) — user 2026-08-22. */
@@ -940,7 +940,7 @@ CSS = """
   /* MÊME fond que les cartes de match (.row.pick) : dégradé cyan + bordure + glow cyan */
   .spf{display:block;text-decoration:none;position:relative;overflow:hidden;margin:2px 0 16px;
        padding:14px 15px 12px;border:1px solid rgba(34,184,255,.60);border-radius:16px;
-       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);
+       box-shadow:0 0 14px rgba(34,184,255,.22),var(--shadow-sm);
        background:rgba(34,184,255,.055)}   /* teinte UNIE (pas de dégradé) : le fond ne bouge plus quand
                                               l'historique s'ouvre et agrandit la carte — demande user 2026-07-24 */
   .spf-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -1163,7 +1163,9 @@ CSS = """
      redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
             background:#0d1119;   /* fond OPAQUE/uni (user 2026-08-16) : le translucide laissait voir les halos de page -> changeait au dépli */
-            box-shadow:0 0 26px rgba(34,184,255,.20)}
+            /* GLOW borné 14px (< marge latérale 16px) : au-delà, le halo bleu débordait de l'écran et le bord
+               du viewport le COUPAIT net (« halo coupé sur les bords », user 2026-09-06). 14px tient dans la marge. */
+            box-shadow:0 0 14px rgba(34,184,255,.22)}
   /* CARTE COMPACTE : en-tête toujours visible (statut + équipes + résumé) + corps replié au tap.
      Liste dense -> peu de scroll ; on déplie un match pour voir paris/barres/liens/analyse. */
   /* TOUTES les cartes de pari (base) : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande
@@ -3282,7 +3284,9 @@ CSS = """
        padding:5px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px -6px var(--glow)}
   .daycal-goto.show{display:inline-flex;align-items:center}   /* visible : jour passé OU cellule AUJ. hors vue (user 2026-08-19) */
   .daycal-goto:active{transform:translateY(-50%) scale(.94)}
-  .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 8px;scroll-snap-type:x proximity;
+  /* padding-bas 15px : `overflow-x:auto` fait AUSSI clipper la verticale -> le glow BAS de la pastille du
+     jour (0 6px 16px) était COUPÉ sous le calendrier (user 2026-09-06). Le padding lui laisse la place. */
+  .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 15px;scroll-snap-type:x proximity;
        -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   .daycal-track::-webkit-scrollbar{display:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:1px;
@@ -3311,7 +3315,7 @@ CSS = """
   .daycal-d.today:not(.on){border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
   .daycal-d.on{border-color:var(--accent);
        background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,var(--surface)),var(--surface));
-       box-shadow:0 9px 24px -9px var(--glow),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+       box-shadow:0 6px 16px -8px var(--glow),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
   .daycal-d.on .dcd-wd,.daycal-d.on .dcd-day{color:var(--accent)}
   /* Bilan d'un jour PASSÉ (sous l'en-tête) : gagnés/réglés + ROI coloré. */
   .day-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 3px 14px;
@@ -5032,8 +5036,19 @@ _TOTOP_HTML = '<button id="bfx-totop" type="button" aria-label="Haut de page">�
 _TOTOP_JS = (
     "(function(){var b=document.getElementById('bfx-totop');if(!b)return;"
     "function sc(){return document.scrollingElement||document.documentElement;}"
-    "b.addEventListener('click',function(){try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){window.scrollTo(0,0);}"
-    "var m=document.getElementById('panels');if(m&&m.scrollTop>0){try{m.scrollTo({top:0,behavior:'smooth'});}catch(_){m.scrollTop=0;}}});"
+    # Smooth-scroll MANUEL (rAF) : window.scrollTo({behavior:'smooth'}) est SILENCIEUSEMENT ignoré en PWA
+    # iOS standalone (sans lever d'erreur -> le fallback catch ne partait jamais). Le rAF marche partout.
+    "function toTop(){var m=document.getElementById('panels');"
+    "var useM=(m&&m.scrollTop>(window.scrollY||sc().scrollTop||0));"
+    "var start=useM?m.scrollTop:(window.scrollY||sc().scrollTop||0);"
+    "if(start<=0){if(useM)m.scrollTop=0;else window.scrollTo(0,0);return;}"
+    "var t0=null,dur=Math.min(600,Math.max(220,start*0.6));"
+    "function step(ts){if(t0===null)t0=ts;var p=Math.min(1,(ts-t0)/dur);"
+    "var e=1-Math.pow(1-p,3);var y=Math.round(start*(1-e));"
+    "if(useM)m.scrollTop=y;else window.scrollTo(0,y);"
+    "if(p<1)requestAnimationFrame(step);else{if(useM)m.scrollTop=0;else window.scrollTo(0,0);}}"
+    "requestAnimationFrame(step);}"
+    "b.addEventListener('click',function(e){e.preventDefault();toTop();});"
     "function upd(){var y=(window.scrollY||sc().scrollTop||0);var m=document.getElementById('panels');"
     "if(m&&m.scrollTop>y)y=m.scrollTop;b.classList.toggle('show',y>300);}"
     "window.addEventListener('scroll',upd,{passive:true});"
