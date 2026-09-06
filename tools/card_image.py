@@ -28,9 +28,20 @@ _CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#05080d;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 html,body{margin:0;padding:0;background:transparent}
-.card{width:920px;padding:46px 50px 40px;background:#0b1826;   /* fond PLAT = carte du site .mc-tg (user 2026-08-17) */
-  border:2px solid rgba(34,184,255,.55);border-radius:30px;color:#e9f1fb;position:relative;overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(34,184,255,.22)}
+.card{width:920px;padding:46px 50px 40px;background:#0d1119;   /* = .row.pick du site (fond UNI) */
+  border:2px solid #f6c54a;border-radius:32px;color:#e9f1fb;position:relative;overflow:hidden}   /* bord GOLD (à venir) = site --st-soon */
+/* FILIGRANE logo (user 2026-09-06) : EXACTEMENT comme le site (.row.mc::before) — discret, centré, DERRIÈRE
+   le contenu. Le logo est injecté en style inline (data-URI) par chaque carte. */
+.swmk{position:absolute;top:0;left:0;right:0;height:100%;z-index:0;pointer-events:none;opacity:.05;
+  background-repeat:no-repeat;background-position:center 210px;background-size:300px auto;
+  filter:grayscale(.3) brightness(1.3)}
+.card>*:not(.glow):not(.swmk):not(.scorner){position:relative;z-index:1}   /* contenu AU-DESSUS du filigrane */
+/* Badge RÉSULTAT dans le coin haut-droit (✓ gagné / ✗ perdu) — comme le site .mc-corner, remplace le titre. */
+.scorner{position:absolute;top:26px;right:30px;z-index:3;width:64px;height:64px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;border:2px solid}
+.scorner svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.scorner.won{color:#34d27b;background:rgba(52,210,123,.16);border-color:rgba(52,210,123,.46)}
+.scorner.lost{color:#ff6b6b;background:rgba(255,107,107,.16);border-color:rgba(255,107,107,.42)}
 /* plus d'effet cyan en HAUT À DROITE (user 2026-08-17) ; l'élément reste pour que les cartes RÉSULTAT
    (.card.won/.lost .glow) le re-colorent en vert/rouge. */
 .glow{position:absolute;top:-140px;right:-120px;width:380px;height:380px;border-radius:50%;
@@ -91,9 +102,9 @@ html,body{margin:0;padding:0;background:transparent}
 /* accent verdict sur TOUTE la carte (résultats) — inset pour ne pas être rogné */
 /* Cartes RÉSULTAT : bord coloré (vert gagné / rouge perdu / gris remb.) + fin liseré, SANS halo lumineux
    (user 2026-08-17 : plus aucun effet lumineux, y compris en haut à droite). */
-.card.won{border-color:rgba(25,196,106,.55);box-shadow:inset 0 0 0 2px rgba(25,196,106,.30)}
-.card.lost{border-color:rgba(255,80,90,.50);box-shadow:inset 0 0 0 2px rgba(255,80,90,.26)}
-.card.push{border-color:rgba(150,165,185,.42);box-shadow:inset 0 0 0 2px rgba(150,165,185,.22)}
+.card.won{border-color:#34d27b}     /* = site --st-won */
+.card.lost{border-color:#ff6b6b}    /* = site --st-lost */
+.card.push{border-color:#90a4be}    /* = site --st-void */
 .brand{position:absolute;bottom:30px;right:50px;font-size:21px;font-weight:900;letter-spacing:.22em;
   color:rgba(255,255,255,.22)}
 """
@@ -147,6 +158,12 @@ def _img_uri(path: str) -> str:
             return "data:image/png;base64," + base64.b64encode(f.read()).decode()
     except OSError:
         return ""
+
+
+def _logo_uri() -> str:
+    """Logo BETSFIX (mark `logo.png`) en data-URI — pour le FILIGRANE (comme le site .row.mc::before). '' si absent."""
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+    return _img_uri(os.path.join(root, "logo.png"))
 
 
 def _banner_uri(emoji: str) -> str:
@@ -241,8 +258,10 @@ img.tlogo{object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 /* CARTE COMBINÉ (user 2026-08-18) : signature dorée « COMBINÉ » + CHAQUE jambe = mini-carte de pari complète
    (mêmes composants .stms/.spk/.sgl/.vgrid/.swhy/.sres que les simples), encadrée par .clg, + cote combinée. */
 .stag.st-combo{color:#f6c54a}
-.clg{background:rgba(255,255,255,.035);border:1.5px solid rgba(255,255,255,.12);border-radius:22px;
-  padding:34px 34px 36px;margin-bottom:22px}
+.clg{background:#0d1119;border:1.5px solid rgba(255,255,255,.12);border-radius:22px;
+  padding:34px 34px 36px;margin-bottom:22px;position:relative;overflow:hidden}   /* fond + ancrage du filigrane (comme le site .cleg) */
+.clg>*:not(.swmk){position:relative;z-index:1}
+.clg .swmk{height:100%;background-position:center 120px;background-size:210px auto}   /* filigrane centré dans la jambe */
 .clg-lg{text-align:center;font-size:22px;font-weight:800;color:#93b7db;letter-spacing:.05em;
   text-transform:uppercase;margin-bottom:24px}
 .clg .stms{margin-bottom:26px}   /* un cran plus serré que la carte simple (jambes empilées) */
@@ -383,9 +402,7 @@ def _simple_card_html(d: dict) -> str:
     Confiance/Edge/Value/Cote, et le « pourquoi » affiché en entier."""
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    _wm = _banner_uri(d.get("emoji", ""))
-    _tier = str(d.get("tier") or "confiance")
-    _tlabel = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
+    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'   # FILIGRANE (comme le site)
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))                        # « Football · <comp> »
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
@@ -393,10 +410,8 @@ def _simple_card_html(d: dict) -> str:
     _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
     _verdict = _verdict_site_html(d, e)           # bloc verdict EXACTEMENT comme le site (Confiance+qual · Cote · marché)
     inner = (
-        f'<div class="glow"></div>'
-        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
-        f'<div class="stag st-{_tier}">{_tlabel}</div>'   # TYPE écrit sous le logo comme une signature (user 2026-08-17)
-        f'<div class="slg">{e(_lg)}</div>'
+        _wmk                                          # filigrane DERRIÈRE le contenu (plus de logo/titre en tête, user 2026-09-06)
+        + f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{e(_hh)}</div>'
@@ -418,20 +433,11 @@ def _result_simple_card_html(d: dict) -> str:
     (pari + glose + grille Confiance/Edge/Value/Cote + verdict Gagné/Perdu), puis l'analyse complète en puces."""
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    _wm = _banner_uri(d.get("emoji", ""))
     sp = d.get("simple") or {}
     mark = sp.get("mark") or ""
-    # MARQUAGE COMBINÉ (user 2026-08-30) : la signature du résultat = TYPE + VERDICT + emoji, en un seul
-    # marquage (ex. « CONFIANCE GAGNÉE ✅ », « VALUE PERDUE ❌ »). Verdict au FÉMININN (la Confiance / la
-    # Value / la Montante). `_rcls` (won/lost/push) reste pour colorer la BORDURE de la carte ; `_rbcls`
-    # (rb-w/rb-l/rb-n) colore la signature ; `_vemoji` = ✅/❌/➖ (_MK).
-    _vword, _rbcls, _rcls = {"won": ("GAGNÉE", "rb-w", "won"), "lost": ("PERDUE", "rb-l", "lost"),
-                             "push": ("REMBOURSÉE", "rb-n", "push"), "void": ("REMBOURSÉE", "rb-n", "push"),
-                             }.get(mark, ("", "rb-n", "push"))
-    _vemoji = _MK.get(mark, "")
-    _tier = str(d.get("tier") or sp.get("tier") or "confiance")
-    _tlabel = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
-    _sig = f"{_tlabel} {_vword} {_vemoji}".strip() if _vword else _tlabel
+    # `_rcls` (won/lost/push) colore la BORDURE de la carte (comme le site). Plus de titre/marquage en tête
+    # (user 2026-09-06) : le résultat est porté par le CADRE coloré + le badge ✓/✗ du coin.
+    _rcls = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(mark, "push")
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
     _cat = str(d.get("cat", ""))
     _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
@@ -442,11 +448,15 @@ def _result_simple_card_html(d: dict) -> str:
     _verdict = _verdict_site_html(d, e, settled=True)     # fiche résultat = Confiance + Cote seuls (comme le site réglé)
     _pick = _strip_dc_paren(d.get("pick") or sp.get("label", ""))
     _gloss = d.get("gloss") or sp.get("gloss") or ""
+    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'
+    _corner = ""                                          # badge ✓/✗ coin (remplace le titre/logo, comme le site)
+    if mark == "won":
+        _corner = '<div class="scorner won"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></div>'
+    elif mark == "lost":
+        _corner = '<div class="scorner lost"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></div>'
     inner = (
-        f'<div class="glow"></div>'
-        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
-        f'<div class="stag {_rbcls} rlong">{e(_sig)}</div>'   # MARQUAGE : « CONFIANCE GAGNÉE ✅ » / « VALUE PERDUE ❌ »
-        f'<div class="slg">{e(_lg)}</div>'
+        _wmk + _corner
+        + f'<div class="slg">{e(_lg)}</div>'
         f'<div class="stms">'
         f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
         f'<div class="stc">{_center}</div>'
@@ -467,7 +477,6 @@ def _combo_card_html(d: dict) -> str:
     ou verdict Gagné/Perdu), et la COTE combinée. `d['legs']` = dicts riches (cf. card_data)."""
     def e(x):
         return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    _wm = _banner_uri(d.get("emoji", ""))
     _title = str(d.get("combo_title") or "COMBINÉ").upper()
     legs = d.get("legs") or []
     _blocks = ""
@@ -488,8 +497,10 @@ def _combo_card_html(d: dict) -> str:
             _extra = f'<div class="sres {_vc}">{_vt}</div>' if _vt else ""
         else:
             _extra = ""                                   # « pourquoi » de la jambe RETIRÉ de l'image (user 2026-08-22)
+        _lwmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'   # FILIGRANE dans la JAMBE (comme le site)
         _blocks += (
             f'<div class="clg">'
+            + _lwmk
             + (f'<div class="clg-lg">{e(lg.get("lg"))}</div>' if lg.get("lg") else "")
             + f'<div class="stms">'
             f'<div class="stm">{_team_logo_html(home, lg.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
@@ -504,9 +515,7 @@ def _combo_card_html(d: dict) -> str:
     _syn = ""      # synthèse « pourquoi ce combiné » RETIRÉE de l'image (user 2026-08-22)
     _cm = d.get("combo_mark") or ""
     _ccls = "won" if _cm == "won" else ("lost" if _cm == "lost" else ("push" if _cm in ("push", "void") else ""))
-    inner = (
-        f'<div class="glow"></div>'
-        f'<div class="shero">' + (f'<img class="swm" src="{_wm}">' if _wm else '') + '</div>'
+    inner = (                                             # plus de logo BETSFIX en tête (user 2026-09-06) ; on garde le TITRE du combiné
         f'<div class="stag st-combo">{e(_title)}</div>'
         f'<div class="slg">{len(legs)} SÉLECTIONS</div>'
         + _blocks + _tot + _syn)
