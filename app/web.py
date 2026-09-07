@@ -5042,25 +5042,29 @@ _BELL_JS = (
 # douceur la fenêtre ET le conteneur scrollable interne (SPA) le cas échéant.
 _TOTOP_HTML = '<button id="bfx-totop" type="button" aria-label="Haut de page">↑</button>'
 _TOTOP_JS = (
-    "(function(){var b=document.getElementById('bfx-totop');if(!b)return;"
-    "function sc(){return document.scrollingElement||document.documentElement;}"
-    # Smooth-scroll MANUEL (rAF) : window.scrollTo({behavior:'smooth'}) est SILENCIEUSEMENT ignoré en PWA
-    # iOS standalone (sans lever d'erreur -> le fallback catch ne partait jamais). Le rAF marche partout.
-    "function toTop(){var m=document.getElementById('panels');"
-    "var useM=(m&&m.scrollTop>(window.scrollY||sc().scrollTop||0));"
-    "var start=useM?m.scrollTop:(window.scrollY||sc().scrollTop||0);"
-    "if(start<=0){if(useM)m.scrollTop=0;else window.scrollTo(0,0);return;}"
+    "(function(){"
+    # ROBUSTE (user 2026-09-07 : « ne fonctionne toujours pas ») : on ne DEVINE plus quel élément défile —
+    # selon la plateforme c'est le document (mobile PWA : body min-height:100dvh, #panels sans overflow-y) OU
+    # un conteneur (#panels/panel actif sur desktop). On agit donc sur TOUS les candidats à chaque frame.
+    "function els(){var a=[document.scrollingElement||document.documentElement,document.body,"
+    "document.getElementById('panels'),document.querySelector('#panels .panel.on')];"
+    "var o=[],i;for(i=0;i<a.length;i++){if(a[i]&&o.indexOf(a[i])<0)o.push(a[i]);}return o;}"
+    "function cur(){var y=window.scrollY||window.pageYOffset||0,l=els(),i;"
+    "for(i=0;i<l.length;i++){if(l[i].scrollTop>y)y=l[i].scrollTop;}return y;}"
+    # window.scrollTo({behavior:'smooth'}) est SILENCIEUSEMENT ignoré en PWA iOS standalone -> rAF manuel.
+    "function setAll(y){try{window.scrollTo(0,y);}catch(e){}var l=els(),i;"
+    "for(i=0;i<l.length;i++){try{l[i].scrollTop=y;}catch(e){}}}"
+    "function toTop(){var start=cur();if(start<=0){setAll(0);return;}"
     "var t0=null,dur=Math.min(600,Math.max(220,start*0.6));"
     "function step(ts){if(t0===null)t0=ts;var p=Math.min(1,(ts-t0)/dur);"
-    "var e=1-Math.pow(1-p,3);var y=Math.round(start*(1-e));"
-    "if(useM)m.scrollTop=y;else window.scrollTo(0,y);"
-    "if(p<1)requestAnimationFrame(step);else{if(useM)m.scrollTop=0;else window.scrollTo(0,0);}}"
-    "requestAnimationFrame(step);}"
-    "b.addEventListener('click',function(e){e.preventDefault();toTop();});"
-    "function upd(){var y=(window.scrollY||sc().scrollTop||0);var m=document.getElementById('panels');"
-    "if(m&&m.scrollTop>y)y=m.scrollTop;b.classList.toggle('show',y>300);}"
-    "window.addEventListener('scroll',upd,{passive:true});"
-    "var m=document.getElementById('panels');if(m)m.addEventListener('scroll',upd,{passive:true});"
+    "var e=1-Math.pow(1-p,3);setAll(Math.round(start*(1-e)));"
+    "if(p<1)requestAnimationFrame(step);else setAll(0);}requestAnimationFrame(step);}"
+    # Handler DÉLÉGUÉ (survit aux remplacements SPA du bouton) + visibilité en CAPTURE (le scroll d'un
+    # conteneur enfant ne BULLE pas -> un listener non-capture sur window le raterait).
+    "document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#bfx-totop');"
+    "if(!b)return;e.preventDefault();toTop();});"
+    "function upd(){var b=document.getElementById('bfx-totop');if(b)b.classList.toggle('show',cur()>300);}"
+    "window.addEventListener('scroll',upd,{passive:true,capture:true});"
     "if(document.readyState!=='loading')upd();else document.addEventListener('DOMContentLoaded',upd);})();"
 )
 
