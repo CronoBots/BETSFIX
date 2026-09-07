@@ -356,7 +356,12 @@ def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
         # cite légitimement l'ancre du scan -> ne PAS crier « fabriqué » (faux positif, aucun pari en jeu).
         sources = "❌"
         issues.append("SOURCES : l'analyse CITE un sharp INEXISTANT (aucune ancre `sharp_map` — chiffre fabriqué)")
-    elif not sig["sharp_ok"]:
+    elif not sig["sharp_ok"] and rb and rb.get("sel"):
+        # Pas d'ancre sharp = problème SEULEMENT sur un pari réellement JOUÉ/PUBLIÉ (EV non ancrée = danger).
+        # Sur une ABSTENTION : aucun capital en jeu ET le verrou `no_sharp` empêche déjà tout pari foot sans
+        # ancre -> ne PAS lever « À VÉRIFIER » (faux positif récurrent sur les ligues sans couverture Pinnacle,
+        # ex. Primera paraguayenne). L'info reste visible dans « Détail qualité » (Ancre sharp ❌). Même principe
+        # que le faux positif « sharp fabriqué » gardé aux paris réels (cf. _qc_collect, fix 2026-09-03).
         sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : pas d'ancre sharp Pinnacle")
     if sig["n_omap"] == 0:
         sources = "⚠️" if sources == "✅" else sources; issues.append("SOURCES : cotes réelles Unibet (omap) absentes")
