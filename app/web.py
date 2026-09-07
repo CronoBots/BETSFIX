@@ -9975,7 +9975,14 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
                     if analyses.PROVISOIRES_ON else 0)
     except Exception:
         _lv_prov = 0
-    _lv_total = (live_count or 0) + _lv_prov + (1 if _daily_combo_any_live() else 0)
+    # Combiné live = nb de JAMBES en cours (PAS 1 par combiné) : un combiné de 3 jambes live doit peser 3 dans
+    # le badge Live, comme la page Live (render_directs compte `len(_combo_leg_cards(want_live=True))`). Sinon la
+    # home postait `directs=1` et son marqueur écrasait le total correct de l'onglet Live. user 2026-09-07.
+    try:
+        _lv_combo = _daily_combo_live_legs("foot")
+    except Exception:
+        _lv_combo = 1 if _daily_combo_any_live() else 0
+    _lv_total = (live_count or 0) + _lv_prov + _lv_combo
     # BANDEAU CALENDRIER RETIRÉ de Pronos (demande user 2026-07-25) : la navigation par jour / le bilan
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
@@ -12452,6 +12459,37 @@ def _daily_combo_any_live(sport: str = "foot", variant: str = "") -> bool:
     return any(live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
                                                        l.get("away", "")), l.get("sport")).get("score")
                for l in (cb.get("legs") or []) if l.get("result") is None)
+
+
+def _daily_combo_live_legs(sport: str = "foot") -> int:
+    """Nb de JAMBES de combiné(s) du jour EN COURS (non réglées + score live), DÉDUPLIQUÉES par match sur les
+    variantes jour/soir — MÊME détection que `_combo_leg_cards(want_live=True)` mais SANS rendu HTML (léger, pour
+    le badge nav de la home). Le combiné de 3 jambes live doit compter 3, pas 1 (user 2026-09-07)."""
+    try:
+        from app import combo_daily as _cd
+        day = _cd.day_key()
+        if analyses._combo_rule_void(day):
+            return 0
+    except Exception:
+        return 0
+    seen = set()
+    for _var in ("", "soir"):
+        try:
+            cb = _cd.today(day, sport=sport, variant=_var)
+        except Exception:
+            cb = None
+        if not cb:
+            continue
+        for l in cb.get("legs") or []:
+            if l.get("result") is not None:                    # jambe déjà réglée
+                continue
+            _pair = _prog_pair(l.get("home", ""), l.get("away", ""))
+            if _pair in seen:                                  # même match dans jour ET soir -> une fois
+                continue
+            if live_fields(match_select.live_state_for(sport, l.get("home", ""), l.get("away", "")),
+                           sport).get("score"):
+                seen.add(_pair)
+    return len(seen)
 
 
 def _safe_combo_any_live() -> bool:
