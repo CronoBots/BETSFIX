@@ -279,8 +279,15 @@ def _md_section(txt: str, needle: str) -> str:
     return ""
 
 
-# Citation d'une ANCRE sharp chiffrée dans la prose (« sharp (43 %) », « Pinnacle 82 % », « sharp à 66 % »…).
-_SHARP_CITE = re.compile(r"(sharp|pinnacle)[^.\n]{0,20}?\d{1,3}\s*%", re.I)
+# Citation d'une ANCRE sharp chiffrée dans la prose. BIDIRECTIONNEL : le chiffre peut suivre OU précéder le mot
+# (« sharp 66 % », « Pinnacle 82 % » MAIS AUSSI « 52 % sharp »). Tolérant à l'écart (≤40 c) et aux décimales : on
+# reste sur `[^\n]` (pas `[^.\n]`) sinon un « -1.5 » entre « sharp » et « 43 % » casse la détection. Un `.md` qui
+# cite un « sharp/Pinnacle XX % » A une ancre -> corrige le FAUX « Ancre sharp ❌ » sur les abstentions dont la
+# fiche minimale ne persiste pas `sharp_map` (cas Club Guaraní : « (52 % sharp) », « sharp … à 43 % »).
+_SHARP_CITE = re.compile(
+    r"(?:\b(?:sharp|pinnacle)\b[^\n]{0,40}?\d{1,3}\s*%)"      # « sharp … 43 % » / « Pinnacle 82 % »
+    r"|(?:\d{1,3}\s*%[^\n]{0,20}?\b(?:sharp|pinnacle)\b)",     # « 52 % sharp »
+    re.I)
 
 
 def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
