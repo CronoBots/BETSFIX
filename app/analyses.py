@@ -1695,8 +1695,16 @@ def _winner_side(sel: str, code: str, home: str, away: str, sport: str):
             if pair in flat.upper():
                 return pair
         return None
-    if sport == "foot" and (re.search(r"\bnul\b", t) or "match nul" in t or c in ("1X2 X", "1 X 2 X")):
+    # CODE 1X2 = source AUTORITAIRE du côté (draw/home/away) — indépendant du matching de NOM. Évite qu'un
+    # libellé dont le nom d'équipe ne s'apparie pas (`_leg_side` -> None) fasse retomber la barre sur l'avant-match
+    # au lieu du modèle live (fragilité vue à l'audit 2026-09-08 sur noms atypiques). Le nom reste le repli.
+    _cn = c.replace(" ", "")
+    if sport == "foot" and (re.search(r"\bnul\b", t) or "match nul" in t or _cn == "1X2X"):
         return "draw"
+    if _cn == "1X21":
+        return "home"
+    if _cn == "1X22":
+        return "away"
     sd = _leg_side(sel, home, away)
     return {"HOME": "home", "AWAY": "away"}.get(sd)
 
