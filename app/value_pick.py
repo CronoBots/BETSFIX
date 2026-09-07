@@ -29,6 +29,11 @@ PROB_MIN = 68.0         # relevé 58 -> 68 (user 2026-09-01) : seul levier ROBUS
 #                         + train/test (train avant 11/08, test après) -> 68 tient DANS LES DEUX (83%/+27% train,
 #                         78%/+25% test) vs 58 qui se dégrade (76%->67%) et 64 qui vire négatif en test (piège).
 #                         EV/cote NON touchés (les monter n'aidait pas). Moins de value mais plus fiables. Forward.
+# COTE_LO = 1.40 CONSERVÉ. Testé 1.30 (user 2026-09-07) : le BACKTEST (candidats résolus) promettait +35,5 %,
+# mais la RÉALITÉ PRODUCTION (paris réellement figés) montre que les 11 paris récupérés à cote 1.30-1.38 sont
+# break-even (8G/3P, 72 %, ROI −2,5 %) → ils DILUENT la value de +36,7 %→+25,3 % (même piège que la bande
+# Confiance 1.05-1.12 : à cote courte il faut ~76 % pour être +EV). La rareté de la value est RÉELLE ; forcer le
+# volume à cote basse ajoute des perdants. Leçon : mesurer sur les stat_bet FIGÉS, pas un backtest résolu-filtré.
 COTE_LO = 1.40
 COTE_HI = 2.30
 EV_MIN = 0.05            # vrai edge value : proba × cote − 1 ≥ +5 %
