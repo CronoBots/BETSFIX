@@ -12155,7 +12155,10 @@ def _sport_row(r: dict) -> str:
         # LIVE (user 2026-09-06) : 2 barres DISTINCTES comme les jambes de combiné — la barre de CONFIANCE
         # d'avant-match (verdict, SANS live_pct) PUIS la barre « Chance live » séparée (_live_bar_html). Avant :
         # les deux étaient fusionnées en une seule « Confiance live » -> incohérent avec la jambe de combiné.
-        _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box)
+        # EN DIRECT : on masque la légende « marché % · edge · value » (métrique de value d'AVANT-match, périmée
+        # dès le KO — user 2026-09-08) -> Confiance + Cote seuls, la barre « Chance live » portant le dynamique.
+        _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box,
+                                   hide_context=is_live)
                     + (_live_bar_html(_lp_res) if (is_live and _lp_res) else "")
                     + _mont_b
                     + ("" if is_live else _pwhy))
