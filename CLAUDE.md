@@ -340,9 +340,11 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     N'ONT PAS de filigrane. Les cartes du bloc sont marquées `_no_wm` → classe `mc-nowm` (`_sport_row`, branche
     `_compact`) → `.row.mc.mc-nowm::before{content:none}`. Toutes les AUTRES cartes compactes (autres onglets/
     zones) gardent le filigrane. Ciblage par flag (pas par sélecteur de zone) = pas de fuite ailleurs.
-  - **PASTILLE calendrier horizontal (MAJ 2026-09-06)** : couleur pilotée par la **Confiance SEULE**
-    (`_daily_conf_results_map`, plus `_daily_all_results_map`). Règle : VERT = tout gagné · JAUNE dès la **moitié**
-    (`won*2 >= settled`) · ROUGE seulement si **strictement < moitié**. Cliquabilité du jour = tous paris (`rmap`).
+  - **CALENDRIER horizontal — % DE RÉUSSITE du jour (MAJ 2026-09-07)** : le point de couleur est REMPLACÉ par le
+    **taux de réussite chiffré** de **TOUS les paris du jour** (Confiance + Value + Combiné, `_daily_all_results_map`).
+    Rendu `.dcd-pct` (`N%` coloré). Règle de couleur : **<50 % rouge · 50–75 % orange · >75 % vert**. Jour sans pari
+    réglé -> place réservée, invisible. Cliquabilité du jour = tous paris (`rmap`). (`_daily_conf_results_map` reste
+    utilisé ailleurs pour les KPI Confiance.)
   - **HALO/GLOW des cartes DANS la marge + bouton « haut de page » (MAJ 2026-09-06)** : le glow bleu des cartes
     (`0 0 18px rgba(34,184,255,.22)` sur `.row.pick/.spf/.live-empty`) semblait « coupé » car `#panels{overflow-x:
     clip}` (rogne le glissement d'onglet) avait sa boîte de clip à x=16 (= bord de carte, via `.wrap{padding:0 16px}`).
