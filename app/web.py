@@ -8240,14 +8240,21 @@ def _daily_all_results_map() -> dict:
     res = {k: dict(v) for k, v in _daily_results_map().items()}     # confiance + value (copie mutable)
     try:
         for _c in (analyses.combo_stats().get("recent") or []):
-            if not isinstance(_c, dict) or _c.get("result") not in ("won", "lost"):
+            if not isinstance(_c, dict):
                 continue
             _cd = str(_c.get("start") or "")[:10]
             if not _cd:
                 continue
             e = res.setdefault(_cd, {"won": 0, "settled": 0, "profit": 0.0})
-            e["settled"] += 1
-            e["won"] += 1 if _c.get("result") == "won" else 0
+            # JAMBES COMPTÉES SÉPARÉMENT (user 2026-09-07) : le % de réussite du jour compte CHAQUE jambe
+            # réglée du combiné, pas le combiné comme 1 unité (un combiné 2/3 pesait « 1 perdu » et faussait le
+            # taux — 01/09 : 2 simples + combo 2 jambes = 3+1 unités affichaient 67 % au lieu de 75 %). Profit non
+            # touché (combinés HORS ROI). Chaque jambe won/lost = +1 réglé.
+            for _l in (_c.get("legs") or []):
+                if _l.get("result") not in ("won", "lost"):
+                    continue
+                e["settled"] += 1
+                e["won"] += 1 if _l.get("result") == "won" else 0
     except Exception:
         pass
     return res
