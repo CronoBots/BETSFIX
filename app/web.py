@@ -7417,6 +7417,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _comp_c = " • ".join(html.escape(p) for p in _cprts).upper()
         _pbox = f'<div class="mc-pick">{sel}</div>' + (f'<div class="mc-gloss">{html.escape(_g)}</div>' if _g else "")
         _resbadge, _extra = "", ""
+        _live_card = False
         if _res in ("won", "lost", "push", "void"):               # RÉGLÉ : score final + « Terminé » (ou « Annulé »)
             _scf = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
             # JAMBE VALIDÉE LIVE (acquise) mais MATCH ENCORE EN COURS (user 2026-09-06 : « Barcelone n'est pas
@@ -7451,6 +7452,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             _ctr = (f'<span class="tm-live"><b>{html.escape(_lsc.replace("-", " - "))}</b>'
                     + _live_clock_html(_sp, _lh, _la) + '</span>')
             _extra = _leg_bar or ""                               # barre « Confiance live » sous le cadre
+            _live_card = True                                     # EN DIRECT : on masque aussi la légende value
         elif _cd and _hh:                                         # À VENIR : heure + DÉCOMPTE au centre (carte normale)
             _ctr = (f'<span class="tm-live"><b>{html.escape(_hh)}</b>'
                     f'<span class="tm-cd">{_cd}</span></span>')
@@ -7459,11 +7461,12 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         else:
             _ctr = f'<span class="tm-fin">{html.escape(_hh) if _hh else "À venir"}</span>'
         _teams_c = _teams_vs_html(_th, _ta, _ctr)
-        # FICHE RÉSULTAT (réglé) : on RETIRE la légende marché/edge/value (métrique de value d'avant-match, inutile
-        # une fois le match joué — user 2026-09-06) -> il ne reste que Confiance + Cote. Avant règlement : inchangé.
+        # FICHE RÉSULTAT (réglé) ET EN DIRECT : on RETIRE la légende marché/edge/value (métrique de value
+        # d'AVANT-MATCH, périmée dès que le match tourne — user 2026-09-08) -> il ne reste que Confiance + Cote
+        # (identité du pari), la barre « Chance live » portant l'info dynamique. Avant le KO : légende inchangée.
         _settled_card = _res in ("won", "lost", "push", "void")
         _vb = _verdict_block(co, _cp, "", _cbig, calibrated=True, pick_html=_pbox, result_html=_resbadge,
-                             bare=bare, hide_context=_settled_card)
+                             bare=bare, hide_context=_settled_card or _live_card)
         # CLASSES IDENTIQUES à la carte normale (user 2026-08-17 : « exactement la même mise en page ») :
         # `mc-line mc-line-c` + `mc-comp` (ligue centrée blanche, même taille/espacement) et `mc-teams` (même
         # typo/marge que les équipes d'un pari simple) au lieu des classes compactes `cleg-*`.
