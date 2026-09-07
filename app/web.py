@@ -12456,9 +12456,11 @@ def _daily_combo_any_live(sport: str = "foot", variant: str = "") -> bool:
         cb = None
     if not cb:
         return False
+    # Une jambe déjà GAGNÉE en live compte encore comme « live » tant que SON match tourne (user 2026-09-07 :
+    # le match reste dans Live même si la jambe est gagnée) -> on ne filtre PLUS sur `result is None`.
     return any(live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
                                                        l.get("away", "")), l.get("sport")).get("score")
-               for l in (cb.get("legs") or []) if l.get("result") is None)
+               for l in (cb.get("legs") or []))
 
 
 def _daily_combo_live_legs(sport: str = "foot") -> int:
@@ -12481,11 +12483,11 @@ def _daily_combo_live_legs(sport: str = "foot") -> int:
         if not cb:
             continue
         for l in cb.get("legs") or []:
-            if l.get("result") is not None:                    # jambe déjà réglée
-                continue
             _pair = _prog_pair(l.get("home", ""), l.get("away", ""))
             if _pair in seen:                                  # même match dans jour ET soir -> une fois
                 continue
+            # Comptée tant que le MATCH tourne, même jambe déjà gagnée en live (cohérent avec `_combo_leg_cards`
+            # want_live=True : le match reste dans Live). user 2026-09-07.
             if live_fields(match_select.live_state_for(sport, l.get("home", ""), l.get("away", "")),
                            sport).get("score"):
                 seen.add(_pair)
@@ -12526,14 +12528,18 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
         if not cb:
             continue
         for l in cb.get("legs") or []:
-            if l.get("result") is not None:            # jambe déjà réglée
-                continue
             _pair = _prog_pair(l.get("home", ""), l.get("away", ""))
             if _pair in seen:                          # même match dans Sûr ET Cote 2 -> une seule carte
                 continue
             lf = live_fields(match_select.live_state_for(sport, l.get("home", ""), l.get("away", "")), sport)
             _is_live = bool(lf.get("score"))
             if _is_live != want_live:                  # on ne garde que l'état demandé (live OU à venir)
+                continue
+            # Une jambe RÉGLÉE (won/lost validée EN LIVE) mais dont le MATCH TOURNE ENCORE reste dans Live
+            # (user 2026-09-07 : « le match en live doit rester même si la jambe est gagnée ») — `_leg_card`
+            # affiche alors score + horloge + cadre « acquis ». En À VENIR (want_live=False), on exclut les
+            # jambes déjà réglées (un match fini/gagné n'est pas « à venir »).
+            if not _is_live and l.get("result") is not None:
                 continue
             seen.add(_pair)
             try:
