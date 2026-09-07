@@ -175,8 +175,12 @@ tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
 Refonte 2026-08-29 (mémoire `confidence-bet-backtest-93-profile`). Claude **analyse**
 et nourrit les **fantômes** ; le pari joué est ensuite choisi par des **sélecteurs
 mécaniques** backtestés :
-- **Confiance** = `app/confidence_pick.py` — DC/Handicap, conf ≥80, cote 1.05–1.50,
-  le + sûr (~94 % / +7,7 %). Plafond cote **1.50** (`3abb5f0`).
+- **Confiance** = `app/confidence_pick.py` — DC/Handicap, conf ≥80, **cote 1.12–1.50**, le + sûr
+  (~93 % / **+9 %**). Borne basse **relevée 1.05→1.12 le 2026-09-07** (backtest train/test) : la bande
+  1.05–1.12 était NET-NÉGATIVE (45 paris, 89 % mais ROI −2,9 % — à cote ~1.08 il faut ~92 % pour l'équilibre).
+  ROI +5,0 %→+9,0 %, robuste train +10,4 % / test +7,2 %, −32 % de volume. Historique **re-piqué** (45→abstention,
+  1→value, 1 re-pick ; `stat_bet` re-figé via `backfill_stat_bets`, filigrane selfcheck réinitialisé à 118).
+  Plafond cote **1.50** (`3abb5f0`).
 - **Value** = `app/value_pick.py` — conf **≥68** (relevé de 58, MAJ 2026-09-01), cote 1.40–2.30, EV ≥ +5 %,
   cote la + haute, sur matchs **SANS** confiance. Marchés sauf bans **+ « Total Over » exclu** (`_VALUE_BAN_MARKETS`
   = seul marché value perdant : 56 %/−9 %). Perf ré-alignée ~87 % / +35 %. Optim via backtest fantômes 1/match +

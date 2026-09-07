@@ -30,7 +30,12 @@ CONFIDENCE_PICK_ON = True
 # Profil 93% (backtest). Bornes sur la proba BRUTE de l'analyste (comme le backtest, pas de fuite calib).
 MARKETS = frozenset({"Double chance", "Handicap"})
 PROB_MIN = 80.0          # confiance brute mini
-COTE_LO = 1.05
+# COTE_LO relevé 1.05 -> 1.12 (user 2026-09-07, backtest train/test). La bande 1.05-1.12 est du POIDS MORT
+# NET : 45 paris historiques, 89 % de réussite MAIS ROI −2,9 % (−1,29 u) — à cote ~1.08 il faut ~92 % pour être
+# à l'équilibre, 89 % ne suffit pas. La retirer : ROI total +5,0 % -> +9,0 %, réussite 92 % -> 93 %, robuste
+# DANS LES DEUX moitiés (train +10,4 % / test +7,2 %), pour ~32 % de volume en moins (net-négatif, donc gain).
+# Septembre : ses 5 défaites étaient TOUTES à cote <1.15. Forward + historique re-piqué (pas d'abonnés).
+COTE_LO = 1.12
 # COTE_HI = plafond de cote. INERTE sur tout l'historique (0 candidat DC/Handicap à conf≥80 & cote>1.30 :
 # une confiance ≥80 sur ces marchés implique déjà une cote courte). Gardé comme GARDE-FOU (user 2026-08-29,
 # porté 1.30->1.50) : écarte une anomalie future (conf≥80 à cote haute = sur-confiance modèle vs marché =
