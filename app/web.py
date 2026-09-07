@@ -3308,12 +3308,14 @@ CSS = """
   .daycal-d:active{transform:scale(.95)}
   .dcd-wd{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
   .dcd-day{font-size:17px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.05}
-  .dcd-dot{width:7px;height:7px;border-radius:50%;margin-top:4px}
-  .dcd-dot.pos{background:#54d98c;box-shadow:0 0 8px rgba(84,217,140,.7)}
-  .dcd-dot.warn{background:#ffcb50;box-shadow:0 0 8px rgba(255,203,80,.65)}   /* > la moitié gagnés (user 2026-09-04) */
-  .dcd-dot.neg{background:#ff7d7d;box-shadow:0 0 8px rgba(255,125,125,.6)}
-  .dcd-dot.neu{background:#9aa6b4}
-  .dcd-dot.none{background:transparent;border:1px solid var(--border2)}
+  /* % DE RÉUSSITE du jour (TOUS paris : Confiance + Value + Combiné, user 2026-09-07) — remplace le point de
+     couleur. Règle : <50 rouge · 50–75 orange · >75 vert. Hauteur fixe -> les jours sans pari gardent l'alignement. */
+  .dcd-pct{height:12px;line-height:12px;margin-top:4px;font-size:10px;font-weight:800;
+       font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .dcd-pct.pos{color:#54d98c}
+  .dcd-pct.warn{color:#ffcb50}
+  .dcd-pct.neg{color:#ff7d7d}
+  .dcd-pct.none{color:transparent}   /* pas de pari réglé -> place réservée, invisible */
   /* jour SANS pari = dé-emphasé ET NON cliquable (user 2026-08-19). */
   .daycal-d.empty{opacity:.38;cursor:default;pointer-events:none}
   .daycal-d.today .dcd-wd{color:var(--accent)}
@@ -8125,28 +8127,24 @@ def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -
     except (ValueError, TypeError):
         sel = today
     rmap = _daily_results_map()                            # TOUS paris réglés -> pilote la CLIQUABILITÉ du jour
-    amap = _daily_conf_results_map()                       # CONFIANCE seule -> COULEUR de la pastille (user 2026-09-06)
+    amap = _daily_all_results_map()                        # TOUS paris (Confiance+Value+Combiné) -> % de réussite (user 2026-09-07)
     cells = []
     for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
         dd = today - timedelta(days=i)
         di = dd.isoformat()
         st = rmap.get(di) or {}
         settled = st.get("settled", 0)                     # activité TOUS paris (clic/emphase)
-        # PASTILLE = paris de CONFIANCE UNIQUEMENT (user 2026-09-06 : le point ne reflète QUE le phare Confiance,
-        # pas la Value/le combiné/la montante), par TAUX DE RÉUSSITE : VERT si TOUT gagné, JAUNE si > la moitié
-        # gagnés, ROUGE sinon. Un jour sans pari de confiance réglé -> pas de point coloré.
+        # % DE RÉUSSITE de TOUS les paris du jour (Confiance + Value + Combiné, user 2026-09-07) affiché À LA PLACE
+        # du point de couleur. Règle de COULEUR : <50 % rouge · 50–75 % orange · >75 % vert. Un jour sans pari
+        # réglé -> pas de chiffre (place réservée, invisible).
         ast_ = amap.get(di) or {}
         a_settled, a_won = ast_.get("settled", 0), ast_.get("won", 0)
         if a_settled:
-            if a_won >= a_settled:                         # tout gagné -> vert
-                dcls = "pos"
-            elif a_won * 2 >= a_settled:                   # la MOITIÉ ou plus (mais pas tout) -> jaune (user 2026-09-06)
-                dcls = "warn"
-            else:                                          # STRICTEMENT moins de la moitié -> rouge (user 2026-09-06)
-                dcls = "neg"
-            dot = f'<span class="dcd-dot {dcls}"></span>'
+            _pct = round(a_won * 100 / a_settled)
+            dcls = "neg" if _pct < 50 else ("warn" if _pct <= 75 else "pos")
+            dot = f'<span class="dcd-pct {dcls}">{_pct}%</span>'
         else:
-            dot = '<span class="dcd-dot none"></span>'
+            dot = '<span class="dcd-pct none"></span>'
         # jour SANS pari réglé (TOUS types) = dé-emphasé ET NON cliquable (user 2026-08-19) — sauf aujourd'hui.
         _is_empty = (not settled and dd != today)
         _cls = ("daycal-d" + (" on" if dd == sel else "") + (" today" if dd == today else "")
