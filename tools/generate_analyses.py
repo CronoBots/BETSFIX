@@ -507,7 +507,11 @@ METHODO = (
     "elles servent UNIQUEMENT à calibrer le modèle : on vérifie après match si ta confiance tient, sur "
     "TOUT l'éventail de proba). APRÈS la ligne PICK, ajoute 14 à 18 lignes au format EXACT, une par "
     "prédiction :\n"
-    "`CALIB: <sélection RÉGLABLE exacte> @<cote réelle> | <TA proba honnête %>`\n"
+    "`CALIB: <sélection RÉGLABLE exacte> @<cote réelle> | <TA proba honnête %> | <🟢 ou 🟠>`\n"
+    "Le DERNIER champ est un FLAG RISQUE — 🟢 = pari SANS bémol majeur ; 🟠 = pari qui porte un BÉMOL/risque "
+    "identifié (blessure clé, forme trompeuse, compo incertaine, contexte volatil, arbitre, météo…). C'est TON "
+    "évaluation du risque, DISTINCTE de la proba (un 80 % peut être 🟠 si un bémol pèse) — elle servira à mesurer "
+    "plus tard si les 🟠 sous-performent. Mets 🟢 par défaut, 🟠 seulement si un bémol réel existe.\n"
     "RÈGLES : (a) couvre TOUT le spectre — des quasi-certaines (~85-90 %) aux serrées (~45-55 %), PAS "
     "seulement les sûres ; sois HONNÊTE et calibré, JAMAIS optimiste (l'intérêt est de mesurer si tes "
     "55 % passent vraiment à 55 %). (b) marchés VARIÉS et RÉGLABLES (résultat, double chance, totaux, "
@@ -519,8 +523,8 @@ METHODO = (
     "(total/équipe), TIRS CADRÉS (total/équipe), TIRS (total), PREMIER BUT (équipe). Ne les SAUTE PAS au "
     "profit des gros marchés — même si tu es moins sûr, c'est EXACTEMENT ce qu'on veut mesurer pour les "
     "rendre représentatifs. (Si une cote n'est pas au dossier, n'invente rien : passe ce marché-là.) "
-    "Exemples : `CALIB: Allemagne gagne @1.55 | 71%` "
-    "puis `CALIB: Plus de 2.5 buts @1.95 | 52%`, etc. Tous les marchés RÉGLABLES sont les bienvenus, "
+    "Exemples : `CALIB: Allemagne gagne @1.55 | 71% | 🟢` "
+    "puis `CALIB: Plus de 2.5 buts @1.95 | 52% | 🟠`, etc. Tous les marchés RÉGLABLES sont les bienvenus, "
     "VARIE-les un maximum pour calibrer PARTOUT : résultat, double chance, totaux, total d'équipe, "
     "handicaps, BTTS, corners, cartons, tirs cadrés ; MI-TEMPS (buts équipe/match, gagne une MT, marque "
     "dans les 2 MT) ; foot score exact, PREMIER BUT (équipe) ; tennis sets/jeux, score exact, handicap de "
@@ -2938,7 +2942,11 @@ def _parse_calib(analysis: str, sport: str, home: str, away: str) -> list[dict]:
     prédictions RÉGLABLES (code non vide) ; déduplication par code."""
     from app.settle_analyst import code_from_pick
     out, seen = [], set()
-    for m in re.finditer(r"^[\s`*>\-]*CALIB:\s*(.+?)@\s*(\d+[.,]\d+)\s*\|\s*(\d{1,3})\s*%?", analysis, re.M):
+    # 4e groupe OPTIONNEL = flag risque (🟢/🟠, ou « sûr »/« risqué ») après un 2e « | ». Rétro-compatible :
+    # les anciennes lignes CALIB sans flag -> `risk` absent (comportement inchangé). Sert à mesurer plus tard
+    # si les paris « à bémol » (🟠) sous-performent (user 2026-09-08, question « bémol »).
+    for m in re.finditer(r"^[\s`*>\-]*CALIB:\s*(.+?)@\s*(\d+[.,]\d+)\s*\|\s*(\d{1,3})\s*%?"
+                         r"(?:\s*\|\s*(🟢|🟠|s[ûu]re?|risqu[ée]e?|safe|caveat))?", analysis, re.M):
         sel = re.sub(r"[`*]", "", m.group(1)).strip(" -–—:")
         try:
             cote = float(m.group(2).replace(",", "."))
@@ -2951,7 +2959,11 @@ def _parse_calib(analysis: str, sport: str, home: str, away: str) -> list[dict]:
         if not code or code in seen:        # non réglable ou doublon -> ignoré
             continue
         seen.add(code)
-        out.append({"sel": sel, "cote": round(cote, 3), "prob": prob, "code": code, "result": None})
+        entry = {"sel": sel, "cote": round(cote, 3), "prob": prob, "code": code, "result": None}
+        _rk = (m.group(4) or "")
+        if _rk:                             # normalise -> "safe" / "caveat" ; absent si aucun flag (rétro-compat)
+            entry["risk"] = "caveat" if ("🟠" in _rk or _rk.lower().startswith(("risqu", "cav"))) else "safe"
+        out.append(entry)
     return out
 
 
