@@ -37,6 +37,7 @@ from app import value_pick as _vp
 # alignés sur le code de prod). Chaque clé DOIT correspondre à une entrée de `sweeps` (cf. policy_backtest).
 DEFAULT_POLICY = {
     "conf_prob_min":  _cp.PROB_MIN,     # confiance : proba brute mini (80)
+    "conf_odds_lo":   _cp.COTE_LO,      # confiance : plancher de cote (1.12, relevé de 1.05 le 2026-09-07)
     "conf_odds_hi":   _cp.COTE_HI,      # confiance : plafond de cote (1.50)
     "value_prob_min": _vp.PROB_MIN,     # value : proba brute mini (68)
     "value_odds_lo":  _vp.COTE_LO,      # value : plancher de cote (1.40)
@@ -56,9 +57,10 @@ def _f(x):
 def _policy(pol: dict):
     """Applique une politique en surchargeant TEMPORAIREMENT les globals des sélecteurs, puis restaure.
     Les sélecteurs lisent leurs seuils via ces globals -> les piloter suffit à rejouer une variante."""
-    saved = (_cp.PROB_MIN, _cp.COTE_HI, _vp.PROB_MIN, _vp.COTE_LO, _vp.COTE_HI, _vp.EV_MIN)
+    saved = (_cp.PROB_MIN, _cp.COTE_LO, _cp.COTE_HI, _vp.PROB_MIN, _vp.COTE_LO, _vp.COTE_HI, _vp.EV_MIN)
     try:
         _cp.PROB_MIN = pol["conf_prob_min"]
+        _cp.COTE_LO = pol.get("conf_odds_lo", _cp.COTE_LO)   # borne basse Confiance (1.12) — modélisée depuis 2026-09-08
         _cp.COTE_HI = pol["conf_odds_hi"]
         _vp.PROB_MIN = pol["value_prob_min"]
         _vp.COTE_LO = pol["value_odds_lo"]
@@ -66,7 +68,7 @@ def _policy(pol: dict):
         _vp.EV_MIN = pol["value_ev_min"]
         yield
     finally:
-        (_cp.PROB_MIN, _cp.COTE_HI, _vp.PROB_MIN, _vp.COTE_LO, _vp.COTE_HI, _vp.EV_MIN) = saved
+        (_cp.PROB_MIN, _cp.COTE_LO, _cp.COTE_HI, _vp.PROB_MIN, _vp.COTE_LO, _vp.COTE_HI, _vp.EV_MIN) = saved
 
 
 def _ts_of(d: dict):
@@ -216,6 +218,7 @@ def validate_against_prod(matches: list[dict] | None = None) -> dict:
 # Plages de balayage par levier (les VRAIS paramètres des sélecteurs mécaniques).
 _SWEEP_VALUES = {
     "conf_prob_min":  [75, 78, 80, 82, 85],
+    "conf_odds_lo":   [1.05, 1.10, 1.12, 1.15, 1.20],
     "conf_odds_hi":   [1.30, 1.40, 1.50, 1.70, 2.00],
     "value_prob_min": [58, 62, 65, 68, 72, 75],
     "value_odds_lo":  [1.30, 1.40, 1.50, 1.60],
