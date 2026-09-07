@@ -1493,6 +1493,14 @@ def _leg_metric(leg: dict, home: str = "", away: str = "") -> dict:
     handicap = "handicap" in t
     side = direction = line = None
     parts = code.split()
+    # Le CODE lève l'ambiguïté du LIBELLÉ : « <équipe> marque plus de 0.5 » (code TEAMTOT …) et « plus de 2.5 »
+    # (code OVER/UNDER/TOTAL) sont des marchés de BUTS. Sans mot-clé « but/goal » dans le texte (le libellé dit
+    # « marque »), `metric` tombait en « special » -> jamais verrouillable -> la « chance live » restait basse
+    # alors que le but est ACQUIS (bug user 2026-09-07 : « Midtjylland marque +0.5 » à 1-2 affiché 10 %). On
+    # force alors metric=goals (le code est la source de vérité du marché ; « buteur/premier but » gardent leur
+    # propre branche plus haut et un code PLAYERFB, donc non concernés).
+    if metric == "special" and parts and parts[0] in ("TEAMTOT", "OVER", "UNDER", "TOTAL"):
+        metric = "goals"
     if parts:
         k = parts[0]
         if k in ("OVER", "UNDER") and len(parts) >= 2:
