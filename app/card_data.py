@@ -213,6 +213,25 @@ def build_prono_card(d: dict) -> dict | None:
     return card
 
 
+def announce_caption(card: dict) -> str:
+    """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), MÊME style que la ligne de RÉSULTAT
+    (« CONFIANCE GAGNÉE @1.21 ✅ / <pari> », user 2026-09-08) mais SANS verdict, puisque le match n'est pas
+    joué : « <TIER> @<cote> » puis le pari sur la ligne du dessous. Le label suit le tier FIGÉ de la carte
+    (value/montante/confiance). '' si carte non simple ou infos manquantes -> image seule (comportement
+    historique). parse_mode=HTML côté envoi -> on échappe les parties dynamiques."""
+    import html as _html
+    if not isinstance(card, dict) or card.get("type") != "simple":
+        return ""
+    _tier = str(card.get("tier") or "confiance").lower()
+    _lbl = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
+    _co = str(card.get("cote") or "").strip()
+    _sel = str(card.get("pick") or "").strip()
+    if not (_co or _sel):
+        return ""
+    _head = f"{_lbl} @{_html.escape(_co)}" if _co else _lbl
+    return _head + (f"\n{_html.escape(_sel)}" if _sel else "")
+
+
 def build_result_card(d: dict) -> dict | None:
     """Données de la carte RÉSULTAT d'un sidecar réglé (score + verdict par jambe/global). None si rien
     de réglé à montrer. Le simple n'est inclus que s'il est AFFICHÉ (cohérence avec la carte prono)."""

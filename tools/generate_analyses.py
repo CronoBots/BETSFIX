@@ -4435,12 +4435,12 @@ async def main():
                     if not _card:
                         continue
                     _sent = None
-                    try:                            # IMAGE SEULE (user 2026-08-22 : « juste les images, plus
-                        # d'analyse écrite »). Le « pourquoi » n'est PLUS rendu dans l'image (retiré côté
-                        # card_image pour tous les types) ; l'envoi n'a AUCUNE légende texte non plus.
+                    try:                            # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi »
+                        # reste hors image (card_image), mais l'ANNONCE porte désormais une ligne texte dans le
+                        # MÊME style que le résultat (« CONFIANCE @1.17 / <pari> ») — pas d'analyse, juste le pari.
                         _png = f"data/_cards/scan_{_i}.png"
                         await card_image.render_card(_card, _png)
-                        _sent = notify.send_photo_sync(_png, "")
+                        _sent = notify.send_photo_sync(_png, _cd.announce_caption(_card))
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
                             notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
                             # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — best-effort, jamais bloquant.

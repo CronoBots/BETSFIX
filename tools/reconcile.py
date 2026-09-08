@@ -66,11 +66,11 @@ async def _repost(d: dict) -> bool:
         if not card:                       # pas de value à publier -> normal, on n'envoie rien
             return False
         os.makedirs("data/_cards", exist_ok=True)
-        # IMAGE SEULE (user 2026-08-22) : le « pourquoi » n'est PLUS rendu dans l'image (retiré côté card_image
-        # pour tous les types) ; aucune légende texte non plus. L'image ne porte que le pari + les chiffres.
+        # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi » reste hors image (card_image) ; l'annonce
+        # re-postée porte la même ligne texte que le résultat (« CONFIANCE @1.17 / <pari> »), comme la vague.
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
         await card_image.render_card(card, png)
-        sent = notify.send_photo_sync(png, "")
+        sent = notify.send_photo_sync(png, card_data.announce_caption(card))
         if sent:
             notify.remember_prono(card.get("_mid") or str(d.get("id")), sent, card.get("match"))
             return True
