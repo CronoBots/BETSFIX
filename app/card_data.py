@@ -214,22 +214,27 @@ def build_prono_card(d: dict) -> dict | None:
 
 
 def announce_caption(card: dict) -> str:
-    """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), MÊME style que la ligne de RÉSULTAT
-    (« CONFIANCE GAGNÉE @1.21 ✅ / <pari> », user 2026-09-08) mais SANS verdict, puisque le match n'est pas
-    joué : « <TIER> @<cote> » puis le pari sur la ligne du dessous. Le label suit le tier FIGÉ de la carte
-    (value/montante/confiance). '' si carte non simple ou infos manquantes -> image seule (comportement
-    historique). parse_mode=HTML côté envoi -> on échappe les parties dynamiques."""
+    """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), 3 lignes (style validé user 2026-09-08) :
+    1) « Nouvelle <tier> @<cote> » (tier FIGÉ de la carte : confiance/value/montante),
+    2) le MATCH (« Vitória-BA — Grêmio-RS »),
+    3) le PARI À JOUER en GRAS.
+    '' si carte non simple ou pari manquant -> image seule (comportement historique). parse_mode=HTML côté
+    envoi -> on échappe les parties dynamiques (le <b> du pari est voulu)."""
     import html as _html
     if not isinstance(card, dict) or card.get("type") != "simple":
         return ""
     _tier = str(card.get("tier") or "confiance").lower()
-    _lbl = {"value": "VALUE", "montante": "MONTANTE"}.get(_tier, "CONFIANCE")
+    _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance")
     _co = str(card.get("cote") or "").strip()
+    _match = str(card.get("match") or "").strip()
     _sel = str(card.get("pick") or "").strip()
-    if not (_co or _sel):
+    if not _sel:
         return ""
-    _head = f"{_lbl} @{_html.escape(_co)}" if _co else _lbl
-    return _head + (f"\n{_html.escape(_sel)}" if _sel else "")
+    _lines = [f"Nouvelle {_lbl} @{_html.escape(_co)}" if _co else f"Nouvelle {_lbl}"]
+    if _match:
+        _lines.append(_html.escape(_match))
+    _lines.append(f"<b>{_html.escape(_sel)}</b>")
+    return "\n".join(_lines)
 
 
 def build_result_card(d: dict) -> dict | None:
