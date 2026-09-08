@@ -508,8 +508,18 @@ _CSS_MIN = """
   padding:9px 25px;border-radius:16px;background:rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 .mvs{font-size:30px;font-weight:900;letter-spacing:.10em;color:#7f92a8}
-.mbrand{margin-top:36px;text-align:center;font-size:16px;font-weight:900;letter-spacing:.44em;
+.mbrand{margin-top:34px;text-align:center;font-size:16px;font-weight:900;letter-spacing:.44em;
   color:rgba(255,255,255,.17);padding-left:.44em}
+/* BLOC PARI CENTRÉ sur l'image (user 2026-09-08 : le pari à jouer va SUR la carte, plus dans la légende) :
+   pastille TIER (cyan, glow) + cote, puis le pari en gros avec un léger glow. Centré. */
+.mbet{margin-top:34px;padding-top:32px;border-top:1px solid rgba(255,255,255,.09);text-align:center}
+.mtier{display:inline-block;font-size:19px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;
+  color:#08121a;background:linear-gradient(180deg,#6fd8ff,#33b7ef);padding:7px 17px;border-radius:10px;
+  box-shadow:0 5px 18px rgba(46,166,223,.40);vertical-align:middle}
+.mcote{font-size:31px;font-weight:900;color:#fff;margin-left:15px;vertical-align:middle;
+  font-variant-numeric:tabular-nums}
+.mpari{margin-top:22px;font-size:40px;font-weight:900;color:#f4f9fe;letter-spacing:-.01em;line-height:1.14;
+  text-shadow:0 2px 22px rgba(46,166,223,.32)}
 """
 
 
@@ -542,6 +552,14 @@ def _minimal_card_html(d: dict) -> str:
                f'box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 100px {_glow}')
     _mid = (f'<span class="mko">Coup d\'envoi</span><span class="mtime">{e(_hh)}</span>'
             if _hh else '<span class="mvs">VS</span>')
+    # BLOC PARI À JOUER (user 2026-09-08 : sur la carte, plus dans la légende). Gaté par `show_pari`.
+    _bet = ""
+    if d.get("show_pari") and d.get("pick"):
+        _tl = {"value": "VALUE", "montante": "MONTANTE"}.get(str(d.get("tier") or "").lower(), "CONFIANCE")
+        _co = str(d.get("cote") or "").strip()
+        _cot = f'<span class="mcote">@{e(_co)}</span>' if _co else ""
+        _bet = (f'<div class="mbet"><div><span class="mtier">{e(_tl)}</span>{_cot}</div>'
+                f'<div class="mpari">{e(_strip_dc_paren(d.get("pick")))}</div></div>')
     inner = (
         f'<div class="mlg">{e(_lg)}</div>'
         f'<div class="mrule" style="background:linear-gradient(90deg,transparent,{_rule},transparent)"></div>'
@@ -550,6 +568,7 @@ def _minimal_card_html(d: dict) -> str:
         f'<div class="mmid">{_mid}</div>'
         f'<div class="mtm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="mtn">{e(away)}</span></div>'
         f'</div>'
+        f'{_bet}'
         f'<div class="mbrand">BETSFIX</div>')
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}{_CSS_MIN}</style></head>"
             f'<body><div class="card scard mcard" style="{_cstyle}">{inner}</div></body></html>')

@@ -4442,6 +4442,7 @@ async def main():
                         if _card.get("type") == "simple":
                             _card["minimal"] = True       # ANNONCE = carte MINIMALE « Prochains lives » (user 2026-09-08)
                             _card["_theme"] = "cyan"       # fond+contour CYAN BETSFIX (validé user 2026-09-08)
+                            _card["show_pari"] = True      # pari à jouer SUR la carte (plus dans la légende, user 2026-09-08)
                         await card_image.render_card(_card, _png)
                         _sent = notify.send_photo_sync(_png, _cd.announce_caption(_card))
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra

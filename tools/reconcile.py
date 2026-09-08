@@ -72,6 +72,7 @@ async def _repost(d: dict) -> bool:
         if card.get("type") == "simple":
             card["minimal"] = True       # ANNONCE = carte MINIMALE « Prochains lives » (user 2026-09-08)
             card["_theme"] = "cyan"       # fond+contour CYAN BETSFIX (validé user 2026-09-08)
+            card["show_pari"] = True      # pari à jouer SUR la carte (plus dans la légende, user 2026-09-08)
         await card_image.render_card(card, png)
         sent = notify.send_photo_sync(png, card_data.announce_caption(card))
         if sent:
