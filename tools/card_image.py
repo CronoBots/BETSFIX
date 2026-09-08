@@ -443,8 +443,10 @@ def _simple_card_html(d: dict) -> str:
         + _verdict                                        # VERDICT façon site (Confiance+qual · Cote · barre · marché)
         + '</div>')                                       # « POURQUOI » TOUJOURS RETIRÉ de l'image (user 2026-08-22,
         # tous types) : sur Telegram, l'image ne porte QUE le pari + les chiffres, aucune analyse dans le PNG.
+    # BORD BLEU (user 2026-09-08 : « cadre bleu autour ») + légère lueur interne, au lieu du doré « à venir ».
+    _cst = "border-color:#33b7ef;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 90px rgba(46,166,223,.06)"
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
-            f'<body><div class="card scard">{inner}</div></body></html>')
+            f'<body><div class="card scard" style="{_cst}">{inner}</div></body></html>')
 
 
 def _result_simple_card_html(d: dict) -> str:
@@ -835,10 +837,10 @@ async def render_card(d: dict, out_png: str) -> str:
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
-        # Carte MINIMALE (annonce) : hauteur NATURELLE (compacte) + MARGE (pad) pour que tout le contour reste
-        # visible sur Telegram (bord non rogné). Sinon ratio fixe pour une largeur constante.
-        _min = d.get("type") == "simple" and d.get("minimal")
-        _normalize_card(out_png, None if _min else _CARD_RATIO, pad=40 if _min else 0)
+        # ANNONCE simple : hauteur NATURELLE (pas de ZONES MORTES haut/bas) + MARGE (pad) pour que tout le
+        # contour (bleu) reste visible sur Telegram (bord non rogné). Sinon ratio fixe pour une largeur constante.
+        _tight = d.get("type") == "simple"
+        _normalize_card(out_png, None if _tight else _CARD_RATIO, pad=40 if _tight else 0)
         return out_png
     finally:
         proc.terminate()

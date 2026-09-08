@@ -69,10 +69,7 @@ async def _repost(d: dict) -> bool:
         # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi » reste hors image (card_image) ; l'annonce
         # re-postée porte la même ligne texte que le résultat (« CONFIANCE @1.17 / <pari> »), comme la vague.
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
-        if card.get("type") == "simple":
-            card["minimal"] = True       # ANNONCE = carte MINIMALE « Prochains lives » (user 2026-09-08)
-            card["_theme"] = "cyan"       # fond+contour CYAN BETSFIX (validé user 2026-09-08)
-            card["show_pari"] = True      # pari à jouer SUR la carte (plus dans la légende, user 2026-09-08)
+        # ANNONCE simple = carte COMPLÈTE, bord bleu + crop serré (user 2026-09-08) -> géré par card_image.
         await card_image.render_card(card, png)
         sent = notify.send_photo_sync(png, card_data.announce_caption(card))
         if sent:
