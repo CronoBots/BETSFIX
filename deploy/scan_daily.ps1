@@ -127,3 +127,13 @@ Log ("REVUE DONE (exit {0})" -f $LASTEXITCODE)
 Log 'SOURCES : santé des sources'
 & $py 'tools\source_health.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SOURCES DONE (exit {0})" -f $LASTEXITCODE)
+
+# SHADOW API-Football (LECTURE SEULE, best-effort) : évaluation migration hors-scraping. Compare l'ancre
+# Pinnacle dé-viggée + la carte Unibet du jour à API-Football, accumule data/apifootball_shadow/<date>.json.
+# INACTIF si BETSFIX_APIFOOTBALL_KEY absent (.env). N'influence NI la sélection NI les stats NI les sidecars.
+# Placé APRÈS le scan (odds fraîches = timing aligné, écart d'ancre = vraie divergence, pas line movement).
+# Throttle 6.5 s = plan Free (~10 req/min). Cf. app/apifootball.py, tools/apifootball_shadow.py.
+Log 'SHADOW API-FOOTBALL : comparaison lecture seule'
+$env:BETSFIX_APIFOOTBALL_THROTTLE = '6.5'
+& $py 'tools\apifootball_shadow.py' 2>&1 | Add-BfxStream $log
+Log ("SHADOW API-FOOTBALL DONE (exit {0})" -f $LASTEXITCODE)

@@ -84,3 +84,11 @@ Log ("SOIR RECONCILE DONE (exit {0})" -f $LASTEXITCODE)
 Log 'SOIR SELFCHECK'
 & $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SOIR SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
+
+# SHADOW API-Football (LECTURE SEULE, best-effort) : cf. scan_daily.ps1. Compare l'ancre/omap du soir à
+# API-Football, accumule data/apifootball_shadow/<date>.json. Inactif sans BETSFIX_APIFOOTBALL_KEY (.env).
+# N'influence NI sélection NI stats NI sidecars. Throttle 6.5 s (plan Free ~10/min).
+Log 'SOIR SHADOW API-FOOTBALL : comparaison lecture seule'
+$env:BETSFIX_APIFOOTBALL_THROTTLE = '6.5'
+& $py 'tools\apifootball_shadow.py' 2>&1 | Add-BfxStream $log
+Log ("SOIR SHADOW API-FOOTBALL DONE (exit {0})" -f $LASTEXITCODE)
