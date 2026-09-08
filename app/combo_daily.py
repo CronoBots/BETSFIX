@@ -533,8 +533,13 @@ def notify_combos(sport: str = "foot") -> None:
                 continue
             if str(day) < COMBO_TG_FROM:                 # ⛔ jamais l'historique (anti-spam)
                 continue
-            # (1) CARTE PRONO — une seule fois (tg_msg absent)
-            if not cb.get("tg_msg") and _cimg is not None:
+            # TELEGRAM COMBINÉS = OFF (user 2026-09-08 : « ne pas publier les combinés ni les jambes de
+            # combiné sur Telegram »). On respecte enfin le flag `notify.TG_COMBO_MONTANTE` (=False) qui
+            # n'était JAMAIS testé ici -> carte + jambes + résultat global du combiné ne partent PLUS sur
+            # Telegram. Le combiné reste sur le SITE + push PWA. Remettre TG_COMBO_MONTANTE=True pour republier.
+            _tg = notify.TG_COMBO_MONTANTE
+            # (1) CARTE PRONO Telegram — une seule fois (tg_msg absent), UNIQUEMENT si combinés activés.
+            if _tg and not cb.get("tg_msg") and _cimg is not None:
                 try:
                     _card = _cd.build_combo_daily_card(cb)
                     if _card:
@@ -548,39 +553,42 @@ def notify_combos(sport: str = "foot") -> None:
                             _chg = True
                 except Exception:
                     pass
-            _reply = cb.get("tg_msg")
-            if not isinstance(_reply, dict) or not _reply:
-                continue
-            # (2) RÉSULTAT PAR JAMBE — dès qu'elle est réglée (1 message/jambe, réponse à la carte)
+            _reply = cb.get("tg_msg") if _tg else None
+            _reply = _reply if isinstance(_reply, dict) and _reply else None
+            # (2) RÉSULTAT PAR JAMBE — dès qu'elle est réglée. Telegram (réponse à la carte) SEULEMENT si
+            # combinés activés + carte présente ; le PUSH PWA tourne dans TOUS les cas (indépendant de Telegram).
             for leg in cb.get("legs") or []:
                 _lr = leg.get("result")
-                if _lr in ("won", "lost", "push") and not leg.get("tg_done"):
+                if _lr not in ("won", "lost", "push"):
+                    continue
+                _lco = leg.get("cote")
+                _lsel = str(leg.get("sel") or "").strip()
+                if _tg and _reply and not leg.get("tg_done"):
                     _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_lr, ("REMBOURSÉE", "➖"))
-                    _lco = leg.get("cote")
                     _cot = f" @{_lco:g}" if (_lr == "won" and isinstance(_lco, (int, float))) else ""
-                    _lsel = str(leg.get("sel") or "").strip()
                     _txt = (f"JAMBE {_vw}{_cot} {_ve}" + (f"\n{_lsel}" if _lsel else "")).strip()
                     if notify.reply_sync(_txt, _reply):
                         leg["tg_done"] = True
                         _chg = True
-                    # PUSH PWA de la jambe (user 2026-09-02) — indépendant de Telegram, une seule fois,
-                    # won/lost seulement (le « remboursé » d'un push = bruit).
-                    if _lr in ("won", "lost") and not leg.get("push_done"):
-                        try:
-                            from app import push as _push
-                            _push.notify_leg(_lsel, _lr, _lco)
-                        except Exception:
-                            pass
-                        leg["push_done"] = True
-                        _chg = True
-            # (3) RÉSULTAT GLOBAL du combiné — une seule fois (quand tranché)
-            if cb.get("result") in ("won", "lost", "void") and not cb.get("tg_result_done"):
-                _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(cb["result"], ("REMBOURSÉ", "➖"))
-                _cco = cb.get("real_odds") or cb.get("cote")
-                _gcot = f" @{_cco:g}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
-                if notify.reply_sync(f"{_label} {_gw}{_gcot} {_ge}", _reply):
-                    cb["tg_result_done"] = True
+                # PUSH PWA de la jambe (user 2026-09-02) — indépendant de Telegram, une seule fois,
+                # won/lost seulement (le « remboursé » d'un push = bruit).
+                if _lr in ("won", "lost") and not leg.get("push_done"):
+                    try:
+                        from app import push as _push
+                        _push.notify_leg(_lsel, _lr, _lco)
+                    except Exception:
+                        pass
+                    leg["push_done"] = True
                     _chg = True
+            # (3) RÉSULTAT GLOBAL du combiné — Telegram gate + carte présente ; push PWA indépendant.
+            if cb.get("result") in ("won", "lost", "void"):
+                _cco = cb.get("real_odds") or cb.get("cote")
+                if _tg and _reply and not cb.get("tg_result_done"):
+                    _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(cb["result"], ("REMBOURSÉ", "➖"))
+                    _gcot = f" @{_cco:g}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
+                    if notify.reply_sync(f"{_label} {_gw}{_gcot} {_ge}", _reply):
+                        cb["tg_result_done"] = True
+                        _chg = True
                 # PUSH PWA du combiné global (user 2026-09-02) — une seule fois, won/lost seulement.
                 if cb.get("result") in ("won", "lost") and not cb.get("push_result_done"):
                     try:
