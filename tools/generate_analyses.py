@@ -4443,7 +4443,7 @@ async def main():
                         # crop serré sans zones mortes (user 2026-09-08) -> géré par card_image (_simple_card_html
                         # bord bleu + tight-crop des cartes type=simple).
                         await card_image.render_card(_card, _png)
-                        _sent = notify.send_photo_sync(_png, _cd.announce_caption(_card))
+                        _sent = notify.send_photo_sync(_png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08 : aucun texte)
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
                             notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
                             # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — best-effort, jamais bloquant.

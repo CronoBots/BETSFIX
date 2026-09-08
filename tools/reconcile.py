@@ -71,7 +71,7 @@ async def _repost(d: dict) -> bool:
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
         # ANNONCE simple = carte COMPLÈTE, bord bleu + crop serré (user 2026-09-08) -> géré par card_image.
         await card_image.render_card(card, png)
-        sent = notify.send_photo_sync(png, card_data.announce_caption(card))
+        sent = notify.send_photo_sync(png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08 : aucun texte)
         if sent:
             notify.remember_prono(card.get("_mid") or str(d.get("id")), sent, card.get("match"))
             return True
