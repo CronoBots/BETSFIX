@@ -250,10 +250,15 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   OVER, BTTS YES) déjà gagnée se valide EN LIVE (irréversible), sans attendre la fin — 2 sources live
   concordantes (Flashscore partiel `final_score(allow_live=True)` + LiveScore), anti-collision. JAMAIS
   Under/vainqueur/handicap/DC/périodes/stats. `combo_daily._live_over_settle`. Mémoire `settle-never-on-live-score`.
-- **PUBLIÉS sur Telegram** (`combo_daily.notify_combos("foot")`, appelé par `reconcile.py` après `settle_all`) :
-  (1) CARTE IMAGE du combiné, (2) « JAMBE GAGNÉE @cote ✅ / PERDUE ❌ » par jambe dès qu'elle est réglée,
-  (3) « COMBINÉ DU JOUR/SOIR GAGNÉ @cote ✅ / PERDU ❌ » global. Idempotent (flags `tg_msg`/`leg.tg_done`/
-  `tg_result_done`), anti-spam `COMBO_TG_FROM`. **Alerte privée owner** (`_owner_alert_once`) si aucun combiné.
+- **PLUS publiés sur Telegram NI en push PWA (user 2026-09-08)** : les combinés **et leurs jambes** restent
+  **sur le SITE uniquement**. `combo_daily.notify_combos` respecte enfin `notify.TG_COMBO_MONTANTE=False` (il
+  l'ignorait → les combinés partaient quand même : bug corrigé) ; le push PWA des jambes/combiné est coupé par
+  `push.PUSH_LEGS_COMBOS=False` (rafale « JAMBE GAGNÉE » quand plusieurs jambes se règlent d'un coup = spam
+  signalé par le user). Le code d'envoi (carte `tg_msg` + « JAMBE GAGNÉE ✅ » + « COMBINÉ GAGNÉ ✅ » global,
+  idempotent `tg_msg`/`leg.tg_done`/`tg_result_done`, anti-spam `COMBO_TG_FROM`) reste **intact et gaté** →
+  réactivable via `TG_COMBO_MONTANTE=True` (Telegram) / `PUSH_LEGS_COMBOS=True` (PWA). **Alerte privée owner**
+  (`_owner_alert_once`) si aucun combiné, conservée. ⚠️ Les combinés DÉJÀ postés (jour 01→08/09, soir) restent
+  dans le canal (forward-only ; suppression manuelle possible sur demande).
 - **BANS DURS gravés** (`COMBO_MISSION`, taux par jambe mesuré 2026-06-18) : 🔴 **TOUS les corners**, tirs
   TOTAUX, cartons, premier but / mi-temps. 🟢 privilégier résultat / double chance (83 %), tirs **cadrés**
   (83 %), buts total / équipe marque (79 %).
@@ -383,10 +388,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     (texte `reply_sync` « CONFIANCE GAGNÉE @cote ✅ / pari ») reste inchangée. Code carte minimale
     (`_minimal_card_html`, `_MIN_THEMES`) + `announce_caption` conservés mais INUTILISÉS. Mémoire
     `telegram-result-played-bet-line-and-repost`.
-- **Push PWA** (MAJ 2026-09-02) : notifie **simples + JAMBES + COMBINÉS** (`app/push.py` : `notify_leg`/
-  `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
-  `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
-  `.mc-gloss/.cleg-gloss/.sgl` → `display:none`). Mémoire `push-pwa-legs-combos-dedup`.
+- **Push PWA** (MAJ 2026-09-08) : notifie les **paris SIMPLES** (nouveau prono + résultat, won/lost). Les
+  **JAMBES et COMBINÉS ne poussent PLUS** (`push.PUSH_LEGS_COMBOS=False`) : quand plusieurs jambes se réglaient
+  dans la même passe reconcile, chacune émettait « JAMBE GAGNÉE » → **rafale = spam** signalé par le user (capture
+  2026-09-08). L'anti-doublon (`data/push_sent.json`, titre identique < 5 min) ne bloque que les titres
+  IDENTIQUES, or chaque jambe a un titre distinct → il ne stoppait pas la rafale. `notify_leg`/`notify_combo`
+  gardés mais court-circuités (`return 0`) → réactivables via `PUSH_LEGS_COMBOS=True`. Tier résultat via flag figé
+  `_is_value`. Cartes **sans glose** (`.mc-gloss/.cleg-gloss/.sgl` → `display:none`). Mémoire `push-pwa-legs-combos-dedup`.
 - **NOTIFS PAR MATCH (🔔, MAJ 2026-09-06)** : un bouton 🔔 par carte de match FOOT non terminée, **VISIBLE
   UNIQUEMENT en PWA** installée (classe `html.pwa` posée par JS `_BELL_JS` ; CSS `.mc-bell`). Abonnement
   **PAR MATCH, indépendant** du push global (`data/push_match_subs.json` `{mid:[endpoint]}`). La boucle
