@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # ODDS_API_KEY dans .env pour activer l'ancre sharp (1X2 + totaux). Vide = repli scraping Pinnacle (fragile).
     odds_api_key: str = ""
 
+    # API-Football (api-sports.io) — ÉVALUATION migration hors-scraping (SHADOW, cf. app/apifootball.py).
+    # Clé SECRÈTE dans .env : BETSFIX_APIFOOTBALL_KEY. Vide = adaptateur/sonde/harnais inactifs (aucun effet
+    # sur la prod). Lue via get_settings() (visible SYSTEM ET vince), avec repli os.environ pour les runs CLI.
+    apifootball_key: str = Field("", validation_alias="BETSFIX_APIFOOTBALL_KEY")
+
     # Repli SofaScore via RapidAPI SportAPI7 (OPTIONNEL) : utilisé UNIQUEMENT quand SofaScore
     # renvoie 403/429 (rate-limit). Plafond/jour pour protéger le quota (Pro = 15 000/mois).
     rapidapi_key: str = ""

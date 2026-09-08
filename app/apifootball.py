@@ -34,14 +34,27 @@ _THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "1.2"))   # s e
 _TIMEOUT = 25
 
 
+def _key() -> str:
+    """Clé API-Football : env `BETSFIX_APIFOOTBALL_KEY` (runs CLI) puis `.env` via get_settings()
+    (visible SYSTEM ET vince, comme les autres secrets). Jamais en dur, jamais commitée."""
+    k = os.environ.get("BETSFIX_APIFOOTBALL_KEY")
+    if k:
+        return k.strip()
+    try:
+        from app.config import get_settings
+        return (get_settings().apifootball_key or "").strip()
+    except Exception:
+        return ""
+
+
 def configured() -> bool:
-    return bool(os.environ.get("BETSFIX_APIFOOTBALL_KEY"))
+    return bool(_key())
 
 
 def _client() -> httpx.Client:
-    key = os.environ.get("BETSFIX_APIFOOTBALL_KEY")
+    key = _key()
     if not key:
-        raise RuntimeError("BETSFIX_APIFOOTBALL_KEY absent (clé secrète non stockée).")
+        raise RuntimeError("Clé API-Football absente (BETSFIX_APIFOOTBALL_KEY en env ou .env).")
     return httpx.Client(headers={"x-apisports-key": key}, timeout=_TIMEOUT)
 
 
