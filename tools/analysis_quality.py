@@ -474,20 +474,53 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
 
 
 def notify_match_qc(date: str | None = None, send: bool = False) -> int:
-    """Envoie (ou prévisualise) une FICHE QC par match analysé FINALISÉ, une seule fois par match/jour."""
+    """Envoie (ou prévisualise) une FICHE QC par match analysé FINALISÉ, une seule fois par match/jour.
+
+    COUVERTURE COMPLÈTE (fix « manquements », user 2026-09-08) : on ne se limite PLUS aux matchs du
+    PROGRAMME rechargé. On prend l'UNION du programme courant ET des sidecars analysés+final dont le KO
+    tombe un jour couvert par le slate courant. Sans ce filet, un match d'un slate PRÉCÉDENT (déjà passé
+    en vague, donc `prematch_done`, mais SORTI du programme au scan suivant jour↔nuit) n'avait JAMAIS de
+    fiche QC → trous côté owner (cas mesuré : « Unión de Santa Fe - Instituto », nuit, absent du slate jour).
+    BORNE ANTI-SPAM : uniquement les jours réellement couverts par le slate (jamais tout l'historique)."""
     prog = _load_programme()
-    matches = prog.get("matches") or []
+    prog_matches = prog.get("matches") or []
     day = date or prog.get("date") or ""
+    # Jours couverts = date du programme + jours de KO de ses matchs (le slate nuit chevauche 2 dates).
+    # Avec --date explicite : ce seul jour.
     if date:
-        matches = [m for m in matches if (m.get("start") or "")[:10] == date]
+        allowed_days = {date}
+    else:
+        allowed_days = {day} | {(m.get("start") or "")[:10] for m in prog_matches if m.get("start")}
+        allowed_days.discard("")
+    # Candidats mid -> entrée « programme-like ». L'entrée du programme PRIME (name/start réels) ; pour un
+    # sidecar hors programme on synthétise une entrée minimale (name/start/home/away depuis le sidecar).
+    cand: dict[str, dict] = {}
+    for m in prog_matches:
+        mid = str(m.get("id") or "")
+        if mid:
+            cand[mid] = m
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        mid = str(d.get("id") or "")
+        if not mid or mid in cand:
+            continue
+        if (d.get("start") or "")[:10] not in allowed_days:
+            continue
+        cand[mid] = {"id": d.get("id"), "name": d.get("name"), "start": d.get("start"),
+                     "home": d.get("home"), "away": d.get("away")}
+    order = sorted(cand.values(), key=lambda m: (m.get("start") or "zzz"))   # fil chronologique (KO)
     try:
         st = json.load(open(_QC_SENT, encoding="utf-8"))
     except Exception:
         st = {}
-    done = set(st.get(day) or [])
+    if not isinstance(st, dict):
+        st = {}
     n_sent = n_wait = 0
     print(f"═══ FICHES QC PAR MATCH — {day or 'jour courant'} ═══")
-    for m in matches:
+    for m in order:
         mid = str(m.get("id") or "")
         d, md = _sidecar_for(mid, m.get("home", ""), m.get("away", ""))
         analysed = bool(d and (d.get("bets") or d.get("shadow") or d.get("abstained") or d.get("stat_bet")))
@@ -500,12 +533,15 @@ def notify_match_qc(date: str | None = None, send: bool = False) -> int:
         if not final:
             n_wait += 1
             continue
+        # Dédup PAR JOUR-DE-MATCH (pas un seul jour global) -> on ne perd plus les autres jours du fichier.
+        mday = (m.get("start") or (d or {}).get("start") or "")[:10] or day
+        done = set(st.get(mday) or [])
         if send and mid in done:                 # dédup à l'ENVOI seulement ; l'aperçu montre toujours tout
             continue
         card = _qc_card(d, m, md)
         if send:
             if _send_owner(card):
-                done.add(mid); n_sent += 1
+                done.add(mid); st[mday] = sorted(done); n_sent += 1
                 print(f"  → QC envoyée : {m.get('name') or mid}")
             else:
                 print(f"  (envoi impossible : {m.get('name') or mid})")
@@ -513,7 +549,7 @@ def notify_match_qc(date: str | None = None, send: bool = False) -> int:
             print("\n" + "-" * 60 + "\n" + card)
     if send and n_sent:
         try:
-            json.dump({day: sorted(done)}, open(_QC_SENT, "w", encoding="utf-8"), ensure_ascii=False)
+            json.dump(st, open(_QC_SENT, "w", encoding="utf-8"), ensure_ascii=False)
         except Exception:
             pass
     print(f"\n{n_sent} fiche(s) envoyée(s) · {n_wait} en attente de vague.")
