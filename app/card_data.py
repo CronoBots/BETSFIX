@@ -217,10 +217,10 @@ def announce_caption(card: dict) -> str:
     """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), style validé user 2026-09-08 :
     1) « NOUVELLE <TIER> @<cote> » en MAJUSCULES (tier FIGÉ : confiance/value/montante),
     2) une LIGNE VIERGE,
-    3) le PARI À JOUER en GRAS.
+    3) le PARI À JOUER (PAS en gras — user 2026-09-08).
     Les ÉQUIPES ne sont PAS reprises dans le texte (elles sont déjà sur l'image, user 2026-09-08).
     '' si carte non simple ou pari manquant -> image seule (comportement historique). parse_mode=HTML côté
-    envoi -> on échappe les parties dynamiques (le <b> du pari est voulu)."""
+    envoi -> on échappe les parties dynamiques."""
     import html as _html
     if not isinstance(card, dict) or card.get("type") != "simple":
         return ""
@@ -231,7 +231,7 @@ def announce_caption(card: dict) -> str:
     if not _sel:
         return ""
     _head = f"NOUVELLE {_lbl} @{_html.escape(_co)}" if _co else f"NOUVELLE {_lbl}"
-    return f"{_head}\n\n<b>{_html.escape(_sel)}</b>"
+    return f"{_head}\n\n{_html.escape(_sel)}"
 
 
 def build_result_card(d: dict) -> dict | None:

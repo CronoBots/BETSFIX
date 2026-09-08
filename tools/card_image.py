@@ -721,14 +721,16 @@ _CARD_BG = (8, 12, 20)          # fond bleu-noir (coins arrondis + marges de nor
 _CARD_RATIO = 1.3               # hauteur/largeur VISÉ pour TOUTES les cartes -> même largeur sur Telegram
 
 
-def _normalize_card(png: str, ratio: float | None = _CARD_RATIO) -> None:
+def _normalize_card(png: str, ratio: float | None = _CARD_RATIO, pad: int = 0) -> None:
     """Uniformise l'affichage Telegram : (1) APLATIT l'alpha sur un fond BLEU-NOIR — les coins arrondis
     (transparents) deviennent sombres au lieu de BLANCS (Telegram compose l'alpha sur blanc) ; (2) normalise
     l'image à un RATIO FIXE en ajoutant du fond bleu-noir (padding vertical si la carte est plus courte,
     horizontal si plus haute) -> toutes les cartes ont le MÊME ratio donc la MÊME largeur d'affichage, seule
     la hauteur du CONTENU change. `ratio=None` (carte MINIMALE « Prochains lives », user 2026-09-08) : on
-    GARDE la hauteur naturelle (compacte, sans bourrage vertical), on aplatit juste l'alpha. No-op si PIL
-    absent / erreur (jamais bloquant pour le scan/règlement)."""
+    GARDE la hauteur naturelle (compacte, sans bourrage vertical), on aplatit juste l'alpha. `pad` (px sur
+    l'image 2x) = MARGE ajoutée sur les 4 côtés pour que TOUT le CONTOUR de la carte reste visible sur Telegram
+    (sinon le bord, collé au pixel du clip, est rogné à l'affichage — user 2026-09-08). No-op si PIL absent /
+    erreur (jamais bloquant pour le scan/règlement)."""
     try:
         from PIL import Image
     except Exception:
@@ -741,10 +743,10 @@ def _normalize_card(png: str, ratio: float | None = _CARD_RATIO) -> None:
             canvas = Image.new("RGBA", (cw, ch), _CARD_BG + (255,))
             canvas.alpha_composite(card, ((cw - w) // 2, (ch - h) // 2))
         else:
-            # Carte HAUTE (combiné 3 jambes + analyse) : NE PAS compléter en largeur (sinon image géante ->
-            # Telegram rejette « PHOTO_INVALID_DIMENSIONS », user 2026-08-18). On aplatit juste l'alpha sur le fond.
-            canvas = Image.new("RGBA", (w, h), _CARD_BG + (255,))
-            canvas.alpha_composite(card, (0, 0))
+            # Carte HAUTE (combiné) ou MINIMALE : on garde la taille naturelle + une MARGE `pad` sur les 4 côtés
+            # (contour non rogné). NE PAS compléter en largeur (image géante -> Telegram « PHOTO_INVALID_DIMENSIONS »).
+            canvas = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), _CARD_BG + (255,))
+            canvas.alpha_composite(card, (pad, pad))
         # GARDE-FOU dimensions Telegram (somme largeur+hauteur ≲ 10000 px) : downscale proportionnel si trop grand.
         _cw, _ch = canvas.size
         if _cw + _ch > 9200:
@@ -820,9 +822,10 @@ async def render_card(d: dict, out_png: str) -> str:
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
-        # Carte MINIMALE (annonce) : hauteur NATURELLE (compacte), sinon ratio fixe pour une largeur constante.
+        # Carte MINIMALE (annonce) : hauteur NATURELLE (compacte) + MARGE (pad) pour que tout le contour reste
+        # visible sur Telegram (bord non rogné). Sinon ratio fixe pour une largeur constante.
         _min = d.get("type") == "simple" and d.get("minimal")
-        _normalize_card(out_png, None if _min else _CARD_RATIO)   # fond bleu-noir (coins) + ratio
+        _normalize_card(out_png, None if _min else _CARD_RATIO, pad=40 if _min else 0)
         return out_png
     finally:
         proc.terminate()
