@@ -223,6 +223,21 @@ def status_of(d: dict, now=None) -> str:
     if (_res.get("raw") or {}).get("periods") or \
             (_res.get("score") and any(c.isdigit() for c in str(_res.get("score")))):
         return "finished"
+    # MATCH PROBABLEMENT FINI + AUCUN score live Unibet = TERMINÉ (en attente de règlement), MÊME dans la
+    # fenêtre de durée « généreuse » (105→130 min au foot). Sinon un match fini restait « en cours » avec
+    # l'horloge RÉSIDUELLE Unibet « 00:00 » et polluait l'onglet Live/Programme (bug user 2026-09-08). Le VRAI
+    # live garde la priorité : un score en direct présent (match à rallonge/stoppage) n'est PAS reclassé.
+    if likely_finished(d, now):
+        try:
+            from app import match_select as _ms
+            _ld = _ms.live_state_for(d.get("sport"), d.get("home"), d.get("away"))
+            _sc = (_ld or {}).get("score") if isinstance(_ld, dict) else None
+            _has_live_score = (isinstance(_sc, dict)
+                               and _sc.get("home") is not None and _sc.get("away") is not None)
+        except Exception:
+            _has_live_score = True   # doute -> on ne reclasse pas (comportement historique)
+        if not _has_live_score:
+            return "finished"
     if now < dt + timedelta(minutes=_DUR_MIN.get(d.get("sport"), 150)):
         return "inprogress"
     return "finished"

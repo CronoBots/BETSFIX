@@ -6869,8 +6869,11 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
         # « à venir » -> on le marque `_is_live` pour l'onglet LIVE + section « En direct » (demande user
         # 2026-07-10). Tennis souvent DÉCALÉ (heure figée) -> on se fie au live + coup d'envoi Unibet frais.
         _lstate = match_select.live_state_for(sp, _h, _a)
-        _has_live = bool(_lstate)
         _lf = live_fields(_lstate, sp)          # score live (buts/points/sets) — AUCUN réseau (cache)
+        # LIVE RÉEL = un vrai score en direct, PAS un objet liveData RÉSIDUEL laissé par Unibet après le coup
+        # de sifflet final (score vidé + horloge « 00:00 ») — sinon un match FINI restait « en cours » dans
+        # Live/Programme avec un « 00:00 » bizarre au lieu de passer en « ⏳ En attente » (bug user 2026-09-08).
+        _has_live = bool(str(_lf.get("score") or "").strip())
         _st, _usdt = match_select.fresh_status(sp, _h, _a, "notstarted", _has_live, start_iso=m.get("start"))
         if _usdt is not None:                   # heure Unibet fraîche (reflète un éventuel décalage)
             dt = _usdt
