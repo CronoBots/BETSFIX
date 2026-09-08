@@ -491,6 +491,70 @@ def _result_simple_card_html(d: dict) -> str:
             f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
 
 
+_CSS_MIN = """
+/* CARTE MINIMALE d'ANNONCE (user 2026-09-08) — thème « 100% pro » : fond profond en dégradé, filet doré,
+   heure dans un chip « coup d'envoi », typo soignée, signature discrète. Bord GOLD « à venir » conservé. */
+.card.mcard{padding:48px 58px 40px}   /* fond + contour + lueur pilotés en INLINE par le thème (voir _MIN_THEMES) */
+.mlg{text-align:center;font-size:24px;font-weight:800;letter-spacing:.13em;line-height:1.25;
+  color:#a9c0d8;text-transform:uppercase}
+.mrule{width:66px;height:3px;margin:16px auto 2px;border-radius:2px;
+  background:linear-gradient(90deg,rgba(246,197,74,0),#f6c54a,rgba(246,197,74,0))}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:26px;margin-top:42px}
+.mtm{flex:1;display:flex;flex-direction:column;align-items:center;gap:20px;min-width:0}
+.mtn{font-size:34px;font-weight:900;color:#f3f8fd;text-align:center;line-height:1.12;letter-spacing:-.01em}
+.mmid{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:12px;padding:0 8px}
+.mko{font-size:16px;font-weight:800;letter-spacing:.17em;color:#7f92a8;text-transform:uppercase}
+.mtime{font-size:44px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+  padding:9px 25px;border-radius:16px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.mvs{font-size:30px;font-weight:900;letter-spacing:.10em;color:#7f92a8}
+.mbrand{margin-top:36px;text-align:center;font-size:16px;font-weight:900;letter-spacing:.44em;
+  color:rgba(255,255,255,.17);padding-left:.44em}
+"""
+
+
+# THÈMES fond+contour de la carte d'annonce (user 2026-09-08). Chaque thème = (bordure, dégradé de fond,
+# lueur interne, couleur du filet sous la ligue). Choisi via d["_theme"] ; défaut « gold ».
+_MIN_THEMES = {
+    "gold":    ("#f6c54a", "radial-gradient(135% 155% at 50% -25%, #17222f 0%, #0e131c 52%, #090d14 100%)",
+                "rgba(246,197,74,.05)", "#f6c54a"),
+    "cyan":    ("#2ea6df", "radial-gradient(135% 155% at 50% -25%, #142838 0%, #0c141d 54%, #080d13 100%)",
+                "rgba(46,166,223,.08)", "#33b7ef"),
+    "noir":    ("rgba(246,197,74,.55)", "radial-gradient(140% 150% at 50% -20%, #12161d 0%, #0a0d13 55%, #05070b 100%)",
+                "rgba(246,197,74,.035)", "rgba(246,197,74,.75)"),
+}
+
+
+def _minimal_card_html(d: dict) -> str:
+    """Carte MINIMALE d'annonce façon « Prochains lives » mais thème « 100% pro » (user 2026-09-08) : ligue
+    centrée + filet + logos des 2 équipes + heure de coup d'envoi au centre + signature discrète. PAS de
+    pari/barre/verdict/filigrane (le pari/cote/tier vivent dans la LÉGENDE texte sous l'image). FOND + CONTOUR
+    pilotés par le thème `d["_theme"]` (gold/cyan/noir). Réutilise `_team_logo_html`."""
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
+    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
+    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
+    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
+    _bd, _bg, _glow, _rule = _MIN_THEMES.get(str(d.get("_theme") or "gold"), _MIN_THEMES["gold"])
+    _cstyle = (f'border-color:{_bd};background:{_bg};'
+               f'box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 100px {_glow}')
+    _mid = (f'<span class="mko">Coup d\'envoi</span><span class="mtime">{e(_hh)}</span>'
+            if _hh else '<span class="mvs">VS</span>')
+    inner = (
+        f'<div class="mlg">{e(_lg)}</div>'
+        f'<div class="mrule" style="background:linear-gradient(90deg,transparent,{_rule},transparent)"></div>'
+        f'<div class="mrow">'
+        f'<div class="mtm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="mtn">{e(home)}</span></div>'
+        f'<div class="mmid">{_mid}</div>'
+        f'<div class="mtm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="mtn">{e(away)}</span></div>'
+        f'</div>'
+        f'<div class="mbrand">BETSFIX</div>')
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}{_CSS_MIN}</style></head>"
+            f'<body><div class="card scard mcard" style="{_cstyle}">{inner}</div></body></html>')
+
+
 def _combo_card_html(d: dict) -> str:
     """Carte COMBINÉ (user 2026-08-18) : signature « COMBINÉ », puis CHAQUE jambe rendue EXACTEMENT comme une
     carte de pari (ligue · logos+équipes+heure/score · pari+glose · grille Confiance/Edge/Value/Cote · analyse
@@ -549,8 +613,10 @@ def _combo_card_html(d: dict) -> str:
 
 
 def _card_html(d: dict) -> str:
-    if d.get("type") == "simple":                       # PARI SIMPLE : design SITE dédié (user 2026-08-17)
-        return _simple_card_html(d)
+    if d.get("type") == "simple":                       # PARI SIMPLE
+        if d.get("minimal"):                            # ANNONCE : carte MINIMALE « Prochains lives » (user 2026-09-08)
+            return _minimal_card_html(d)
+        return _simple_card_html(d)                     # (repli) design SITE complet (user 2026-08-17)
     if d.get("type") == "result" and d.get("simple") and not d.get("combo"):   # RÉSULTAT simple : design site
         return _result_simple_card_html(d)
     # COMBINÉ nouveau design (jambes = dicts) : prono OU résultat -> carte site dédiée (user 2026-08-18).
@@ -655,12 +721,14 @@ _CARD_BG = (8, 12, 20)          # fond bleu-noir (coins arrondis + marges de nor
 _CARD_RATIO = 1.3               # hauteur/largeur VISÉ pour TOUTES les cartes -> même largeur sur Telegram
 
 
-def _normalize_card(png: str) -> None:
+def _normalize_card(png: str, ratio: float | None = _CARD_RATIO) -> None:
     """Uniformise l'affichage Telegram : (1) APLATIT l'alpha sur un fond BLEU-NOIR — les coins arrondis
     (transparents) deviennent sombres au lieu de BLANCS (Telegram compose l'alpha sur blanc) ; (2) normalise
     l'image à un RATIO FIXE en ajoutant du fond bleu-noir (padding vertical si la carte est plus courte,
     horizontal si plus haute) -> toutes les cartes ont le MÊME ratio donc la MÊME largeur d'affichage, seule
-    la hauteur du CONTENU change. No-op si PIL absent / erreur (jamais bloquant pour le scan/règlement)."""
+    la hauteur du CONTENU change. `ratio=None` (carte MINIMALE « Prochains lives », user 2026-09-08) : on
+    GARDE la hauteur naturelle (compacte, sans bourrage vertical), on aplatit juste l'alpha. No-op si PIL
+    absent / erreur (jamais bloquant pour le scan/règlement)."""
     try:
         from PIL import Image
     except Exception:
@@ -668,8 +736,8 @@ def _normalize_card(png: str) -> None:
     try:
         card = Image.open(png).convert("RGBA")
         w, h = card.size
-        if h / w <= _CARD_RATIO:
-            cw, ch = w, round(w * _CARD_RATIO)          # court -> compléter en HAUTEUR (largeur d'affichage constante)
+        if ratio is not None and h / w <= ratio:
+            cw, ch = w, round(w * ratio)                # court -> compléter en HAUTEUR (largeur d'affichage constante)
             canvas = Image.new("RGBA", (cw, ch), _CARD_BG + (255,))
             canvas.alpha_composite(card, ((cw - w) // 2, (ch - h) // 2))
         else:
@@ -752,7 +820,9 @@ async def render_card(d: dict, out_png: str) -> str:
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
-        _normalize_card(out_png)       # fond bleu-noir (coins) + ratio fixe (même largeur pour tous)
+        # Carte MINIMALE (annonce) : hauteur NATURELLE (compacte), sinon ratio fixe pour une largeur constante.
+        _min = d.get("type") == "simple" and d.get("minimal")
+        _normalize_card(out_png, None if _min else _CARD_RATIO)   # fond bleu-noir (coins) + ratio
         return out_png
     finally:
         proc.terminate()

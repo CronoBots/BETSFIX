@@ -4439,6 +4439,9 @@ async def main():
                         # reste hors image (card_image), mais l'ANNONCE porte désormais une ligne texte dans le
                         # MÊME style que le résultat (« CONFIANCE @1.17 / <pari> ») — pas d'analyse, juste le pari.
                         _png = f"data/_cards/scan_{_i}.png"
+                        if _card.get("type") == "simple":
+                            _card["minimal"] = True       # ANNONCE = carte MINIMALE « Prochains lives » (user 2026-09-08)
+                            _card["_theme"] = "cyan"       # fond+contour CYAN BETSFIX (validé user 2026-09-08)
                         await card_image.render_card(_card, _png)
                         _sent = notify.send_photo_sync(_png, _cd.announce_caption(_card))
                         if _sent:                    # mémorise l'id du prono -> le résultat y répondra
