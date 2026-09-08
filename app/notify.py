@@ -25,10 +25,18 @@ import httpx
 
 log = logging.getLogger("betsfix.notify")
 
-# POLITIQUE TELEGRAM (user 2026-08-24) : le canal abonnés ne reçoit QUE les paris simples Confiance/Value
-# (prono + résultat en réponse). Le COMBINÉ du jour et la MONTANTE ne sont PLUS postés sur Telegram — ils
-# restent visibles sur le SITE. Mettre True pour re-publier combiné/montante sur Telegram.
+# POLITIQUE TELEGRAM (user 2026-09-08) : le canal abonnés ne reçoit QUE les paris simples de tier
+# « CONFIANCE » (prono + résultat en réponse). La VALUE, le COMBINÉ du jour et la MONTANTE ne sont PLUS
+# postés sur Telegram — ils restent visibles sur le SITE (+ push PWA + stats/ROI). Mettre les flags à True
+# pour re-publier. (Avant : Confiance + Value ; user 2026-08-24 : combiné/montante déjà coupés.)
 TG_COMBO_MONTANTE = False
+TG_VALUE = False
+
+
+def tg_post_tier(tier: str) -> bool:
+    """Un pari SIMPLE de ce tier doit-il être posté sur Telegram ? Confiance = toujours ; Value = selon
+    TG_VALUE (OFF depuis 2026-09-08). Source unique du gate (annonce + re-post + renotify)."""
+    return (tier or "confiance").strip().lower() != "value" or TG_VALUE
 
 _CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "notify.json")
 # IDs des messages envoyés par le bot -> supprimés AVANT chaque nouveau post (chat propre).

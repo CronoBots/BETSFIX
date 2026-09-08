@@ -357,9 +357,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     de la pastille du jour (`.daycal-track` padding-bas 15px). **Bouton `#bfx-totop`** (coin bas-droit, discret) :
     smooth-scroll **MANUEL (rAF)** — `window.scrollTo({behavior:'smooth'})` est ignoré SANS erreur en PWA iOS.
     Mémoire `ui-halo-glow-clip-and-ios-scroll`.
-- **Telegram** (MAJ 2026-09-01) : publie **Confiance + Value + combinés**. Value posté comme la confiance
-  (carte + résultat « VALUE GAGNÉE @cote ✅ / PERDUE ❌ », label via flag figé `_is_value`). Un résultat simple
-  n'est posté QU'en réponse à un prono réel (`get_prono`) — jamais d'orphelin. Cf. `telegram-foot-simple-only`.
+- **Telegram = CONFIANCE UNIQUEMENT** (MAJ 2026-09-08) : le canal abonnés ne reçoit QUE les paris simples de
+  tier **confiance**. La **Value** (comme le **combiné** et la **montante**, déjà OFF) reste sur le **SITE** +
+  **push PWA** + **stats/ROI**, mais n'est PLUS annoncée sur Telegram. Gate unique `notify.tg_post_tier(tier)`
+  (flags `TG_VALUE=False`, `TG_COMBO_MONTANTE=False`), appliqué à l'annonce (`generate_analyses`), au re-post
+  (`reconcile._repost` + détection « manquée »), et au renotify manuel. Un résultat simple n'est posté QU'en
+  réponse à un prono réel (`get_prono`) — donc supprimer l'annonce Value supprime aussi son résultat. Remettre
+  `TG_VALUE=True` re-publie la value. Cf. `telegram-foot-simple-only`.
   - **CARTE IMAGE = LA CARTE DU SITE (MAJ 2026-09-06)** : `tools/card_image.py` (HTML→screenshot Chrome) rend
     la carte comme le site. Bloc verdict identique (`_verdict_site_html` reproduit `analyses.verdict_line`
     compacte) : « Confiance X% \<qualificatif\> · Cote Y » + barre (repère marché) + « marché Z% », **edge/value

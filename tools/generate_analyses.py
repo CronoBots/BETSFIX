@@ -4434,40 +4434,44 @@ async def main():
                     # « posté ≠ compté » (cf. card_data : pick_shown = bool(rb)).
                     if not _card:
                         continue
+                    _tier = str(_card.get("tier") or "confiance")
+                    # TELEGRAM = CONFIANCE UNIQUEMENT (user 2026-09-08) : on ne POSTE au canal que les paris
+                    # simples « confiance ». La VALUE reste sur le SITE + push PWA + stats/ROI mais N'est PLUS
+                    # annoncée sur Telegram (gate `notify.tg_post_tier`). Le push et le gel du pari publié
+                    # tournent pour TOUS les tiers (indépendants de Telegram) -> value intacte partout ailleurs.
+                    _tg_ok = (_card.get("type") != "combo") and notify.tg_post_tier(_tier)
                     _sent = None
-                    try:                            # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi »
-                        # reste hors image (card_image), mais l'ANNONCE porte désormais une ligne texte dans le
-                        # MÊME style que le résultat (« CONFIANCE @1.17 / <pari> ») — pas d'analyse, juste le pari.
-                        _png = f"data/_cards/scan_{_i}.png"
-                        # ANNONCE simple = carte COMPLÈTE (logos + pari + Confiance/Cote/marché), BORD BLEU +
-                        # crop serré sans zones mortes (user 2026-09-08) -> géré par card_image (_simple_card_html
-                        # bord bleu + tight-crop des cartes type=simple).
-                        await card_image.render_card(_card, _png)
-                        _sent = notify.send_photo_sync(_png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08 : aucun texte)
-                        if _sent:                    # mémorise l'id du prono -> le résultat y répondra
-                            notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
-                            # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — best-effort, jamais bloquant.
-                            try:
-                                from app import push as _push
-                                _pk = str(_card.get("pick") or "")
-                                _co = _card.get("cote")
-                                _pktxt = f"{_pk} @ {_co}" if (_pk and _co) else _pk
-                                _push.notify_new_prono(str(_card.get("match") or ""), _pktxt,
-                                                       str(_card.get("tier") or "confiance"),
-                                                       str(_card.get("_sport") or "foot"),
-                                                       cote=_card.get("cote"))
-                            except Exception:
-                                pass
-                            # FIGE le pari CONSEILLÉ dès la publication (demande user 2026-07-14) -> ni
-                            # retiré ni re-prixé au rescan (l'abonné a parié à ce prix). Idempotent.
-                            try:
-                                if _card.get("_sport") and _card.get("type") != "combo":
-                                    from app import analyses as _an_fz
-                                    _an_fz.freeze_published_bet(_card["_sport"], _card["_mid"])
-                            except Exception:
-                                pass
-                    except Exception as _ce:
-                        print(f"  (carte image échouée : {_ce})")
+                    if _tg_ok:
+                        try:
+                            _png = f"data/_cards/scan_{_i}.png"
+                            # ANNONCE simple = carte COMPLÈTE (logos + pari + Confiance/Cote/marché), BORD BLEU +
+                            # crop serré sans zones mortes (user 2026-09-08) -> géré par card_image.
+                            await card_image.render_card(_card, _png)
+                            _sent = notify.send_photo_sync(_png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08)
+                            if _sent:                # mémorise l'id du prono -> le résultat y répondra
+                                notify.remember_prono(_card.get("_mid"), _sent, _card.get("match"))
+                        except Exception as _ce:
+                            print(f"  (carte image échouée : {_ce})")
+                    # NOTIF PUSH PWA « nouveau prono » (user 2026-08-16) — pour TOUS les tiers, indépendant de
+                    # Telegram (value garde son push). Best-effort, jamais bloquant.
+                    try:
+                        from app import push as _push
+                        _pk = str(_card.get("pick") or "")
+                        _co = _card.get("cote")
+                        _pktxt = f"{_pk} @ {_co}" if (_pk and _co) else _pk
+                        _push.notify_new_prono(str(_card.get("match") or ""), _pktxt, _tier,
+                                               str(_card.get("_sport") or "foot"), cote=_card.get("cote"))
+                    except Exception:
+                        pass
+                    # FIGE le pari CONSEILLÉ dès la publication (demande user 2026-07-14) -> ni retiré ni
+                    # re-prixé au rescan. Pour TOUS les tiers publiés (site), pas seulement ceux postés
+                    # sur Telegram. Idempotent.
+                    try:
+                        if _card.get("_sport") and _card.get("type") != "combo":
+                            from app import analyses as _an_fz
+                            _an_fz.freeze_published_bet(_card["_sport"], _card["_mid"])
+                    except Exception:
+                        pass
                     # Plus de repli TEXTE (user 2026-08-22 : images seules). Un envoi image raté laisse le prono
                     # NON mémorisé -> reconcile le re-poste en IMAGE (< 3 h avant le KO). Zéro texte, zéro perte.
         except Exception as _exc:

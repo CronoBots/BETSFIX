@@ -65,6 +65,10 @@ async def _repost(d: dict) -> bool:
         card = card_data.build_prono_card(d)
         if not card:                       # pas de value à publier -> normal, on n'envoie rien
             return False
+        # TELEGRAM = CONFIANCE UNIQUEMENT (user 2026-09-08) : ne JAMAIS re-poster une value/combiné sur
+        # Telegram (elle reste sur le site). Même gate que l'annonce du scan.
+        if card.get("type") != "combo" and not notify.tg_post_tier(str(card.get("tier") or "confiance")):
+            return False
         os.makedirs("data/_cards", exist_ok=True)
         # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi » reste hors image (card_image) ; l'annonce
         # re-postée porte la même ligne texte que le résultat (« CONFIANCE @1.17 / <pari> »), comme la vague.
@@ -297,8 +301,13 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
         # ⚠️ SPORTS EN ARRIÈRE-PLAN (tennis/basket en probation) : JAMAIS publiés au scan -> un tennis sans
         # carte Telegram n'est PAS un « envoi manqué », c'est VOLONTAIRE. Sans ce garde, le reconcile le
         # re-postait à tort (fuite tennis sur Telegram, bug user 2026-08-02). On ne rattrape que le FOOT publié.
+        # TELEGRAM = CONFIANCE UNIQUEMENT (user 2026-09-08) : une VALUE sans carte Telegram n'est PAS un
+        # « envoi manqué » (elle n'est volontairement plus postée), tout comme les sports en arrière-plan.
+        # Sans ce garde, reconcile la flaggerait « manquée » à chaque passe (faux positif + tentative de
+        # re-post). On ne rattrape que ce qui DOIT aller sur Telegram (tier confiance).
         if st and _now() < st < _now() + timedelta(hours=3) and not notify.get_prono(str(d.get("id"))) \
-                and d.get("sport") not in analyses.background_sports():
+                and d.get("sport") not in analyses.background_sports() \
+                and notify.tg_post_tier(analyses.bet_tier_for(d.get("sport"), d.get("id"))):
             unposted.append(d)
 
     # 3) RE-POST des pronos à venir manqués (sauf --dry).

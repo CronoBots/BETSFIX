@@ -102,6 +102,9 @@ def main():
         prono = _cd.build_prono_card(d)
         if not prono:
             print(f"  - {d.get('name')} : calibration seule -> ignoré"); continue
+        # TELEGRAM = CONFIANCE UNIQUEMENT (user 2026-09-08) : ne re-poste pas la value/combiné sur Telegram.
+        if prono.get("type") != "combo" and not notify.tg_post_tier(str(prono.get("tier") or "confiance")):
+            print(f"  - {prono.get('match')} : tier value -> non posté sur Telegram (site seul)"); continue
         try:
             ppng = f"data/_cards/renotify_{i}p.png"
             card_image.render_card_sync(prono, ppng)
