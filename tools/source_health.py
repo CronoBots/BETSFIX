@@ -50,12 +50,13 @@ def main() -> int:
         try:
             from app import notify
             downs = [s for s in rep["sources"] if not s["ok"] and s["critical"]]
-            lines = ["🚨 *BETSFIX — source CRITIQUE indisponible*", ""]
+            # ⛔ PRIVÉ OWNER (user 2026-09-08) : une alerte technique de monitoring ne va JAMAIS aux abonnés.
+            lines = ["🚨 BETSFIX — source CRITIQUE indisponible (privé)", ""]
             for s in downs:
-                lines.append(f"❌ *{s['label']}* ({s['role']}) — {s['detail']}")
+                lines.append(f"❌ {s['label']} ({s['role']}) — {s['detail']}")
             lines.append("")
             lines.append("Les analyses/règlements peuvent être dégradés tant que la source est down.")
-            notify.send_sync("\n".join(lines))
+            notify.send_owner_sync("\n".join(lines))
         except Exception:
             pass
         return 1

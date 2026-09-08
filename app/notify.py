@@ -283,6 +283,33 @@ def reply_sync(text: str, reply_to: dict | None = None) -> dict:
     return sent
 
 
+_OWNER_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "owner_chat.txt")
+
+
+def send_owner_sync(text: str) -> bool:
+    """Envoie un message EN PRIVÉ au PROPRIÉTAIRE (`data/owner_chat.txt`) — JAMAIS le canal abonnés.
+    Pour toute alerte interne (auto-audit, contrôle qualité, diagnostics) qui NE DOIT PAS être publique.
+    Best-effort : aucune exception ne remonte, renvoie False si non configuré/échec. Texte BRUT (pas de
+    parse_mode : un `_` ou `*` dans un nom d'équipe ne doit jamais casser l'envoi d'une alerte privée)."""
+    tok, _chats = _config()
+    if not tok:
+        return False
+    try:
+        if not os.path.exists(_OWNER_PATH):
+            log.warning("send_owner_sync : data/owner_chat.txt absent -> alerte privée NON envoyée (jamais publique).")
+            return False
+        chat = open(_OWNER_PATH, encoding="utf-8").read().strip()
+        if not chat:
+            return False
+        with httpx.Client(timeout=12) as cl:
+            r = cl.post(f"https://api.telegram.org/bot{tok}/sendMessage",
+                        json={"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True})
+        return r.status_code == 200
+    except Exception as exc:
+        log.warning("send_owner_sync échouée : %s", exc)
+        return False
+
+
 def send_sync(text: str, clean: bool = False) -> bool:
     """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()

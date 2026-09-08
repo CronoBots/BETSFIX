@@ -71,13 +71,16 @@ def main() -> int:
         if _send:
             try:
                 from app import notify
-                lines = ["⚠️ *BETSFIX — auto-audit : à surveiller*", ""]
+                # ⛔ PRIVÉ OWNER UNIQUEMENT (user 2026-09-08, « jamais ça sur le canal Telegram ! ») : un
+                # auto-audit interne ne doit JAMAIS partir au canal abonnés. `send_owner_sync` -> data/owner_chat.txt.
+                # (Avant : `notify.send_sync` = canal PUBLIC = fuite d'une alerte technique aux abonnés.)
+                lines = ["⚠️ BETSFIX — auto-audit : à surveiller (privé)", ""]
                 for c in alerts:
                     _ic = "❌" if c["level"] == "error" else "⚠️"
-                    lines.append(f"{_ic} *{c['title']}* — {c['detail']}")
+                    lines.append(f"{_ic} {c['title']} — {c['detail']}")
                     for it in c["items"][:4]:
                         lines.append(f"  • {it}")
-                notify.send_sync("\n".join(lines))
+                notify.send_owner_sync("\n".join(lines))
                 with open(_state_path, "w", encoding="utf-8") as fh:   # mémorise la dernière notif envoyée
                     json.dump({"sig": _sig, "ts": rep["ts"]}, fh)
             except Exception:

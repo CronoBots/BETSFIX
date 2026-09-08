@@ -1111,7 +1111,7 @@ def _check_played_bet_sharp_anchor(rows) -> dict:
     publié SANS ancre = misé « à sec » = régression majeure (toute la sélection/EV/value repose sur l'ancre).
     `sharp_map` étant RETENU après règlement, on vérifie les paris à-venir ET réglés récents. Les paris
     d'avant la période disciplinée sont grandfathered (persistance non systématique alors). 100 % lecture seule."""
-    bad, n = [], 0
+    bad, conflict, n = [], [], 0
     for _s, d in rows:
         if d.get("sport") != "foot" or d.get("roi_void"):
             continue
@@ -1120,18 +1120,34 @@ def _check_played_bet_sharp_anchor(rows) -> dict:
         if (d.get("start") or "")[:10] < _SHARP_ANCHOR_ENFORCED_FROM:
             continue                                       # legacy grandfathered
         n += 1
-        if not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+        if isinstance(d.get("sharp_map"), dict) and d.get("sharp_map"):
+            continue                                       # ancre sharp structurée présente -> OK
+        # DISTINCTION (fix 2026-09-08) : une ancre ABSENTE parce que la GARDE ANTI-RÉSOLUTION l'a JETÉE
+        # (`sharp_conflict` : Pinnacle a résolu un favori opposé au marché = fixture douteuse) n'est PAS un
+        # « misé à sec » (bâclage) — c'est le garde-fou de sécurité qui agit (mémoire pinnacle-match-resolution-
+        # confusion). On ne le classe donc PAS en ERREUR « régression critique » (ça criait au loup + partait en
+        # alerte). WARN informatif seulement. Un pari SANS sharp_map ET SANS conflit = vraie anomalie = ERREUR.
+        if d.get("sharp_conflict"):
+            conflict.append(f"{d.get('home', '?')}–{d.get('away', '?')} ({(d.get('start') or '')[:10]}) : "
+                            f"ancre sharp écartée par la garde anti-résolution (favori Pinnacle opposé au marché)")
+        else:
             bad.append(f"{d.get('home', '?')}–{d.get('away', '?')} ({(d.get('start') or '')[:10]}) : "
                        f"pari publié SANS ancre sharp structurée")
+    level = "error" if bad else ("warn" if conflict else "ok")
+    if bad:
+        detail = (f"{len(bad)}/{n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} SANS ancre structurée "
+                  f"(misés « à sec » — régression critique, à corriger d'urgence).")
+    elif conflict:
+        detail = (f"{len(conflict)}/{n} pari(s) publié(s) avec ancre sharp ÉCARTÉE par la garde anti-résolution "
+                  f"(pas « à sec » : garde-fou de sécurité). Les autres portent leur ancre structurée.")
+    else:
+        detail = (f"0 — les {n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} portent tous leur "
+                  f"ancre sharp structurée.")
     return {"key": "played_bet_sharp_anchor",
-            "level": "error" if bad else "ok",
+            "level": level,
             "title": "Ancre sharp sur les paris publiés",
-            "detail": (f"{len(bad)}/{n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} SANS ancre "
-                       f"structurée (misés « à sec » — régression critique, à corriger d'urgence)."
-                       if bad else
-                       f"0 — les {n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} portent tous leur "
-                       f"ancre sharp structurée."),
-            "items": bad}
+            "detail": detail,
+            "items": bad + conflict}
 
 
 def run(persist: bool = False) -> dict:
