@@ -156,12 +156,78 @@ def reconcile(cl, day: str, req: dict) -> None:
         print("  (aucun pari joué matché à ce jour)")
 
 
+def _bet_values(bks: dict, bk_id: int, bet_id: int) -> dict:
+    """{value_label -> cote} pour un (bookmaker, marché) donné, ou {} si absent."""
+    bk = bks.get(bk_id)
+    if not bk:
+        return {}
+    for b in bk.get("bets", []):
+        if int(b.get("id", -1)) == bet_id:
+            return {v["value"]: float(v["odd"]) for v in b.get("values", []) if v.get("odd")}
+    return {}
+
+
+def compare(cl, day: str, limit: int) -> None:
+    """VALEURS de cotes : pour les matchs BETSFIX ancrés (sharp_map+omap) du jour, compare la proba Pinnacle
+    dé-viggée (API-Football) à `sharp_map` (1X2) et les cotes Unibet à `omap` (1X2 + DC). Répond à « les
+    valeurs — donc l'EV/les picks — seraient-elles les mêmes ? ». ⚠️ écarts attendus = LINE MOVEMENT (BETSFIX
+    fige au scan ; l'instantané API-Football peut être plus tardif) → capter au MÊME moment aligne tout."""
+    from app import analyses as A
+    rows = []
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        if (d.get("start") or "")[:10] != day:
+            continue
+        sm, om = d.get("sharp_map"), d.get("omap")
+        if isinstance(sm, dict) and sm and isinstance(om, dict) and om:
+            rows.append(d)
+    rows.sort(key=lambda d: d.get("start") or "")
+    fx = _get(cl, "/fixtures", date=day).get("response", [])
+    print(f"\n═══ COMPARAISON DES VALEURS — {min(limit, len(rows))}/{len(rows)} matchs ancrés ({day}) ═══")
+    for d in rows[:limit]:
+        sm, om = d["sharp_map"], d["omap"]
+        bts = _ts(d.get("start")); nh, na = _norm(d.get("home")), _norm(d.get("away"))
+        best, bs = None, 0.0
+        for x in fx:
+            if bts and _ts(x["fixture"]["date"]) and abs(bts - _ts(x["fixture"]["date"])) > 90 * 60:
+                continue
+            s = _match_score(nh, na, _norm(x["teams"]["home"]["name"]), _norm(x["teams"]["away"]["name"]))
+            if s > bs:
+                bs, best = s, x
+        print(f"\n• {d.get('name')} [{bs:.0%}]")
+        if not best or bs < 0.5:
+            print("    pas de fixture concordant"); continue
+        bks = {int(bk["id"]): bk for r in _get(cl, "/odds", fixture=best["fixture"]["id"]).get("response", [])
+               for bk in r.get("bookmakers", [])}
+        pin = _bet_values(bks, BK_PINNACLE, 1)            # Pinnacle Match Winner
+        if pin and all(k in pin for k in ("Home", "Draw", "Away")):
+            inv = {k: 1 / pin[k] for k in ("Home", "Draw", "Away")}; tot = sum(inv.values())
+            for code, lab in (("1X2 1", "Home"), ("1X2 X", "Draw"), ("1X2 2", "Away")):
+                bf = sm.get(code)
+                if bf is not None:
+                    af = inv[lab] / tot
+                    print(f"    ancre {code:6} BETSFIX {bf*100:4.1f}%  vs API-Foot {af*100:4.1f}%  Δ {(af-bf)*100:+.1f} pt")
+        uni, udc = _bet_values(bks, BK_UNIBET, 1), _bet_values(bks, BK_UNIBET, 12)
+        for code, lab, src in (("1X2 1", "Home", uni), ("1X2 X", "Draw", uni), ("1X2 2", "Away", uni),
+                               ("DC 1X", "Home/Draw", udc), ("DC 12", "Home/Away", udc), ("DC X2", "Draw/Away", udc)):
+            bf = om.get(code); af = src.get(lab)
+            if bf is not None and af is not None:
+                print(f"    cote  {code:6} BETSFIX {bf:5.2f}   vs API-Foot {af:5.2f}   Δ {af-bf:+.2f}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=date.today().isoformat(), help="jour ISO (défaut : aujourd'hui)")
     ap.add_argument("--reconcile", action="store_true",
                     help="DOUBLE-RUN : compare les matchs BETSFIX analysés du jour à API-Football "
                          "(fixture retrouvé + Pinnacle + marchés Unibet). Économe (~1 req/match joué).")
+    ap.add_argument("--compare", action="store_true",
+                    help="VALEURS : proba Pinnacle dé-viggée vs sharp_map + cotes Unibet vs omap (écarts = "
+                         "line movement). ~1 req/match, limité par --limit.")
+    ap.add_argument("--limit", type=int, default=3, help="nb de matchs pour --compare (défaut 3, quota Free).")
     args = ap.parse_args()
 
     key = os.environ.get("BETSFIX_APIFOOTBALL_KEY")
@@ -177,7 +243,9 @@ def main() -> int:
         print(f"═══ SONDE API-FOOTBALL — {day} ═══")
         print(f"Compte : plan {sub.get('plan')} (actif {sub.get('active')}) · quota {req.get('current')}/{req.get('limit_day')}/j")
 
-        if args.reconcile:
+        if args.compare:
+            compare(cl, day, args.limit)
+        elif args.reconcile:
             reconcile(cl, day, req)
         else:
             fx = _get(cl, "/fixtures", date=day)
