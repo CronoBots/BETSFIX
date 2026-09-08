@@ -372,6 +372,13 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     → échelle combiné Audacieux/Équilibré/Solide/Très solide) = identique au site. Ancienne
     `_verdict_cells_html`/`.vgrid` supprimées. **Filigrane CENTRÉ** (`center center`, site ET Telegram) — sinon
     collé en haut sur les cartes live plus hautes.
+  - **ANNONCE d'un prono simple (MAJ 2026-09-08)** : la carte d'annonce = **carte COMPLÈTE `_simple_card_html`**
+    (logos + pari + Confiance/Cote/barre marché), **BORD BLEU `#33b7ef`** (pas gold), **CROP SERRÉ** sans zones
+    mortes (`render_card` → `_normalize_card(ratio=None, pad=40)` pour toute carte `type=="simple"`) et **IMAGE
+    SEULE** (aucun texte : `send_photo_sync(png, "")` dans `generate_analyses` + `reconcile`). La RÉPONSE RÉSULTAT
+    (texte `reply_sync` « CONFIANCE GAGNÉE @cote ✅ / pari ») reste inchangée. Code carte minimale
+    (`_minimal_card_html`, `_MIN_THEMES`) + `announce_caption` conservés mais INUTILISÉS. Mémoire
+    `telegram-result-played-bet-line-and-repost`.
 - **Push PWA** (MAJ 2026-09-02) : notifie **simples + JAMBES + COMBINÉS** (`app/push.py` : `notify_leg`/
   `notify_combo`, libellés alignés Telegram), won/lost seulement. Garde **anti-doublon** (titre identique < 5 min,
   `data/push_sent.json`). Tier résultat via flag figé `_is_value`. Cartes **sans glose** (site + Telegram,
