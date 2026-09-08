@@ -494,30 +494,30 @@ def _result_simple_card_html(d: dict) -> str:
 _CSS_MIN = """
 /* CARTE MINIMALE d'ANNONCE (user 2026-09-08) — thème « 100% pro » : fond profond en dégradé, filet doré,
    heure dans un chip « coup d'envoi », typo soignée, signature discrète. Bord GOLD « à venir » conservé. */
-.card.mcard{padding:48px 58px 40px}   /* fond + contour + lueur pilotés en INLINE par le thème (voir _MIN_THEMES) */
-.mlg{text-align:center;font-size:24px;font-weight:800;letter-spacing:.13em;line-height:1.25;
+.card.mcard{padding:52px 60px 44px}   /* fond + contour + lueur pilotés en INLINE par le thème (voir _MIN_THEMES) */
+/* Contenu un rien plus grand (user 2026-09-08) : logos, textes, heure, pari agrandis ~10%. */
+.mcard .tlwrap,.mcard .tlogo{width:106px;height:106px}
+.mcard span.tlogo.mono{font-size:40px}
+.mlg{text-align:center;font-size:27px;font-weight:800;letter-spacing:.13em;line-height:1.25;
   color:#a9c0d8;text-transform:uppercase}
-.mrule{width:66px;height:3px;margin:16px auto 2px;border-radius:2px;
+.mrule{width:72px;height:3px;margin:17px auto 2px;border-radius:2px;
   background:linear-gradient(90deg,rgba(246,197,74,0),#f6c54a,rgba(246,197,74,0))}
-.mrow{display:flex;align-items:center;justify-content:space-between;gap:26px;margin-top:42px}
-.mtm{flex:1;display:flex;flex-direction:column;align-items:center;gap:20px;min-width:0}
-.mtn{font-size:34px;font-weight:900;color:#f3f8fd;text-align:center;line-height:1.12;letter-spacing:-.01em}
-.mmid{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:12px;padding:0 8px}
-.mko{font-size:16px;font-weight:800;letter-spacing:.17em;color:#7f92a8;text-transform:uppercase}
-.mtime{font-size:44px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.01em;
-  padding:9px 25px;border-radius:16px;background:rgba(255,255,255,.05);
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-top:46px}
+.mtm{flex:1;display:flex;flex-direction:column;align-items:center;gap:22px;min-width:0}
+.mtn{font-size:38px;font-weight:900;color:#f3f8fd;text-align:center;line-height:1.12;letter-spacing:-.01em}
+.mmid{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:13px;padding:0 8px}
+.mko{font-size:17px;font-weight:800;letter-spacing:.17em;color:#7f92a8;text-transform:uppercase}
+.mtime{font-size:49px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+  padding:10px 27px;border-radius:17px;background:rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
-.mvs{font-size:30px;font-weight:900;letter-spacing:.10em;color:#7f92a8}
-.mbrand{margin-top:34px;text-align:center;font-size:16px;font-weight:900;letter-spacing:.44em;
+.mvs{font-size:33px;font-weight:900;letter-spacing:.10em;color:#7f92a8}
+.mbrand{margin-top:36px;text-align:center;font-size:17px;font-weight:900;letter-spacing:.44em;
   color:rgba(255,255,255,.17);padding-left:.44em}
 /* BLOC PARI CENTRÉ sur l'image (user 2026-09-08 : le pari à jouer va SUR la carte). PAS de « confiance » ni
    de cote en tête -> juste le PARI en gros, puis la COTE sous le pari avec un 🎯 après. Centré. */
-.mbet{margin-top:34px;padding-top:32px;border-top:1px solid rgba(255,255,255,.09);text-align:center}
-.mpari{font-size:40px;font-weight:900;color:#f4f9fe;letter-spacing:-.01em;line-height:1.16;
+.mbet{margin-top:36px;padding-top:34px;border-top:1px solid rgba(255,255,255,.09);text-align:center}
+.mpari{font-size:45px;font-weight:900;color:#f4f9fe;letter-spacing:-.01em;line-height:1.16;
   text-shadow:0 2px 22px rgba(46,166,223,.32)}
-.mcotel{margin-top:18px;font-size:31px;font-weight:900;color:#6fd8ff;font-variant-numeric:tabular-nums;
-  display:inline-flex;align-items:center;gap:12px}
-.mcotel .emj{font-family:'Segoe UI Emoji','Apple Color Emoji','Segoe UI',sans-serif;font-size:29px}
 """
 
 
@@ -550,13 +550,10 @@ def _minimal_card_html(d: dict) -> str:
                f'box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 100px {_glow}')
     _mid = (f'<span class="mko">Coup d\'envoi</span><span class="mtime">{e(_hh)}</span>'
             if _hh else '<span class="mvs">VS</span>')
-    # BLOC PARI À JOUER (user 2026-09-08 : sur la carte). PAS de « confiance » ni cote en tête -> le PARI en
-    # gros, puis la COTE sous le pari avec un 🎯 après. Gaté par `show_pari`.
+    # BLOC PARI À JOUER (user 2026-09-08 : sur la carte) = le PARI SEUL (la cote + 🎯 sont dans la LÉGENDE).
     _bet = ""
     if d.get("show_pari") and d.get("pick"):
-        _co = str(d.get("cote") or "").strip()
-        _cot = f'<div class="mcotel">@{e(_co)} <span class="emj">🎯</span></div>' if _co else ""
-        _bet = (f'<div class="mbet"><div class="mpari">{e(_strip_dc_paren(d.get("pick")))}</div>{_cot}</div>')
+        _bet = f'<div class="mbet"><div class="mpari">{e(_strip_dc_paren(d.get("pick")))}</div></div>'
     inner = (
         f'<div class="mlg">{e(_lg)}</div>'
         f'<div class="mrule" style="background:linear-gradient(90deg,transparent,{_rule},transparent)"></div>'

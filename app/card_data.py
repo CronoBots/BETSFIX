@@ -224,7 +224,8 @@ def announce_caption(card: dict) -> str:
     _tier = str(card.get("tier") or "confiance").lower()
     _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance").upper()
     _co = str(card.get("cote") or "").strip()
-    return f"NOUVELLE {_lbl} @{_html.escape(_co)}" if _co else f"NOUVELLE {_lbl}"
+    # COTE + 🎯 avec l'en-tête (user 2026-09-08) : « NOUVELLE CONFIANCE @1.14 🎯 ». Le pari est sur l'image.
+    return f"NOUVELLE {_lbl} @{_html.escape(_co)} 🎯" if _co else f"NOUVELLE {_lbl}"
 
 
 def build_result_card(d: dict) -> dict | None:
