@@ -214,25 +214,32 @@ def build_prono_card(d: dict) -> dict | None:
 
 
 def announce_caption(card: dict) -> str:
-    """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), 3 lignes (style validé user 2026-09-08) :
-    1) « Nouvelle <tier> @<cote> » (tier FIGÉ de la carte : confiance/value/montante),
-    2) le MATCH (« Vitória-BA — Grêmio-RS »),
-    3) le PARI À JOUER en GRAS.
+    """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram), style validé user 2026-09-08 :
+    1) « NOUVELLE <TIER> @<cote> » en MAJUSCULES (tier FIGÉ : confiance/value/montante),
+    2) une LIGNE VIERGE,
+    3) le MATCH + l'HEURE de coup d'envoi (« Vitória-BA — Grêmio-RS · 01:00 »),
+    4) le PARI À JOUER en GRAS.
     '' si carte non simple ou pari manquant -> image seule (comportement historique). parse_mode=HTML côté
     envoi -> on échappe les parties dynamiques (le <b> du pari est voulu)."""
     import html as _html
     if not isinstance(card, dict) or card.get("type") != "simple":
         return ""
     _tier = str(card.get("tier") or "confiance").lower()
-    _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance")
+    _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance").upper()
     _co = str(card.get("cote") or "").strip()
     _match = str(card.get("match") or "").strip()
     _sel = str(card.get("pick") or "").strip()
     if not _sel:
         return ""
-    _lines = [f"Nouvelle {_lbl} @{_html.escape(_co)}" if _co else f"Nouvelle {_lbl}"]
+    # HEURE de coup d'envoi : `meta` vaut « JJ/MM · HH:MM » (heure LOCALE déjà calculée par build_prono_card).
+    _time = ""
+    _meta = str(card.get("meta") or "")
+    if "·" in _meta:
+        _time = _meta.split("·")[-1].strip()
+    _head = f"NOUVELLE {_lbl} @{_html.escape(_co)}" if _co else f"NOUVELLE {_lbl}"
+    _lines = [_head, ""]                                   # ligne 1 + ligne VIERGE
     if _match:
-        _lines.append(_html.escape(_match))
+        _lines.append(_html.escape(_match) + (f" · {_html.escape(_time)}" if _time else ""))
     _lines.append(f"<b>{_html.escape(_sel)}</b>")
     return "\n".join(_lines)
 
