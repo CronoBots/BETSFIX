@@ -126,8 +126,23 @@ def _norm(s) -> set:
     return {t for t in re.sub(r"[^a-z0-9 ]", " ", s.lower()).split() if t and t not in _STOP}
 
 
+def _tok_match(a: str, b: str) -> bool:
+    """Deux tokens = même mot ? Exact, OU variante orthographique : 4+ lettres, longueurs proches (±2) et
+    préfixe commun ≥ 4 (Bruges↔Brugge, Nurnberg↔Nuremberg…). Le seuil 4 évite les faux (Atletico↔Atlanta)."""
+    if a == b:
+        return True
+    if len(a) >= 4 and len(b) >= 4 and abs(len(a) - len(b)) <= 2:
+        return len(os.path.commonprefix([a, b])) >= 4
+    return False
+
+
 def _ov(x: set, y: set) -> float:
-    return len(x & y) / max(1, min(len(x), len(y))) if x and y else 0.0
+    """Recouvrement d'ensembles de tokens, avec tolérance aux variantes orthographiques (`_tok_match`)."""
+    if not x or not y:
+        return 0.0
+    small, big = (x, y) if len(x) <= len(y) else (y, x)
+    m = sum(1 for a in small if any(_tok_match(a, b) for b in big))
+    return m / len(small)
 
 
 def _ts(s) -> float | None:

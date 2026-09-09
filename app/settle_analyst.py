@@ -1256,6 +1256,64 @@ def void_exhausted_shadows(min_tries: int = _SHADOW_TRIES_CAP, min_age_days: int
     return n
 
 
+# FLIP RÈGLEMENT (user 2026-09-09, migration API-Football étape 1) : API-Football = source de score PRIMAIRE
+# pour le FOOT (le scraping SofaScore/LiveScore/Flashscore reste en SECOURS). Autoritative + score
+# réglementaire séparé du final (a attrapé FC Bruges-Aston Villa 5-3 vs 2-3). Inactif si clé absente (.env)
+# -> no-op sûr, on retombe sur le scraping. Mettre False pour revenir au scraping en primaire.
+_APIFOOTBALL_SETTLE = True
+
+
+def _apifootball_score(d: dict, af_cache: dict) -> dict | None:
+    """Score au format `settle_analyst` depuis API-Football (foot fini). home/away = TEMPS RÉGLEMENTAIRE
+    (`score.fulltime`) pour régler les marchés 90 min ; `final_home/away` = final (prolongation incluse) pour
+    l'affichage `(a.p.)`. `periods` = par mi-temps. None si non résolu / pas fini / mi-temps manquante (repli
+    scraping). Économe : `/fixtures?date` (qui contient déjà les scores) mis en cache par jour."""
+    from app import apifootball as AF
+    if not AF.configured():
+        return None
+    day = (d.get("start") or "")[:10]
+    if not day:
+        return None
+    try:
+        cl = af_cache.get("_cl")
+        if cl is None:
+            cl = af_cache["_cl"] = AF._client()
+        if day not in af_cache:
+            af_cache[day] = AF._get(cl, "/fixtures", date=day).get("response", [])
+        fx = af_cache[day]
+    except Exception:
+        return None
+    bts = AF._ts(d.get("start")); nh, na = AF._norm(d.get("home")), AF._norm(d.get("away"))
+    best, bs = None, 0.0
+    for x in fx:
+        xts = AF._ts(x["fixture"]["date"])
+        if bts and xts and abs(bts - xts) > 5400:
+            continue
+        s = (AF._ov(nh, AF._norm(x["teams"]["home"]["name"])) + AF._ov(na, AF._norm(x["teams"]["away"]["name"]))) / 2
+        if s > bs:
+            bs, best = s, x
+    if not best or bs < 0.6:                       # seuil prudent (évite les homonymes)
+        return None
+    st = (best.get("fixture") or {}).get("status", {}).get("short")
+    if st not in ("FT", "AET", "PEN"):             # pas VRAIMENT fini -> pas de règlement (repli/re-essai)
+        return None
+    sc = best.get("score") or {}
+    ft = sc.get("fulltime") or {}
+    ht = sc.get("halftime") or {}
+    g = best.get("goals") or {}
+    if ft.get("home") is None or ht.get("home") is None:
+        return None                                # sans reg + mi-temps fiables -> repli scraping (prudence)
+    rh, ra, hh, ha = ft["home"], ft["away"], ht["home"], ht["away"]
+    periods = {"1": [hh, ha], "2": [rh - hh, ra - ha]}
+    after = st in ("AET", "PEN")
+    fh, fa = (g.get("home"), g.get("away")) if after else (rh, ra)
+    winner = "home" if rh > ra else ("away" if ra > rh else "draw")
+    label = f"{fh}-{fa} (a.p.)" if after else f"{rh}-{ra}"
+    return {"home": rh, "away": ra, "periods": periods, "winner": winner, "src": "apifootball",
+            "after_extra": after, "reg_home": rh, "reg_away": ra, "reg_periods": periods,
+            "final_home": fh, "final_away": fa, "label": label}
+
+
 async def settle_analyses() -> int:
     """Règle TOUS les matchs analysés terminés. Code = `pick_code` sinon dérivé. Score via
     event/{id} (id Sofa valide : donne aussi jeux par set + 1er service) ; repli scheduled-events
@@ -1338,6 +1396,7 @@ async def _settle_analyses_impl() -> int:
         return 0
     n = 0
     sched_cache: dict = {}
+    af_cache: dict = {}           # cache /fixtures?date d'API-Football (règlement primaire foot) + son client
     notify_msgs: list[str] = []   # transitions « en attente -> réglé » -> notif Telegram (fin de boucle)
     notify_cards: list = []       # données CARTE IMAGE de résultat (parallèle à notify_msgs)
     prev_bulk = sofa_http.allow_bulk_proxy
@@ -1362,6 +1421,12 @@ async def _settle_analyses_impl() -> int:
             score = (d.get("result") or {}).get("raw")
             if _score_incomplete(score, sport):        # cache périmé (capté en cours) -> re-fetch frais
                 score = None
+            # RÈGLEMENT PRIMAIRE via API-Football (FOOT) — autoritative ; le scraping ci-dessous = SECOURS.
+            if not score and sport == "foot" and _APIFOOTBALL_SETTLE:
+                score = await asyncio.to_thread(_apifootball_score, d, af_cache)
+                if score:
+                    log.info("règlement via API-Football (primaire) : %s_%s %s",
+                             sport, d.get("id"), score.get("label"))
             if not score:
                 if sofa and len(sofa) <= 8:
                     score = await _event_data(sport, sofa)
@@ -1591,7 +1656,7 @@ async def _settle_analyses_impl() -> int:
             # FONDENT les buts de prolongation dans la 2e mi-temps -> 90 min faussé. Sportradar sépare `ft`
             # (fin 90 min) de `ot` (final). Pour le FOOT, on consulte Sportradar : s'il signale une
             # prolongation, on ÉCRASE home/away + winner + périodes par le RÉGLEMENTAIRE (vérité 90 min).
-            if sport == "foot" and score:
+            if sport == "foot" and score and score.get("src") != "apifootball":   # API-Foot donne déjà le reg
                 try:
                     from app import sportradar as _sr2
                     import httpx as _httpx2
@@ -2080,6 +2145,11 @@ async def _settle_analyses_impl() -> int:
                 pass
     finally:
         sofa_http.allow_bulk_proxy = prev_bulk
+        try:                                      # ferme le client API-Football du règlement primaire
+            if af_cache.get("_cl"):
+                af_cache["_cl"].close()
+        except Exception:
+            pass
     # Notification Telegram des paris fraîchement réglés : UN MESSAGE PAR MATCH (pas de groupage,
     # pas de suppression). No-op si non configuré ; n'élève jamais.
     if notify_msgs:
