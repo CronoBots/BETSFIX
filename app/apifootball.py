@@ -173,7 +173,8 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
                 "away": best["teams"]["away"]["name"],
                 "home_id": best["teams"]["home"]["id"], "away_id": best["teams"]["away"]["id"],
                 "league": best["league"]["name"], "league_id": best["league"]["id"],
-                "season": best["league"]["season"], "ts": _ts(best["fixture"]["date"]), "score": round(bs, 3)}
+                "season": best["league"]["season"], "ts": _ts(best["fixture"]["date"]),
+                "referee": (best["fixture"] or {}).get("referee"), "score": round(bs, 3)}
     return None
 
 
@@ -385,8 +386,14 @@ def team_stats(cl: httpx.Client, team_id: int, league_id: int, season: int) -> d
     r = _get(cl, "/teams/statistics", team=team_id, league=league_id, season=season).get("response") or {}
     if not r:
         return None
-    return {"form": r.get("form"), "goals": r.get("goals"), "fixtures": r.get("fixtures"),
-            "clean_sheet": r.get("clean_sheet"), "failed_to_score": r.get("failed_to_score")}
+    goals = r.get("goals") or {}
+    # % over 2.5 côté « pour » = tendance offensive/tempo (comparable au « +2,5 buts X% » de Sportradar)
+    ou = (((goals.get("for") or {}).get("under_over")) or {}).get("2.5") or {}
+    tot = (ou.get("over") or 0) + (ou.get("under") or 0)
+    over25 = round(100 * ou["over"] / tot) if tot else None
+    return {"form": r.get("form"), "goals": goals, "fixtures": r.get("fixtures"),
+            "clean_sheet": r.get("clean_sheet"), "failed_to_score": r.get("failed_to_score"),
+            "streak": (r.get("biggest") or {}).get("streak"), "over25": over25}
 
 
 def standings(cl: httpx.Client, league_id: int, season: int) -> list:
