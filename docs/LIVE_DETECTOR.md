@@ -57,6 +57,18 @@ d'appels/jour (négligeable sur 7500). ⚠️ Pour l'instant lancé **à la main
 Une fois quelques semaines de données : entraîner/calibrer le modèle stats→proba (prochain but / over), mesurer
 si les « candidats » détectés auraient été gagnants, puis (si oui) construire le détecteur en shadow → publication.
 
+## 5bis. Volet FRONT-END — « Live Match Center » premium (peut arriver AVANT le détecteur)
+Idée user (2026-09-09) : afficher **toutes les stats en cours** de façon **intuitive et premium** dans l'onglet
+Live. Indépendant du détecteur (pas de modèle/VPS requis) → **feature de RÉTENTION near-term** + prépare le terrain
+(on surlignera la stat qui crée l'edge quand le détecteur existera).
+- **À afficher** (data API-Football live) : momentum / **xG live** (barre, top-5), possession, tirs (cadrés/non/
+  bloqués), corners, attaques dangereuses, cartons, **timeline d'events** (buts/cartons/remplacements + minute).
+- **S'appuie sur l'existant** : onglet Live + barre « Chance live » (`live-chance-bar`, `live-tab-rendering-lessons`),
+  boucle `main._match_events_loop` (~45 s, déjà là). Les cartes CLASSIC accueilleraient un « match center » dépliable.
+- **Premium, pas chargé** : PWA-first, 4-5 stats qui parlent + reste en dépliable ; xG masqué proprement hors top-5
+  (pas de « — ») ; rafraîchir sans recharger la carte ; cohérent avec le style CLASSIC (bord/filigrane). Le VPS aide
+  (polling), mais l'affichage peut **démarrer avant** le VPS.
+
 ## 6. Séquencement
 1. Fin migration (en cours).
 2. **Value screener PRÉ-MATCH** (`docs/VALUE_SCREENER.md`) — plus simple, réutilise tout. **← d'abord.**
