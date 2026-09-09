@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import html
 
+from app import analyses as _an          # fmt_cote : cote à 2 décimales, source unique
+
 
 def _pick(variants: list[str], seed: int) -> str:
     return variants[seed % len(variants)] if variants else ""
@@ -143,10 +145,10 @@ def _templated(b: dict) -> str:
             reason = _perle_reason(b)
             because = f" — {reason}" if reason else ""
             if pct >= 68 and edgep < 6:    # forte proba, faible value -> pari de RÉGULARITÉ (sûr)
-                s.append(f"À jouer : {perle['selection']} à {perle['odds']:g} — pari sûr "
+                s.append(f"À jouer : {perle['selection']} à {_an.fmt_cote(perle['odds'])} — pari sûr "
                          f"({pct} % de chances, petite cote){because}.")
             else:                          # vraie VALUE (cote généreuse)
-                s.append(f"À jouer : {perle['selection']} à {perle['odds']:g} "
+                s.append(f"À jouer : {perle['selection']} à {_an.fmt_cote(perle['odds'])} "
                          f"({pct} %, ~+{edgep} % de value){because}.")
         else:
             s.append(_pick(["Aucun pari Unibet n'offre un bon équilibre confiance/value : mieux vaut s'abstenir.",

@@ -4477,10 +4477,11 @@ async def main():
                     _line += f"\n<i>{' · '.join(_bits)}</i>"
                 if _pick_shown:
                     if _rb:
+                        from app import analyses as _an          # fmt_cote : cote 2 décimales
                         _sel = html.escape(str(_rb.get("sel", "")))
                         _co, _pr = _rb.get("cote"), _rb.get("prob")
                         _stat = " · ".join(x for x in (
-                            f"Cote <b>{_co:g}</b>" if _co else "",
+                            f"Cote <b>{_an.fmt_cote(_co)}</b>" if _co else "",
                             f"Confiance <b>{_pr}%</b>" if _pr else "") if x)
                         _line += f"\n\n• <b>{_sel}</b>" + (f"\n{_stat}" if _stat else "")
                     else:

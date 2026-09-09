@@ -130,6 +130,18 @@ def _sport_icon(emoji: str) -> str:
     return _SVG.get(emoji, _html.escape(emoji or ""))
 
 
+def _fmt_cote(cote) -> str:
+    """Cote à 2 décimales (« 1.10 »), idempotent, '' si vide/illisible. Miroir de analyses.fmt_cote
+    (card_image reste autonome : rendu HTML→screenshot, démo __main__ hors contexte app)."""
+    if cote is None:
+        return ""
+    try:
+        v = float(str(cote).replace(",", "."))
+    except (ValueError, TypeError):
+        return ""
+    return f"{v:.2f}" if v > 0 else ""
+
+
 def _mark(mk: str, size: int = 38) -> str:
     """Coche/croix RONDE « maison » (SVG) — cohérente avec les icônes sport, plus premium que l'emoji."""
     if mk == "won":
@@ -347,7 +359,7 @@ def _verdict_site_html(d: dict, e, settled: bool = False, bare: bool = False, ca
             col, grad, word = "#64cd8d", "linear-gradient(90deg,#2f9d63,#64cd8d)", "Très solide"
     _head = (f'<div class="svhd"><span class="svconf" style="color:{col}">Confiance '
              f'<b>{cfi}%</b> <i>{e(word.lower())}</i></span>'
-             f'<span class="svcote">Cote <b>{e(cote)}</b></span></div>')
+             f'<span class="svcote">Cote <b>{e(f"{cv:.2f}")}</b></span></div>')
     if settled:                                    # fiche résultat : Confiance + Cote seuls (comme le site réglé)
         return f'<div class="svd">{_head}</div>'
     if bare:                                        # TOTAL d'un combiné : Confiance + barre + Cote (pas de marché/edge/value)
@@ -618,7 +630,7 @@ def _combo_card_html(d: dict) -> str:
                                 e, settled=bool(_cm), bare=True, calibrated=False)
     _tot = (f'<div class="ctot-hd">Total du combiné</div><div class="ctot-box">{_tot_v}</div>' if _tot_v
             else f'<div class="ctot"><span class="ctot-l">Cote combinée</span>'
-                 f'<span class="ctot-v">{e(d.get("cote", ""))}</span></div>')
+                 f'<span class="ctot-v">{e(_fmt_cote(d.get("cote")) or str(d.get("cote", "")))}</span></div>')
     inner = (                                             # plus de logo BETSFIX en tête (user 2026-09-06) ; on garde le TITRE du combiné
         f'<div class="stag st-combo">{e(_title)}</div>'
         f'<div class="slg">{len(legs)} SÉLECTIONS</div>'
@@ -674,7 +686,7 @@ def _card_html(d: dict) -> str:
         if sp:
             mk = sp.get("mark", "")
             _wl = "win" if mk == "won" else ("lose" if mk == "lost" else "")
-            _oc = f'<span class="oc">{e(str(sp["cote"]))}</span>' if sp.get("cote") else ""
+            _oc = f'<span class="oc">{e(_fmt_cote(sp["cote"]) or str(sp["cote"]))}</span>' if sp.get("cote") else ""
             inner += (f'<div class="leg {_wl}"><span>{e(str(sp.get("label","")))}</span>'
                       f'<span class="rgt">{_oc}{_mark(mk)}</span></div>')
         if cb:
@@ -684,12 +696,12 @@ def _card_html(d: dict) -> str:
                 lbl, lm = leg[0], leg[1]
                 lc = leg[2] if len(leg) > 2 else ""
                 _wl = "win" if lm == "won" else ("lose" if lm == "lost" else "")
-                _oc = f'<span class="oc">{e(str(lc))}</span>' if lc else ""
+                _oc = f'<span class="oc">{e(_fmt_cote(lc) or str(lc))}</span>' if lc else ""
                 inner += (f'<div class="leg sub {_wl}"><span>{e(str(lbl))}</span>'
                           f'<span class="rgt">{_oc}{_mark(lm)}</span></div>')
             if cb.get("cote"):                         # cote combinée = HÉROS (gros chiffre cyan)
                 inner += (f'<div class="cchero"><span class="l">Cote combinée</span>'
-                          f'<span class="v2">{e(str(cb["cote"]))}</span></div>')
+                          f'<span class="v2">{e(_fmt_cote(cb["cote"]) or str(cb["cote"]))}</span></div>')
         # --- BAS de carte : SCORE d'abord, puis le cadre VERDICT tout en bas ---
         inner += '<div class="sep"></div>'
         inner += (f'<div class="cote"><span class="l">Score final</span>'
@@ -703,16 +715,16 @@ def _card_html(d: dict) -> str:
         for leg in d.get("legs", []):                  # legs = (marché, pick, cote[, why])
             mkt, pk, cote = leg[0], leg[1], leg[2]
             inner += (f'<div class="leg">{_selh(e, mkt, pk)}'
-                      f'<span class="o">{e(str(cote))}</span></div>')
+                      f'<span class="o">{e(_fmt_cote(cote) or str(cote))}</span></div>')
         inner += (f'<div class="cote"><span class="l">Cote combinée</span>'
-                  f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
+                  f'<span class="v">{e(_fmt_cote(d.get("cote")) or str(d.get("cote","")))}</span></div>')
     else:
         inner += f'<div class="leg">{_selh(e, d.get("market",""), d.get("pick",""))}</div>'
         # « pourquoi » du simple RETIRÉ de l'image (user 2026-08-22, tous types).
         if d.get("conf"):                              # confiance AU-DESSUS de la cote
             inner += f'<div class="conf">Confiance <b>{e(str(d["conf"]))}%</b></div>'
         inner += (f'<div class="cote"><span class="l">Cote</span>'
-                  f'<span class="v">{e(str(d.get("cote","")))}</span></div>')
+                  f'<span class="v">{e(_fmt_cote(d.get("cote")) or str(d.get("cote","")))}</span></div>')
     _cc = f"card {_cardcls}".strip()
     return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}</style></head>"
             f'<body><div class="{_cc}">{inner}</div></body></html>')

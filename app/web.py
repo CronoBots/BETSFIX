@@ -265,7 +265,7 @@ def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                 _ok = False
         if _ok and _ec > 1:
             _cote = round(_ec, 2)
-    _cote_txt = f"{round(_cote, 2):g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _cote_txt = analyses.fmt_cote(_cote)
     _legs = ""
     for l in legs:
         _lr = l.get("result")
@@ -275,7 +275,7 @@ def _tk_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         _lsel = _pretty_sel(l.get("sel", ""), _lh, _la)
         _lwhen = fmt_local(l.get("start"), with_date=False)
         _lc = l.get("cote")
-        _lct = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
+        _lct = analyses.fmt_cote(_lc)
         _lscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip().replace("-", " - ")
         _live = False
         try:
@@ -378,8 +378,8 @@ def render_odds_movement(mv: dict | None) -> str:
             f'<div class="om-row">'
             f'<span class="om-lbl">{e(labels[key])}</span>'
             f'<span class="om-spk">{_sparkline(leg["series"], _OM_COLOR[d])}</span>'
-            f'<span class="om-vals"><span class="om-o">{leg["open"]:g}</span>'
-            f'<span class="om-arr {_OM_CLS[d]}">→ {leg["now"]:g} {_OM_ARR[d]}</span></span>'
+            f'<span class="om-vals"><span class="om-o">{analyses.fmt_cote(leg["open"])}</span>'
+            f'<span class="om-arr {_OM_CLS[d]}">→ {analyses.fmt_cote(leg["now"])} {_OM_ARR[d]}</span></span>'
             f'<span class="om-pct {_OM_CLS[d]}">{sign}{leg["pct"]:g}%</span></div>')
     if not rows:
         return ""
@@ -5340,7 +5340,7 @@ def _pick_bars(p: dict) -> str:
             f'<div class="ocp{" ocp-fav " + scol if v == mx else ""}">'
             f'<span class="ocp-n">{e(n)}</span>'
             f'<span class="ocp-v">{round(v * 100)}%</span>'
-            + (f'<span class="ocp-c">@{c:g}</span>' if c else "")
+            + (f'<span class="ocp-c">@{analyses.fmt_cote(c)}</span>' if c else "")
             + '</div>'
             for v, n, c in cells)
         return f'<div class="oc"><div class="oc-h">{title}</div>{bar}<div class="ocp-row">{cs}</div></div>'
@@ -5448,7 +5448,7 @@ def _sport_card(s: dict, sport: str, label: str, since: str,
     sport ; défaut = vert/rouge selon le ROI."""
     roi = s.get("roi")
     color = color or ("#34d27b" if (roi or 0) >= 0 else "#ff6b6b")
-    cote = f'@{s["avg_odds"]:g}' if s.get("avg_odds") else "—"
+    cote = f'@{analyses.fmt_cote(s["avg_odds"])}' if s.get("avg_odds") else "—"
     spark = _sparkline(s.get("points") or [], color)
     main = (f'<div class="sx-row-main"><span class="bc-dot" style="background:{color}"></span>'
             f'<span class="sx-row-n">{label}{_ind(s.get("settled"))}</span>'
@@ -6269,7 +6269,7 @@ def render_tracking_curve(*, emoji: str, title: str, roi, hit, n: int, points: l
             '<div class="spf-cv-kpis">'
             f'<span><b class="arec-{_pct_class(hit)}">{hit if hit is not None else "—"}%</b> réussite</span>'
             f'<span><b>{n}</b> paris</span>'
-            f'<span><b>{avg_cote or "—"}</b> cote</span></div>')   # cote SANS « @ » ; légende repères RETIRÉE
+            f'<span><b>{analyses.fmt_cote(avg_cote) or "—"}</b> cote</span></div>')   # cote SANS « @ » ; légende repères RETIRÉE
     _wrap = "spf-hero" if compact else "spf-cv"   # compact = SANS boîte (sur la carte sport) — « sortir du cadre »
     rec = _recent_bets_html(recent or [])
     if rec:                                     # derniers paris affichés D'OFFICE (demande user 2026-08-13)
@@ -6648,7 +6648,7 @@ def _verdict_block(cote, conf, foot_txt: str = "", cote_html: str = "", *, calib
                 _cells.append(f'<div class="vm-cell"><span class="vm-l">Edge</span>{_na}</div>')
                 _cells.append(f'<div class="vm-cell"><span class="vm-l">Value</span>{_na}</div>')
             _cells.append('<div class="vm-cell vm-cote"><span class="vm-l">Cote</span>'
-                          f'<span class="vm-v">{round(c, 2):g}</span></div>')
+                          f'<span class="vm-v">{analyses.fmt_cote(c)}</span></div>')
             return (f'<div class="vb"><div class="vm">{_pk}'
                     f'<div class="vm-grid">{"".join(_cells)}</div>{_rb}</div></div>{_rn}')
         _rf = f'<span class="mc-reana mc-reana-prov">{foot_txt}</span>' if foot_txt else ""
@@ -7089,7 +7089,7 @@ def _programme_items(exclude_pairs: set | None = None, *, framed: bool = False,
             # BLANC (choix user), comme la carte Telegram. La confiance reste la proba de l'analyste (le tag/
             # zone « indicatif · hors ROI » dit clairement que ce n'est pas compté au ROI).
             _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                         f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
+                         f'<span class="mc-cote-v">{analyses.fmt_cote(_cote)}</span></span>'
                          if isinstance(_cote, (int, float)) and _cote else "")
             # Pastille « 🧪 PROVISOIRE » par carte : OMISE en mode `framed` (la zone « Indicatif · hors ROI »
             # porte déjà le libellé une fois) — demande user 2026-07-11, fin de la répétition.
@@ -7283,7 +7283,7 @@ def combo_legs_html(cb: dict, *, compact: bool = False, expandable: bool = False
             _lh2, _s2, _la2 = str(l.get("name")).partition(" - ")
         sel = _h.escape(_pretty_sel(str(l.get("sel") or ""), _lh2, _la2))
         co = l.get("cote")
-        cot = f' · @{co:g}' if isinstance(co, (int, float)) and co else ""
+        cot = f' · @{analyses.fmt_cote(co)}' if isinstance(co, (int, float)) and co else ""
         _sco = ""
         if l.get("result") is None:
             _lfz = live_fields(match_select.live_state_for(l.get("sport"), l.get("home", ""),
@@ -7433,7 +7433,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _teams_html = (f'<div class="cleg-teams">{_teams_vs_html(_th, _ta)}</div>') if (teams and _th and _ta) else ""
     co = l.get("cote")
     _cote = (f'<span class="cleg-cote"><span class="cleg-cote-l">COTE</span>'
-             f'<span class="cleg-cote-v">{co:g}</span></span>') if isinstance(co, (int, float)) and co else ""
+             f'<span class="cleg-cote-v">{analyses.fmt_cote(co)}</span></span>') if isinstance(co, (int, float)) and co else ""
     _res = l.get("result")
     # ÉTAT -> couleur (demande user 2026-07-18) : void = ANNULÉ (gris), plus « pending » (orange) à tort.
     _state = {"won": "won", "lost": "lost", "push": "push", "void": "void"}.get(_res, "pending")
@@ -7560,7 +7560,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
             except Exception:
                 _cp = _pct
         _cbig = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{co:g}</span></span>'
+                 f'<span class="mc-cote-v">{analyses.fmt_cote(co)}</span></span>'
                  if isinstance(co, (int, float)) and co else "")
         _verdict = _verdict_block(co, _cp, "", _cbig, calibrated=True, hide_neg_value=True, bare=bare)
     _cote_pill = "" if verdict else _cote           # le bloc verdict porte déjà la grosse cote
@@ -7851,7 +7851,7 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
             _cote = round(_ec, 2)
             _pconf = round(_ep * 100)
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
+                 f'<span class="mc-cote-v">{analyses.fmt_cote(_cote)}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     # Synthèse au-dessus des jambes RETIRÉE (demande user 2026-07-18) — chaque jambe porte déjà son « pourquoi ».
     _nlegs = len(cb.get("legs") or [])
@@ -8067,7 +8067,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
         _scote = rb.get("cote")
         _sconf = rb.get("cprob") or rb.get("prob")
         _scb = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                f'<span class="mc-cote-v">{_scote:g}</span></span>'
+                f'<span class="mc-cote-v">{analyses.fmt_cote(_scote)}</span></span>'
                 if isinstance(_scote, (int, float)) and _scote else "")
         _sgl = _bet_gloss(_ssel, sport, home, away)
         _sgloss = f'<div class="mc-gloss"><span class="ar">↳</span>{html.escape(_sgl)}</div>' if _sgl else ""
@@ -8080,7 +8080,7 @@ def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     # _combo_tg_card). Jambes same-match -> on injecte sport/équipes, nom vide (le match est déjà en en-tête).
     _cote = combo.get("real_odds") or combo.get("total")
     _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                 f'<span class="mc-cote-v">{round(_cote, 2):g}</span></span>'
+                 f'<span class="mc-cote-v">{analyses.fmt_cote(_cote)}</span></span>'
                  if isinstance(_cote, (int, float)) and _cote else "")
     _pconf = combo.get("prob")
     _legs = [{**l, "sport": sport, "home": home, "away": away, "name": ""} for l in legs]
@@ -9723,7 +9723,7 @@ def accueil_body(frag: bool = True) -> str:
             return iso
     losses_html = "".join(
         f'<span class="lz-loss"><span class="lz-d">{_fr_date(dt)}</span> {e(nm[:26])} '
-        f'<span class="lz-o">@{co:g}</span></span>'
+        f'<span class="lz-o">@{analyses.fmt_cote(co)}</span></span>'
         for dt, nm, co in s["losses"]) or '<span class="dimc" style="font-size:14px">Aucune perte sur la période.</span>'
 
     _rows = s["cal_rows"] or [{"avg_conf": 69, "win_rate": 69}, {"avg_conf": 80, "win_rate": 80}]
@@ -10268,7 +10268,7 @@ def _mont_ladder(steps: list) -> str:
         _sel_raw = re.sub(r"\s*·?\s*@\s*\d+(?:[.,]\d+)?\s*$", "", str(s.get("sel") or "")).strip()
         sel = html.escape(_sel_raw)
         cote = s.get("cote")
-        _cote_b = f'<span class="mont-step-c">@{cote:g}</span>' if isinstance(cote, (int, float)) else ""
+        _cote_b = f'<span class="mont-step-c">@{analyses.fmt_cote(cote)}</span>' if isinstance(cote, (int, float)) else ""
         _val = _vals[i]
         _pct = max(7.0, min(100.0, 100.0 * (_val or 0) / _peak)) if _peak else 0.0
         _fill = f'<span class="mont-step-fill" style="width:{_pct:.1f}%"></span>'
@@ -11220,7 +11220,7 @@ def render_bet_detail(items: list) -> str:
         cls, lbl = {"won": ("dd-w", "✓"), "lost": ("dd-l", "✗"),
                     "push": ("dd-p", "➖")}.get(it["result"], ("dd-p", "·"))
         when = fmt_local(it.get("start"), with_date=True) or ""
-        cote = f'@{it["odds"]:g}' if it.get("odds") else ""
+        cote = f'@{analyses.fmt_cote(it["odds"])}' if it.get("odds") else ""
         pnl = it.get("pnl")
         # ROI du pari (mise constante) : gagné = (cote−1)×100 %, perdu = −100 %, remboursé = 0 %.
         if pnl is None or it["result"] == "push":
@@ -11343,7 +11343,7 @@ def _recent_bets_html(recent: list) -> str:
         _h2, _, _a2 = _nm_raw.partition(" - ")
         sel = html.escape(_pretty_sel(str(b.get("sel") or ""), _h2, _a2))
         cote = b.get("cote")
-        cote_txt = f'{round(cote, 2):g}' if isinstance(cote, (int, float)) and cote else ""   # 2 décimales (user 2026-08-20) · SANS « @ »
+        cote_txt = analyses.fmt_cote(cote)   # 2 décimales (user 2026-08-20) · SANS « @ »
         # DATE (haut, alignée avec les ÉQUIPES) + HEURE (bas, alignée avec le PARI) — demande user 2026-07-25.
         # Date en format COURT JJ/MM POUR TOUS (y compris aujourd'hui) -> colonne étroite (demande user :
         # « écris la date du jour afin de rétrécir la colonne » = pas de « Aujourd'hui »/« Demain » long).
@@ -11802,7 +11802,7 @@ def _ue_result_card(sp: str, d: dict, rb: dict, score, rich_html: str, umc: dict
     _league = " • ".join(x for x in (_cty, _comp) if x)
     _when = fmt_local(d.get("start"), with_date=True)
     _cote = rb.get("cote")
-    _cote_txt = f"{_cote:g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _cote_txt = analyses.fmt_cote(_cote)
     _cf = _ue_confval(rb)
     _cf_i = int(round(_cf)) if _cf is not None else None
     _sc_txt = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(score or "")).strip().replace("-", " - ")
@@ -11877,7 +11877,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
                 _ok = False
         if _ok and _ec > 1:
             _cote = round(_ec, 2)
-    _cote_txt = f"{round(_cote, 2):g}" if isinstance(_cote, (int, float)) and _cote else ""
+    _cote_txt = analyses.fmt_cote(_cote)
     _legs_html = ""
     for i, l in enumerate(legs, 1):
         _lr = l.get("result")
@@ -11900,7 +11900,7 @@ def _ue_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot") ->
         except Exception:
             pass
         _lc = l.get("cote")
-        _lcote_txt = f"{round(float(_lc), 2):g}" if isinstance(_lc, (int, float)) and _lc else ""
+        _lcote_txt = analyses.fmt_cote(_lc)
         # Coin haut-droite de la jambe = COTE de jambe (+ marqueur ✗/= si perdue/remboursée). PAS de « ✓ » sur
         # une jambe GAGNÉE (user 2026-09-03) : la pastille numéro VERTE le dit déjà (le « ✓ » faisait doublon).
         _vc, _vg = {"lost": ("lost", "✗"), "push": ("push", "="), "void": ("push", "=")}.get(_lr, ("", ""))
@@ -12184,7 +12184,7 @@ def _sport_row(r: dict) -> str:
             _ic2 = ({"won": "✅", "lost": "❌", "push": "➖"}.get(b.get("result"), "")
                     if is_finished else "")
             _ich = f' <span class="mc-bi">{_ic2}</span>' if _ic2 else ""
-            _ch2 = (f'<span class="mc-bc">@{b["cote"]:g}</span>'
+            _ch2 = (f'<span class="mc-bc">@{analyses.fmt_cote(b["cote"])}</span>'
                     if isinstance(b.get("cote"), (int, float)) and b.get("cote") else "")
             _gl2 = _bet_gloss(b.get("sel", ""), sport_key, r.get("home", ""), r.get("away", ""))
             _gh2 = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl2)}</div>' if _gl2 else ""
@@ -12200,7 +12200,7 @@ def _sport_row(r: dict) -> str:
         rcls = " mc-betl-reco" if (is_reco and not is_finished) else ""
         # Badge COTE après l'intitulé (comme la cote du combiné). Le combiné a déjà sa cote dans le sel.
         cote = b.get("cote")
-        cote_html = f'<span class="mc-bc">@{cote:g}</span>' if cote else ""
+        cote_html = f'<span class="mc-bc">@{analyses.fmt_cote(cote)}</span>' if cote else ""
         rows3.append(f'<div class="mc-betl{rcls}"><span class="mc-bi">{ic}</span>'
                      f'<span class="mc-bt">{e(_pretty_sel(b.get("sel", ""), r.get("home", ""), r.get("away", "")))}</span>{cote_html}</div>')
     _ts = r.get("start_ts")
@@ -12263,7 +12263,7 @@ def _sport_row(r: dict) -> str:
                 league=(comp or ""),
                 match_txt=(f"{_sl_h} — {_sl_a}" if (_sl_h and _sl_a) else (_sl_h or _sl_a or "")),
                 minute=_sl_min, sel_txt=_pretty_sel(_sl_b0.get("sel", ""), _sl_h, _sl_a),
-                cote_txt=(f"{_sl_cote:g}" if isinstance(_sl_cote, (int, float)) and _sl_cote else ""),
+                cote_txt=(analyses.fmt_cote(_sl_cote)),
                 cote=_sl_cote, score_txt=_sl_score, chance_live=_live_pct, why_text=_sl_why,
                 start=r.get("start"))
         except Exception:
@@ -12292,7 +12292,7 @@ def _sport_row(r: dict) -> str:
         _pconf = ((_rbp or {}).get("cprob") or (_rbp or {}).get("prob")
                   or _b0.get("cprob") or _b0.get("prob"))
         _cote_big = (f'<span class="mc-cote"><span class="mc-cote-l">COTE</span>'
-                     f'<span class="mc-cote-v">{_pcote:g}</span></span>'
+                     f'<span class="mc-cote-v">{analyses.fmt_cote(_pcote)}</span></span>'
                      if isinstance(_pcote, (int, float)) and _pcote else "")
         _gl = _bet_gloss(_psel, sport_key, r.get("home",""), r.get("away",""))
         _gloss = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gl)}</div>' if _gl else ""
@@ -12302,8 +12302,8 @@ def _sport_row(r: dict) -> str:
         _pc, _mc = _b0.get("published_cote"), _b0.get("market_cote")
         _moved = ""
         if isinstance(_pc, (int, float)) and isinstance(_mc, (int, float)) and abs(_pc - _mc) >= 0.01:
-            _moved = (f'<div class="mc-moved">🔒 Cote au conseil <b>{_pc:g}</b>'
-                      f'<span class="mc-moved-m"> · marché actuel {_mc:g}</span></div>')
+            _moved = (f'<div class="mc-moved">🔒 Cote au conseil <b>{analyses.fmt_cote(_pc)}</b>'
+                      f'<span class="mc-moved-m"> · marché actuel {analyses.fmt_cote(_mc)}</span></div>')
         # Ligne « Ré-analyse à HH:MM » RETIRÉE (demande user 2026-07-21) : l'info n'apporte rien à l'abonné.
         _foot = ""
         # Filet fin teams↔pari (comme les provisoires) : sépare « quel match » de « quel pari ».
@@ -12473,7 +12473,7 @@ def _sport_row(r: dict) -> str:
                 pass
         _ucf_i = int(round(_ucf)) if _ucf is not None else None
         _ucote = (_pb or {}).get("cote")
-        _ucote_txt = f"{_ucote:g}" if isinstance(_ucote, (int, float)) and _ucote else ""
+        _ucote_txt = analyses.fmt_cote(_ucote)
         _uscore = str(r.get("score") or "").strip()
         _uscore = re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", _uscore).replace("-", " - ") if _uscore else ""
         _uwhen_hm = fmt_local(sdt, with_date=False) if sdt else (starthm or "")
@@ -13057,7 +13057,7 @@ def perle_advice(perle: dict | None) -> str:
             qual = (f'le <b>meilleur équilibre confiance × value</b> du match : <b>{pct} %</b> de '
                     f'chances selon nous, cote <b>~+{edgep} %</b> en notre faveur.')
         body = ('<div class="banner"><b style="color:#19c46a">🎯 À jouer</b> — '
-                f'<b>{e(str(perle["selection"]))}</b> @{perle["odds"]:g}. '
+                f'<b>{e(str(perle["selection"]))}</b> @{analyses.fmt_cote(perle["odds"])}. '
                 f'<span class="dim">{qual}</span></div>')
     else:
         body = ('<div class="banner">Aucune perle sur ce match : aucun pari Unibet n\'offre un bon '

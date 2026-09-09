@@ -408,15 +408,15 @@ def build_for_day(day: str, sport: str = "foot") -> dict | None:
 def telegram_text(cb: dict) -> str:
     """Message HTML (parse_mode=HTML) du combiné du jour pour Telegram. Noms échappés."""
     import html as _h
+    from app.analyses import pretty_sel as _psel, fmt_cote as _fc
     emo = {"foot": "⚽", "tennis": "🎾", "basket": "🏀"}
     out = ["🎯 <b>COMBINÉ FOOT DU JOUR</b>",
-           f"Cote <b>@{cb.get('cote')}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
+           f"Cote <b>@{_fc(cb.get('cote'))}</b> · chances <b>{round((cb.get('prob') or 0) * 100)}%</b> "
            f"· {len(cb.get('legs') or [])} jambes", ""]
-    from app.analyses import pretty_sel as _psel
     for l in cb.get("legs") or []:
         _s = _psel(str(l.get('sel') or ''), l.get('home', ''), l.get('away', ''))
         out.append(f"{emo.get(l.get('sport'), '•')} <b>{_h.escape(_s)}</b> "
-                   f"@{l.get('cote')}")
+                   f"@{_fc(l.get('cote'))}")
         out.append(f"   <i>{_h.escape(str(l.get('name') or ''))}</i>")
     out += ["", "🎯 <i>Compté au ROI (mise 1 u) — les paris les plus probables du jour.</i>"]
     return "\n".join(out)
@@ -513,6 +513,7 @@ def notify_combos(sport: str = "foot") -> None:
     Garde-fou anti-spam : JAMAIS un combiné antérieur à COMBO_TG_FROM (sinon la 1re passe reposterait tout
     l'historique). Appelé après `settle_all` dans le pipeline reconcile (= posté aux vagues)."""
     from app import notify
+    from app import analyses as _an          # fmt_cote : cote à 2 décimales
     if not notify.configured():
         return
     import sys as _sys
@@ -565,7 +566,7 @@ def notify_combos(sport: str = "foot") -> None:
                 _lsel = str(leg.get("sel") or "").strip()
                 if _tg and _reply and not leg.get("tg_done"):
                     _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_lr, ("REMBOURSÉE", "➖"))
-                    _cot = f" @{_lco:g}" if (_lr == "won" and isinstance(_lco, (int, float))) else ""
+                    _cot = f" @{_an.fmt_cote(_lco)}" if (_lr == "won" and isinstance(_lco, (int, float))) else ""
                     _txt = (f"JAMBE {_vw}{_cot} {_ve}" + (f"\n{_lsel}" if _lsel else "")).strip()
                     if notify.reply_sync(_txt, _reply):
                         leg["tg_done"] = True
@@ -585,7 +586,7 @@ def notify_combos(sport: str = "foot") -> None:
                 _cco = cb.get("real_odds") or cb.get("cote")
                 if _tg and _reply and not cb.get("tg_result_done"):
                     _gw, _ge = {"won": ("GAGNÉ", "✅"), "lost": ("PERDU", "❌")}.get(cb["result"], ("REMBOURSÉ", "➖"))
-                    _gcot = f" @{_cco:g}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
+                    _gcot = f" @{_an.fmt_cote(_cco)}" if (cb["result"] == "won" and isinstance(_cco, (int, float))) else ""
                     if notify.reply_sync(f"{_label} {_gw}{_gcot} {_ge}", _reply):
                         cb["tg_result_done"] = True
                         _chg = True

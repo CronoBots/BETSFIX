@@ -156,7 +156,7 @@ def _simple_common(d: dict, rb: dict, sport, home: str, away: str) -> dict:
     if not _why:
         _why = _pick_why(d, _sel)
     return {"pick": analyses.pretty_sel(_sel, home, away), "gloss": _gloss,
-            "cote": (f"{_cote:g}" if _cote else ""), "conf": _conf, "edge": _edge, "value": _val,
+            "cote": analyses.fmt_cote(_cote), "conf": _conf, "edge": _edge, "value": _val,
             "tier": _tier, "country": _ms.comp_country(_comp), "comp": _comp,
             "home_logo": (_cr.logo_url(_cr.team_id(home)) or ""),
             "away_logo": (_cr.logo_url(_cr.team_id(away)) or ""), "why": _why}
@@ -193,14 +193,15 @@ def build_prono_card(d: dict) -> dict | None:
             "match": str(d.get("name", "")).replace(" - ", " — "), "meta": meta}
     home, away = str(d.get("home", "")), str(d.get("away", ""))
     if has_combo:
-        cote = (f"{combo['real_odds']:.2f}" if combo.get("real_odds") else f"{combo.get('total', '?')}")
+        cote = (analyses.fmt_cote(combo['real_odds']) if combo.get("real_odds")
+                else (analyses.fmt_cote(combo.get('total')) or "?"))
         # ANALYSE PAR JAMBE (comme l'app) : chaque sélection porte son « pourquoi » sérieux + la synthèse
         # du combiné (corrélation). Uniquement sur la carte de PUBLICATION (pas la carte résultat).
         # La sélection est scindée en (marché, pick) pour un affichage sur 2 lignes.
         _legs = []
         for l in combo["legs"]:
             mkt, pk = _split_leg(l.get("sel", ""), home, away)
-            _legs.append((mkt, pk, str(l.get("cote", "")), _clean_why(l.get("why"))))
+            _legs.append((mkt, pk, analyses.fmt_cote(l.get("cote")), _clean_why(l.get("why"))))
         card.update(type="combo", cote=cote, legs=_legs, synth=_clean_synth(combo.get("why")))
     elif pick_shown and rb:
         # Champs « design du site » (pari + glose + confiance/edge/value + tier + logos + analyse complète).
@@ -223,7 +224,7 @@ def announce_caption(card: dict) -> str:
         return ""
     _tier = str(card.get("tier") or "confiance").lower()
     _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance").upper()
-    _co = str(card.get("cote") or "").strip()
+    _co = analyses.fmt_cote(card.get("cote")) or str(card.get("cote") or "").strip()
     # COTE + 🎯 avec l'en-tête (user 2026-09-08) : « NOUVELLE CONFIANCE @1.14 🎯 ». Le pari est sur l'image.
     return f"NOUVELLE {_lbl} @{_html.escape(_co)} 🎯" if _co else f"NOUVELLE {_lbl}"
 
@@ -264,9 +265,9 @@ def build_result_card(d: dict) -> dict | None:
                        "tier": _simple_extra["tier"], "cote": _simple_extra["cote"], "mark": simple_result}
     if combo_result:
         cco = combo.get("real_odds") or combo.get("total")
-        card_combo = {"cote": (f"{cco:.2f}" if isinstance(cco, float) else str(cco or "")),
+        card_combo = {"cote": (analyses.fmt_cote(cco) or str(cco or "")),
                       "mark": combo_result,
-                      "legs": [(str(l.get("sel", "")), l.get("result"), l.get("cote") or "")
+                      "legs": [(str(l.get("sel", "")), l.get("result"), analyses.fmt_cote(l.get("cote")))
                                for l in combo.get("legs", [])]}
     if not (card_simple or card_combo):
         return None
@@ -321,7 +322,7 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
             "time": (_dt2.strftime("%H:%M") if _dt2 else ""),
             "score": (str(l.get("score") or "") if result else ""),
             "pick": analyses.pretty_sel(_sel, home, away), "gloss": _gloss,
-            "conf": _conf, "edge": None, "value": None, "cote": (f"{_cote:g}" if _cote else ""),
+            "conf": _conf, "edge": None, "value": None, "cote": analyses.fmt_cote(_cote),
             "why": ("" if result else _clean_why(l.get("why"))),   # pas d'analyse sur le résultat
             "mark": (l.get("result") if result else None),
         })
@@ -329,7 +330,7 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
     _cprob = combo.get("prob")                            # proba combinée -> Confiance du TOTAL (comme le site)
     _cconf = round(_cprob * 100) if isinstance(_cprob, (int, float)) else None
     return {"emoji": "⚽", "type": ("combo_result" if result else "combo"), "combo_title": "COMBINÉ",
-            "cote": (f"{_cote:.2f}" if isinstance(_cote, float) else str(_cote or "")),
+            "cote": (analyses.fmt_cote(_cote) or str(_cote or "")),
             "combo_conf": _cconf,                         # Confiance du total (site montre « Confiance X% · Cote »)
             "legs": legs,
             "synth": ("" if result else _clean_synth(combo.get("synth") or combo.get("why"))),
@@ -366,7 +367,7 @@ def build_montante_card(step: dict, *, result: bool = False) -> dict | None:
               "home_logo": (_cr.logo_url(_cr.team_id(home)) or ""),
               "away_logo": (_cr.logo_url(_cr.team_id(away)) or ""),
               "tier": "montante", "conf": _conf, "edge": None, "value": None,   # ÉPURÉ : Confiance + Cote
-              "cote": (f"{_cote:g}" if _cote else "")}
+              "cote": analyses.fmt_cote(_cote)}
     if result:
         return {**common, "type": "result", "score": str(step.get("score") or ""),
                 "pick": _pretty, "gloss": _gloss,

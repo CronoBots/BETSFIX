@@ -550,6 +550,21 @@ def _norm_sel(s: str) -> str:
     return re.sub(r"\s+", " ", _BOLD.sub(r"\1", s or "")).strip().lower()
 
 
+def fmt_cote(cote) -> str:
+    """AFFICHAGE d'une COTE à EXACTEMENT 2 décimales, partout (« 1.10 » et non « 1.1 », user 2026-09-10).
+    SOURCE UNIQUE : tout site qui affiche une cote passe par ici (site, cartes, images Telegram, push).
+    Repli "" si None/0/illisible (accepte la virgule FR). NE PAS utiliser pour un %/EV/score/montant."""
+    if cote is None:
+        return ""
+    try:
+        v = float(str(cote).replace(",", "."))
+    except (ValueError, TypeError):
+        return ""
+    if v <= 0:
+        return ""
+    return f"{v:.2f}"
+
+
 def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     """Normalise l'AFFICHAGE d'un intitulé de DOUBLE CHANCE pour qu'un MÊME pari s'affiche PAREIL partout
     (demande user 2026-07-13). On GARDE la mention technique « 1X / X2 / 12 » (demandée) ET on la PRÉCISE
@@ -1146,7 +1161,7 @@ def verdict_line(cote, conf, ev, calibrated: bool = True, with_cote: bool = Fals
             _vcls, _vword = _value_word(ep)
             _bits.append(f'<span class="vx-i {_vcls}">value <b>+{ep}%</b></span>')
         _ctx = '<div class="vm-ctx">' + '<span class="vx-s">·</span>'.join(_bits) + '</div>'
-    _cote_h = (f'<span class="cvb-cote">Cote <b>{round(cv, 2):g}</b></span>' if with_cote else "")
+    _cote_h = (f'<span class="cvb-cote">Cote <b>{fmt_cote(cv)}</b></span>' if with_cote else "")
     _pk = f'<div class="vm-pick">{pick_html}</div>' if pick_html else ""
     if isinstance(live_pct, int):
         lp = max(0, min(100, live_pct))
@@ -1232,7 +1247,7 @@ def _bets_table(body: str, results: dict | None = None, compact: bool = False,
         # confiance % → value % » est ainsi TOUJOURS exact (conf × cote − 1 = value) et jamais en
         # contradiction avec le statut. (Corrige l'ancien écart : le tableau montrait la brute, le reste le
         # calibré ; cf. commentaire card_summary l.1940 « la MÊME confiance que le détail ».)
-        cote_v = f"{cv:g}" if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
+        cote_v = fmt_cote(cv) if cv is not None else (_inline(b["cote_txt"]) if b["cote_txt"] else "—")
         res = results.get(_norm_sel(b["sel"]))
         # État + marqueur : pari RETENU -> résultat coloré + ✅/❌/➖ ; abstention -> « aurait gagné/perdu ».
         if is_reco:
@@ -1403,7 +1418,7 @@ def _reprice_bets(bets: list[dict], sport, match_id) -> None:
         rc = omap.get(code)
         if isinstance(rc, (int, float)) and rc >= 1.01 and rc != b.get("cote"):
             b["cote"] = rc
-            b["cote_txt"] = f"{rc:g}"
+            b["cote_txt"] = fmt_cote(rc)
 
 
 def bets_of(sport: str, match_id) -> list[dict]:
@@ -2369,10 +2384,7 @@ def combo_html(sport: str, match_id) -> str:
             state, btxt, bcls = "live", f"⏳ EN COURS{prog}", "live"
         else:
             state, btxt, bcls = "pending", "À VENIR", "p"
-        try:
-            cote = f"{float(leg.get('cote')):g}"
-        except (TypeError, ValueError):
-            cote = "?"
+        cote = fmt_cote(leg.get('cote')) or "?"
         sel = _h.escape(pretty_sel(str(leg.get("sel", "")), m.get("home", ""), m.get("away", "")))
         # Glose « ↳ » en clair de la jambe (jambe = pari joué -> DOIT avoir son explication, demande user
         # 2026-07-17). Point d'entrée TOTAL `web._bet_gloss` (jamais vide). Import local (évite le cycle).

@@ -15,6 +15,7 @@ Principes (maquette validée 2026-09-05, cf. artifact « grand public ») :
 from __future__ import annotations
 import html as _html
 import re as _re
+from app import analyses as _an          # fmt_cote : cote à 2 décimales, source unique
 
 # ── icônes (inline, viewBox obligatoire — sinon formes coupées) ─────────────────
 _ICONS = {
@@ -109,7 +110,7 @@ def _result_strip(cote, result: str, *, tally_html: str = "") -> str:
     else:                                              # push / void = remboursé
         pnl_l, pnl_v, pnl_cls = "Remboursé", "0 %", ""
     cote_lab = "Cote encaissée" if won else "Cote"
-    cote_txt = f"{c:g}" if c else "—"
+    cote_txt = _an.fmt_cote(c) or "—"
     return (
         '<div class="sg-result">'
         f'<div class="sg-pnl"><span class="sg-l">{pnl_l}</span><span class="sg-v {pnl_cls}">{pnl_v}</span></div>'
@@ -219,7 +220,7 @@ def sig_result_card(*, league: str = "", match_txt: str = "", sel_txt: str = "",
                     start=None, **_ignore) -> str:
     """Carte RÉSULTAT simple — délègue à `sig_bet_card` en mode réglé."""
     return sig_bet_card(league=league, match_txt=match_txt, when_txt=when_txt, sel_txt=sel_txt,
-                        cote=cote, cote_txt=cote_txt or (f"{_num(cote):g}" if _num(cote) else ""),
+                        cote=cote, cote_txt=cote_txt or _an.fmt_cote(cote),
                         conf_i=conf_i, is_finished=True, score_txt=score_txt,
                         rcls={"won": "mc-r-won", "lost": "mc-r-lost"}.get(result, "mc-r-push"),
                         start=start)
@@ -249,7 +250,7 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
             break
         prod *= (p if p <= 1 else p / 100.0)
     ours = prod * 100 if have else None
-    cote_txt = f"{total:g}" if total else ""
+    cote_txt = _an.fmt_cote(total)
     cote_h = (f'<div class="sg-cote"><span class="sg-k">COTE</span>'
               f'<span class="sg-v">{e(cote_txt)}</span></div>') if cote_txt else ""
     won_n = sum(1 for l in legs if l.get("result") == "won")
@@ -260,7 +261,7 @@ def sig_combo_card(cb: dict, *, title: str = "Combiné", sport: str = "foot", pr
         lh, la = l.get("home", ""), l.get("away", "")
         lsel = pretty(l.get("sel", ""), lh, la) if pretty else str(l.get("sel", ""))
         lc = l.get("cote")
-        lct = f"{float(lc):g}" if isinstance(lc, (int, float)) and lc else ""
+        lct = _an.fmt_cote(lc)
         lscore = _re.sub(r"\s*\((?:sets?|SETS?)\)\s*$", "", str(l.get("score") or "")).strip()
         lp = l.get("prob")
         lconf = (round(lp * 100) if isinstance(lp, (int, float)) and lp <= 1
