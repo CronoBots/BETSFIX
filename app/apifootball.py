@@ -60,17 +60,31 @@ def _client() -> httpx.Client:
 
 
 def _get(cl: httpx.Client, path: str, **params) -> dict:
-    """GET throttlé + 1 retry sur 429 (limite par minute du plan Free)."""
+    """GET throttlé + 1 retry sur 429. ANTI-BLOCAGE FIREWALL (doc : dépasser la limite/MINUTE peut faire
+    bannir la clé) : on lit l'en-tête `X-RateLimit-Remaining` (appels restants CETTE minute) et si ≤ 1 on
+    attend la fenêtre. Le quota/JOUR est dans `x-ratelimit-requests-remaining` (info seule)."""
     for attempt in range(2):
         r = cl.get(f"{HOST}{path}", params=params)
         if r.status_code == 429 and attempt == 0:
             time.sleep(62)
             continue
         r.raise_for_status()
+        try:                                             # respecte la limite par MINUTE -> jamais de ban
+            if int(r.headers.get("X-RateLimit-Remaining", "99")) <= 1:
+                time.sleep(61)
+                return r.json()
+        except (ValueError, TypeError):
+            pass
         time.sleep(_THROTTLE)
         return r.json()
     r.raise_for_status()
     return r.json()
+
+
+# Statuts de fixture (table officielle de la doc) — pour un RÈGLEMENT fiable.
+FINISHED_STATUS = frozenset({"FT", "AET", "PEN"})            # terminé (FT = temps réglementaire ; AET/PEN au-delà)
+INPLAY_STATUS = frozenset({"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE"})
+NOTPLAYED_STATUS = frozenset({"PST", "CANC", "ABD", "AWD", "WO", "TBD"})
 
 
 # --- Matching nom + coup d'envoi (repris de la sonde, prouvé fiable senior/U19) ---------------------------
@@ -217,15 +231,36 @@ def unibet_omap(odds: dict) -> dict:
     return om
 
 
-def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
-    """Score live + statut d'un fixture (règlement). None si introuvable."""
+def match_state(cl: httpx.Client, fixture_id: int) -> dict | None:
+    """État COMPLET d'un match pour le RÈGLEMENT (statut officiel + scores). None si introuvable.
+    - `reg`  = score TEMPS RÉGLEMENTAIRE (`score.fulltime`) → régler les marchés 90 min (JAMAIS ET/penalty,
+      cf. règle BETSFIX « règlement au temps réglementaire »).
+    - `goals`= score courant/final (peut INCLURE les prolongations si le match est allé en AET/PEN).
+    - `finished`/`in_play`/`not_played` = classification via la table de statuts officielle de la doc.
+    ⚠️ 1 seul appel `/fixtures?id=` renvoie aussi events/lineups/stats/players si besoin (batch `ids=` ≤20)."""
     r = (_get(cl, "/fixtures", id=fixture_id).get("response") or [None])[0]
     if not r:
         return None
-    st = r["fixture"]["status"]
-    return {"home": r["goals"]["home"], "away": r["goals"]["away"],
-            "elapsed": st.get("elapsed"), "status": st.get("short"),
-            "finished": st.get("short") in ("FT", "AET", "PEN")}
+    st = (r.get("fixture") or {}).get("status") or {}
+    short = st.get("short")
+    sc = r.get("score") or {}
+    ft = sc.get("fulltime") or {}
+    g = r.get("goals") or {}
+    return {"status": short, "elapsed": st.get("elapsed"),
+            "finished": short in FINISHED_STATUS, "in_play": short in INPLAY_STATUS,
+            "not_played": short in NOTPLAYED_STATUS,
+            "goals": {"home": g.get("home"), "away": g.get("away")},
+            "reg": {"home": ft.get("home"), "away": ft.get("away")},
+            "halftime": sc.get("halftime"), "extratime": sc.get("extratime"), "penalty": sc.get("penalty")}
+
+
+def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
+    """Compat : score courant + statut. Pour le règlement 90 min, préférer `match_state(...)['reg']`."""
+    ms = match_state(cl, fixture_id)
+    if not ms:
+        return None
+    return {"home": ms["goals"]["home"], "away": ms["goals"]["away"],
+            "elapsed": ms["elapsed"], "status": ms["status"], "finished": ms["finished"]}
 
 
 if __name__ == "__main__":                     # self-test manuel : python -m app.apifootball "Home" "Away" "ISO"
