@@ -4350,6 +4350,11 @@ async def main():
                             _ab_srcs = sorted(k for k, v in ((meta or {}).get("sources_prov") or {}).items() if v)
                             if _ab_srcs:
                                 _ab_side["sources"] = _ab_srcs
+                            # ANCRE SHARP FRAÎCHE (fix 2026-09-10) : la fiche d'abstention stocke le `sharp_map`
+                            # du meta -> si le garde-fou anti-abstention-fantôme rattrape un pari (omap frais),
+                            # il porte SON ancre (jamais « misé à sec »). Repli = préservation _prev_side ci-dessous.
+                            if meta and meta.get("sharp_map") and not _ab_side.get("sharp_map"):
+                                _ab_side["sharp_map"] = meta["sharp_map"]
                             # PRÉSERVATION AUDIT (user 2026-09-01) : la fiche d'abstention garde les CHAMPS
                             # D'ANALYSE déjà écrits (sources, ancre sharp, panel de validation, marchés, H2H,
                             # streaks, votes publics) pour l'audit qualité. Sans ça, la re-analyse en abstention

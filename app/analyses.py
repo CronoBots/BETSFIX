@@ -281,6 +281,11 @@ def is_settled(d: dict) -> bool:
         return True
     if (d.get("combo") or {}).get("result") in ("won", "lost", "push"):   # combiné CdM réglé = terminé
         return True
+    # Un `stat_bet` FIGÉ (résultat COMPTÉ, monotone) = match réglé — même si `bets`/`pick_result` ont été
+    # remis à zéro par un re-règlement (reconcile règle le pick BRUT du .md, pas le pari mécanique figé). Sans
+    # ça, un pari mécanique compté disparaissait de « Terminés » (fenêtre stale 6 h) alors qu'il EST au ROI.
+    if isinstance(d.get("stat_bet"), dict) and d["stat_bet"].get("result") in ("won", "lost", "push"):
+        return True
     return any(b.get("result") in ("won", "lost", "push") for b in (d.get("bets") or []))
 
 
