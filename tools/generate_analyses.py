@@ -2083,6 +2083,17 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     # -> on la JETTE (sp/smk=None -> sharp_map vide -> no_sharp -> match DIFFÉRÉ) plutôt que de calculer EV/value
     # sur une ancre inversée. Seuils prudents (écart net des DEUX côtés) pour ne jamais jeter un match serré.
     _sharp_conflict = False
+    # 🛡️ MARGE ABERRANTE = ancre JUNK (2026-09-09) : une résolution douteuse (mauvais matchup iProyal, cache
+    # périmé, marché immature) produit un dé-vig avec une marge délirante (Pinnacle réel ~2-4 %). L'ancien
+    # _SHARP_MAX_MARGIN ne gatait QUE le TEXTE -> `_build_sharp_map(sp,...)` figeait quand même la valeur junk
+    # au sidecar (bug FC Barcelone : sp iProyal 61 % marge 11 % figé alors que le marché price 92 %). On JETTE
+    # l'ancre ICI (sp=None + conflict -> smk=None -> sharp_map VIDE, aucune fausse valeur ni EV). API-Football
+    # (primaire, marge saine) reste utilisé quand il répond ; sinon aucune ancre plutôt qu'une fausse.
+    if sp and (sp.get("margin") or 0) > _SHARP_MAX_MARGIN:
+        print(f"  ⚠️ ancre sharp REJETÉE (marge {(sp.get('margin') or 0) * 100:.0f}% > "
+              f"{_SHARP_MAX_MARGIN * 100:.0f}% = dé-vig non fiable) : {home} vs {away} -> ancre écartée")
+        sp = None
+        _sharp_conflict = True
     if sp and isinstance(sp.get("home"), (int, float)) and isinstance(sp.get("away"), (int, float)):
         # Référence marché du 1X2 : l'omap (VRAIES cotes Unibet, TOUJOURS résolu) en priorité, repli o1/o2 live.
         _omp = _UNIBET_OMAP.get(str(match.get("id"))) or {}
@@ -2096,6 +2107,23 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
                       f"{away} {sp['away']*100:.0f}% vs cotes Unibet {_mh}/{_ma} — résolution douteuse, différé")
                 sp = None                                      # -> le texte CONSENSUS SHARP ne sera pas bâti
                 _sharp_conflict = True
+            else:
+                # 🛡️ MÊME favori mais MAGNITUDE ABERRANTE (2026-09-09) : la garde « favori opposé » ci-dessus ne
+                # voit PAS un sharp qui pointe le BON côté avec une proba délirante (cas FC Barcelone : sharp
+                # iProyal 61 % vs marché de-viggé 92 % = MÊME favori). Or un book sharp et Unibet ne s'écartent
+                # JAMAIS de >22 pts sur le même favori -> ancre corrompue. On la JETTE. N'agit QUE si la cote de
+                # nul est connue (de-vig 3-way comparable ; sinon on ne compare pas pour éviter tout faux positif).
+                _mx = _omp.get("1X2 X") or ox
+                if _mx:
+                    _inv = [1.0 / _mh, 1.0 / _mx, 1.0 / _ma]
+                    _s = sum(_inv)
+                    if _s > 0 and (abs(sp["home"] - _inv[0] / _s) > 0.22
+                                   or abs(sp["away"] - _inv[2] / _s) > 0.22):
+                        print(f"  ⚠️ ancre sharp REJETÉE (magnitude aberrante vs marché) : {home} "
+                              f"{sp['home']*100:.0f}%/{sp['away']*100:.0f}% vs marché de-viggé "
+                              f"{_inv[0]/_s*100:.0f}%/{_inv[2]/_s*100:.0f}% — ancre corrompue, écartée")
+                        sp = None
+                        _sharp_conflict = True
     if sp and o1 and o2 and (sp.get("margin") or 1) <= _SHARP_MAX_MARGIN:
         seg = [f"{home} {sp['home'] * 100:.0f}%"] \
             + ([f"nul {sp['draw'] * 100:.0f}%"] if sp.get("draw") else []) \
