@@ -18,6 +18,7 @@ l'échelle demande le plan Pro.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -26,13 +27,16 @@ from datetime import datetime
 
 import httpx
 
+log = logging.getLogger("betsfix.apifootball")
+
 HOST = "https://v3.football.api-sports.io"
 BK_PINNACLE, BK_UNIBET = 4, 16                 # ids stables (/odds/bookmakers)
 BET_1X2, BET_DC, BET_OU, BET_BTTS, BET_AH = 1, 12, 5, 8, 4   # Asian Handicap = 4
 BET_TOT_HOME, BET_TOT_AWAY = 16, 17                          # totaux d'équipe PLEIN-MATCH ("Total - Home/Away")
 
-_THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "0.5"))   # s entre requêtes. Pro = 300/min
-#   (0.5 s = 120/min, marge x2.5). Free ~10/min -> mettre 6.5 en env. `_get` respecte X-RateLimit-Remaining.
+# Limites par plan (doc « optimize quota ») — Pro = 7500/j · 300/min · 5/SECONDE. 0.3 s = 3.3/s & 200/min
+# (marge sous les DEUX). Free = 100/j · 10/min -> mettre 6.5 en env. `_get` respecte aussi X-RateLimit-Remaining.
+_THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "0.3"))
 _TIMEOUT = 25
 
 
@@ -61,25 +65,49 @@ def _client() -> httpx.Client:
 
 
 def _get(cl: httpx.Client, path: str, **params) -> dict:
-    """GET throttlé + 1 retry sur 429. ANTI-BLOCAGE FIREWALL (doc : dépasser la limite/MINUTE peut faire
-    bannir la clé) : on lit l'en-tête `X-RateLimit-Remaining` (appels restants CETTE minute) et si ≤ 1 on
-    attend la fenêtre. Le quota/JOUR est dans `x-ratelimit-requests-remaining` (info seule)."""
-    for attempt in range(2):
+    """GET throttlé + backoff. ANTI-BLOCAGE FIREWALL (doc : dépasser la limite/MINUTE peut bannir la clé) :
+    (1) retry sur HTTP 429 ; (2) lecture du champ `errors` de la réponse AVANT `response` — si `rateLimit`,
+    on attend la fenêtre + retry (sinon on log l'erreur applicative, mauvais param/contexte, sans reboucler) ;
+    (3) si `X-RateLimit-Remaining` (par minute) ≤ 1, on attend ~1 min. Quota/JOUR = `x-ratelimit-requests-
+    remaining` (info)."""
+    for attempt in range(3):
         r = cl.get(f"{HOST}{path}", params=params)
-        if r.status_code == 429 and attempt == 0:
+        if r.status_code == 429 and attempt < 2:
             time.sleep(62)
             continue
         r.raise_for_status()
-        try:                                             # respecte la limite par MINUTE -> jamais de ban
+        j = r.json()
+        errs = j.get("errors")
+        if errs:                                         # dict/list NON vide = erreur applicative
+            if isinstance(errs, dict) and "rateLimit" in errs and attempt < 2:
+                time.sleep(62)
+                continue
+            log.warning("API-Football %s -> errors=%s", path, errs)
+        try:                                             # respecte la limite par MINUTE
             if int(r.headers.get("X-RateLimit-Remaining", "99")) <= 1:
                 time.sleep(61)
-                return r.json()
+                return j
         except (ValueError, TypeError):
             pass
         time.sleep(_THROTTLE)
-        return r.json()
+        return j
     r.raise_for_status()
     return r.json()
+
+
+def _state_from_fixture(r: dict) -> dict:
+    """Construit l'état de règlement à partir d'un objet fixture (utilisé par match_state ET le batch)."""
+    st = (r.get("fixture") or {}).get("status") or {}
+    short = st.get("short")
+    sc = r.get("score") or {}
+    ft = sc.get("fulltime") or {}
+    g = r.get("goals") or {}
+    return {"status": short, "elapsed": st.get("elapsed"),
+            "finished": short in FINISHED_STATUS, "in_play": short in INPLAY_STATUS,
+            "not_played": short in NOTPLAYED_STATUS,
+            "goals": {"home": g.get("home"), "away": g.get("away")},
+            "reg": {"home": ft.get("home"), "away": ft.get("away")},
+            "halftime": sc.get("halftime"), "extratime": sc.get("extratime"), "penalty": sc.get("penalty")}
 
 
 # Statuts de fixture (table officielle de la doc) — pour un RÈGLEMENT fiable.
@@ -242,19 +270,41 @@ def match_state(cl: httpx.Client, fixture_id: int) -> dict | None:
     - `finished`/`in_play`/`not_played` = classification via la table de statuts officielle de la doc.
     ⚠️ 1 seul appel `/fixtures?id=` renvoie aussi events/lineups/stats/players si besoin (batch `ids=` ≤20)."""
     r = (_get(cl, "/fixtures", id=fixture_id).get("response") or [None])[0]
-    if not r:
-        return None
-    st = (r.get("fixture") or {}).get("status") or {}
-    short = st.get("short")
-    sc = r.get("score") or {}
-    ft = sc.get("fulltime") or {}
-    g = r.get("goals") or {}
-    return {"status": short, "elapsed": st.get("elapsed"),
-            "finished": short in FINISHED_STATUS, "in_play": short in INPLAY_STATUS,
-            "not_played": short in NOTPLAYED_STATUS,
-            "goals": {"home": g.get("home"), "away": g.get("away")},
-            "reg": {"home": ft.get("home"), "away": ft.get("away")},
-            "halftime": sc.get("halftime"), "extratime": sc.get("extratime"), "penalty": sc.get("penalty")}
+    return _state_from_fixture(r) if r else None
+
+
+def match_states_batch(cl: httpx.Client, fixture_ids) -> dict:
+    """Règlement de PLUSIEURS matchs en UN appel (`/fixtures?ids=`, ≤20 — doc « optimize quota »). Énorme
+    économie pour le règlement/live (20 matchs = 1 requête au lieu de 20). Renvoie {fixture_id: état}."""
+    ids = [str(x) for x in fixture_ids if x][:20]
+    if not ids:
+        return {}
+    out = {}
+    for r in _get(cl, "/fixtures", ids="-".join(ids)).get("response", []):
+        fid = (r.get("fixture") or {}).get("id")
+        if fid is not None:
+            out[fid] = _state_from_fixture(r)
+    return out
+
+
+_COVERAGE_CACHE: dict = {}
+
+
+def coverage(cl: httpx.Client, league_id: int, season: int) -> dict | None:
+    """Ce que couvre une ligue/saison (odds, predictions, lineups, statistics…) — pour NE PAS appeler ce qui
+    n'existe pas (doc « optimize quota »). Semi-statique → mis en cache mémoire. None si introuvable."""
+    k = (league_id, season)
+    if k in _COVERAGE_CACHE:
+        return _COVERAGE_CACHE[k]
+    cov = None
+    r = (_get(cl, "/leagues", id=league_id, season=season).get("response") or [None])[0]
+    if r:
+        for s in r.get("seasons", []):
+            if s.get("year") == season:
+                cov = s.get("coverage")
+                break
+    _COVERAGE_CACHE[k] = cov
+    return cov
 
 
 def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
