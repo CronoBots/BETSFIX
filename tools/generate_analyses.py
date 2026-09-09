@@ -1879,6 +1879,32 @@ def _apifootball_omap(match: dict) -> dict:
         return {}
 
 
+# FLIP ANCRE SHARP (migration API-Football, étape 3 — PRÉPARÉ, OFF par défaut). Quand True : l'ancre sharp
+# Pinnacle (1X2 `sp` + marchés `smk`) vient d'API-Football (bookmaker Pinnacle id 4) au lieu du scraping
+# iProyal (repli iProyal→The Odds API si non résolu). PROUVÉ sûr 2026-09-09 : dé-vig IDENTIQUE (normalisation
+# multiplicative) + orientation cohérente + capture au SCAN = MÊME instant qu'iProyal → écart 0/0 pt sur 6
+# matchs à venir (les écarts historiques ~23 pt = pur line-movement, capture à J+1). Armer quand le shadow
+# confirme la COUVERTURE en prod (chaque match scanné résout son ancre). C'est le DERNIER verrou avant de
+# retirer iProyal → VPS → couper le tunnel Cloudflare. Cf. mémoire wip-current-task § ANCRE SHARP.
+_APIFOOTBALL_SHARP = False
+
+
+def _apifootball_sharp(match: dict) -> dict | None:
+    """Ancre sharp Pinnacle via API-Football (formats `sp`+`smk` drop-in), ou None (repli scraping).
+    Best-effort, ne lève jamais. Sync -> appeler via asyncio.to_thread depuis build_dossier."""
+    try:
+        from app import apifootball as AF
+        if not AF.configured():
+            return None
+        cl = AF._client()
+        try:
+            return AF.sharp_anchor(cl, match.get("home", ""), match.get("away", ""), match.get("start", ""))
+        finally:
+            cl.close()
+    except Exception:
+        return None
+
+
 async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "foot",
                         sofa_id: str | None = None) -> str | None:
     """Dossier compact : marchés Unibet utiles (hors bruit) + séries/H2H/votes SofaScore. None si indispo."""
@@ -2022,14 +2048,22 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     _sharp_src = ""
     _comp = match.get("comp") or match.get("circuit") or ""
     _ko = match.get("start") or ""                         # coup d'envoi -> résolution robuste (translittérations)
+    # FLIP ANCRE SHARP (OFF par défaut) : capte l'ancre API-Football UNE fois (sp+smk) — au scan = même instant
+    # qu'iProyal (dé-vig identique prouvé). Repli scraping si non résolu. N'altère RIEN tant que _APIFOOTBALL_SHARP=False.
+    _afsharp = None
+    if _APIFOOTBALL_SHARP and sport == "foot":
+        _afsharp = await asyncio.to_thread(_apifootball_sharp, match)
     try:
         from app import theoddsapi, pinnacle
-        # n°1 : Pinnacle BRUT via iProyal (catalogue MONDIAL, toutes ligues — user 2026-08-13 « prioritaire »)
-        sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport, _ko)
-        if sp is None and theoddsapi.configured():         # repli : The Odds API (gratuit, 68 ligues)
-            sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
-        if sp is not None:
-            _sharp_src = "Pinnacle"
+        if _afsharp and _afsharp.get("sp"):                # n°1 (flip) : Pinnacle via API-Football (résolu au scan)
+            sp = _afsharp["sp"]; _sharp_src = "Pinnacle(API-Football)"
+        else:
+            # n°1 : Pinnacle BRUT via iProyal (catalogue MONDIAL, toutes ligues — user 2026-08-13 « prioritaire »)
+            sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport, _ko)
+            if sp is None and theoddsapi.configured():     # repli : The Odds API (gratuit, 68 ligues)
+                sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
+            if sp is not None:
+                _sharp_src = "Pinnacle"
     except Exception:
         sp = None
     # ⚠️ GARDE ANTI-RÉSOLUTION FAUSSE de l'ancre (user 2026-09-02 — cas Saint-Trond–Union : Pinnacle donnait le
@@ -2067,10 +2101,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     sharp_mk = ""
     try:
         from app import theoddsapi, pinnacle
-        # n°1 : Pinnacle BRUT via iProyal (toutes ligues) ; repli The Odds API
-        smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport, _ko)
-        if smk is None and theoddsapi.configured():        # repli : The Odds API (gratuit)
-            smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
+        if _afsharp and (_afsharp.get("smk") or {}).get("totals"):   # n°1 (flip) : marchés sharp via API-Football
+            smk = _afsharp["smk"]
+        else:
+            # n°1 : Pinnacle BRUT via iProyal (toutes ligues) ; repli The Odds API
+            smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport, _ko)
+            if smk is None and theoddsapi.configured():    # repli : The Odds API (gratuit)
+                smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
     except Exception:
         smk = None
     if _sharp_conflict:

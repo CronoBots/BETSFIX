@@ -460,6 +460,38 @@ def team_xg_form(cl: httpx.Client, team_id: int, n: int = 5) -> dict | None:
             "xga": round(sum(xgas) / len(xgas), 2) if xgas else None, "n": len(xgs)}
 
 
+def sharp_anchor(cl: httpx.Client, home: str, away: str, ko_iso: str) -> dict | None:
+    """Ancre SHARP Pinnacle via API-Football, aux FORMATS `pinnacle.sharp_probs`/`sharp_markets` (drop-in).
+    Renvoie {"sp": {home,draw,away,margin}, "smk": {totals:{ligne:proba_over}, spreads:{}}} ou None.
+    Même dé-vig (normalisation multiplicative) → PROUVÉ identique à iProyal au MÊME instant (2026-09-09,
+    écart 0/0 pt sur 6 matchs ; les écarts historiques ~23 pt = pur timing/line-movement, pas un bug).
+    ⚠️ Orientation : le fixture API-Football a home=vrai domicile = notre home → alignement naturel."""
+    f = resolve_fixture(cl, home, away, ko_iso)
+    if not f:
+        return None
+    pin = (raw_odds(cl, f["id"]).get(BK_PINNACLE)) or {}
+    mw = pin.get(BET_1X2) or {}
+    inv = {k: 1.0 / mw[k] for k in ("Home", "Draw", "Away") if mw.get(k)}
+    sp = None
+    if len(inv) == 3 and sum(inv.values()) > 0:
+        s = sum(inv.values())
+        sp = {"home": round(inv["Home"] / s, 3), "draw": round(inv["Draw"] / s, 3),
+              "away": round(inv["Away"] / s, 3), "margin": round(s - 1.0, 4)}
+    totals: dict = {}
+    lines: dict = {}
+    for lab, odd in (pin.get(BET_OU) or {}).items():
+        m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
+        if m and odd:
+            lines.setdefault(float(m.group(2)), {})[m.group(1)] = odd
+    for ln, oc in lines.items():
+        if oc.get("Over") and oc.get("Under"):
+            io, iu = 1.0 / oc["Over"], 1.0 / oc["Under"]
+            totals[ln] = round(io / (io + iu), 3)
+    if sp is None and not totals:
+        return None
+    return {"sp": sp, "smk": {"totals": totals, "spreads": {}}}
+
+
 def enrich_facts(cl: httpx.Client, home: str, away: str, ko_iso: str) -> tuple[list[str], dict]:
     """Bloc de faits d'ENRICHISSEMENT API-Football pour un match (forme + moy buts + over% + série + xG +
     H2H + arbitre + prédiction Poisson + classement). REMPLACE Flashscore/Sportradar/Understat.
