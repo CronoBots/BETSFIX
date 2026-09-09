@@ -1854,6 +1854,31 @@ def _build_sharp_map(sp, smk) -> dict:
     return m
 
 
+# FLIP COTES (migration API-Football, étape 2 — PRÉPARÉ, OFF par défaut). Quand True : l'omap (VRAIES cotes
+# Unibet) est capté via API-Football au lieu du scraping Kambi (repli scraping si non résolu). Validé par le
+# pick-shadow (après fix du signe handicap AWAY) : picks EXISTANTS identiques, quelques picks EN PLUS (lignes
+# que le scraping ratait). N'affecte QUE l'omap ; l'ancre sharp reste sur scraping (brique séparée). Mettre à
+# True quand le pick-shadow confirme « 0 pick existant changé » sur plusieurs jours. Cf. tools/apifootball_pick_shadow.py.
+_APIFOOTBALL_ODDS = False
+
+
+def _apifootball_omap(match: dict) -> dict:
+    """VRAIES cotes Unibet (format omap BETSFIX) via API-Football pour un match, ou {} (repli scraping).
+    Best-effort, ne lève jamais. Sync -> appeler via asyncio.to_thread depuis build_dossier."""
+    try:
+        from app import apifootball as AF
+        if not AF.configured():
+            return {}
+        cl = AF._client()
+        try:
+            f = AF.resolve_fixture(cl, match.get("home", ""), match.get("away", ""), match.get("start", ""))
+            return AF.unibet_omap(AF.raw_odds(cl, f["id"])) if f else {}
+        finally:
+            cl.close()
+    except Exception:
+        return {}
+
+
 async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "foot",
                         sofa_id: str | None = None) -> str | None:
     """Dossier compact : marchés Unibet utiles (hors bruit) + séries/H2H/votes SofaScore. None si indispo."""
@@ -1872,6 +1897,13 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
     if sport == "foot":       # map des VRAIES cotes Unibet par code -> re-pricing du sidecar (cf. _UNIBET_OMAP)
         try:
             _om = _unibet_odds_map(bo.get("betOffers"), match.get("home", ""), match.get("away", ""))
+            # FLIP COTES (OFF par défaut) : remplace l'omap scrapé par celui d'API-Football si dispo (repli
+            # scraping sinon). N'affecte que si _APIFOOTBALL_ODDS=True. Cf. helper + note ci-dessus.
+            if _APIFOOTBALL_ODDS:
+                _afom = await asyncio.to_thread(_apifootball_omap, match)
+                if _afom:
+                    _om = _afom
+                    print(f"  · cotes via API-Football : {match.get('name','?')} ({len(_afom)} codes)")
             _UNIBET_OMAP[str(match["id"])] = _om
             # DIAGNOSTIC omap (user 2026-08-31) : si la capture échoue, on LOGUE le match + le nb de betOffers
             # -> le prochain scan révèle QUELS matchs perdent leurs vraies cotes Unibet et pourquoi (fetch vide
