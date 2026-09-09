@@ -267,8 +267,17 @@ def unibet_omap(odds: dict) -> dict:
             om[code] = uni[BET_BTTS][lab]
     for lab, cote in (uni.get(BET_AH) or {}).items():                # "Home -2.5" -> "HCAP HOME -2.5"
         m = re.match(r"(Home|Away)\s+([+-]?[0-9.]+)", lab)
-        if m and cote:
-            om[f"HCAP {m.group(1).upper()} {_line(m.group(2))}"] = cote
+        if not (m and cote):
+            continue
+        side = m.group(1).upper()
+        v = float(m.group(2))
+        # ⚠️ CONVENTION HANDICAP EXTÉRIEUR : API-Football et BETSFIX ont des SIGNES OPPOSÉS côté AWAY (vérifié
+        # par appariement des cotes : API « Away +0.5 »@1.92 = BETSFIX « HCAP AWAY -0.5 »@1.92). Home identique.
+        # Sans cette inversion, le sélecteur Confiance voyait un handicap favorable à une cote de longshot ->
+        # picks faux (bug attrapé par le pick-shadow, sinon on aurait cassé le phare à la bascule des cotes).
+        if side == "AWAY":
+            v = -v
+        om[f"HCAP {side} {'+' if v >= 0 else '-'}{_line(f'{abs(v):g}')}"] = cote
     for betid, side in ((BET_TOT_HOME, "HOME"), (BET_TOT_AWAY, "AWAY")):   # "Total - Home/Away" -> TEAMTOT
         for lab, cote in (uni.get(betid) or {}).items():
             m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
