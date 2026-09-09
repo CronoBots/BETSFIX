@@ -17,6 +17,16 @@ en absolu**, mécaniquement.
 (ancre **Pinnacle** sharp + **Unibet** + 30 books) pour un **quota plat** (Pro 7500 req/j). La donnée n'est plus
 le facteur limitant.
 
+## ⚠️ 2bis. PROTOTYPE v1 TESTÉ 2026-09-09 — l'hypothèse « stage-1 = sharp×Unibet » est FAUSSE
+`tools/value_screener.py` (lecture seule) exécuté sur le slate du jour : sur 70 matchs à venir, **16 ont
+Pinnacle+Unibet**, et **0 candidat value** (EV `sharp×Unibet ≥ +5%`). Raison : **Pinnacle ≈ Unibet (marchés
+efficients)** — Unibet ne bat quasi jamais Pinnacle de +5% sur les marchés cœur. → **Notre value ne vient PAS
+d'un arbitrage Unibet-vs-Pinnacle**, elle vient du **modèle de Claude** (fantômes) qui diverge du marché. Donc le
+crible cheap « sharp arbitrage » ne surface PAS notre value. **CORRECTION du design** : le stage-1 cheap doit être
+un **MODÈLE** (pas un arbitrage). Piste n°1 = **/predictions (Poisson) d'API-Football** comme proxy gratuit de
+« où un modèle diverge du marché » → flague les candidats → Claude confirme (stage-2). À tester. Sinon, la
+couverture élargie = plus d'analyses Claude (coût qui scale, borné par le nb de matchs criblés).
+
 ## 2. L'insight clé : la value se détecte SANS LLM
 
 L'analyse Claude (génération des fantômes + « pourquoi ») est la partie **chère et lente**. Mais on n'en a pas
