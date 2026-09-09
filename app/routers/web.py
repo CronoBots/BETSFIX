@@ -455,6 +455,8 @@ async def crest_route(name: str = ""):
     from app import crest as _crest
     tid = await asyncio.to_thread(_crest.team_id, name)
     url = _crest.logo_url(tid)
+    if not url:                          # FotMob a échoué -> REPLI API-Football gardé (comble un monogramme)
+        url = await asyncio.to_thread(_crest.af_team_logo, name)
     return RedirectResponse(url, status_code=302) if url else Response(status_code=404)
 
 

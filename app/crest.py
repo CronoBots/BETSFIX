@@ -168,3 +168,70 @@ def team_id(name: str):
 
 def logo_url(tid):
     return f"https://images.fotmob.com/image_resources/logo/teamlogo/{tid}.png" if tid else None
+
+
+# ── REPLI API-Football (2026-09-09) : UNIQUEMENT quand FotMob échoue (→ monogramme aujourd'hui). Additif, gardé,
+# cosmétique. Rejette les équipes féminines/jeunes/réserve, exige une correspondance de tokens (helpers testés
+# `apifootball._ov`/`_norm`), monogramme au moindre doute. Ne CHANGE JAMAIS un logo FotMob qui marche déjà. ──
+_AF_CACHE_FILE = os.path.join("data", "crest_af_cache.json")
+_AF_CACHE: dict | None = None
+_AF_NEG: set = set()          # échecs vus CETTE session (mémoire seule, re-tentés au boot — comme _NEG)
+_AF_BAD = _re.compile(r"\b(W|Women|Fem(?:enin|inas)?|U-?1[5-9]|U-?2[0-3]|II|Reserve[s]?|Academy|Youth)\b", _re.I)
+
+
+def _af_load() -> dict:
+    global _AF_CACHE
+    if _AF_CACHE is None:
+        try:
+            _AF_CACHE = json.load(open(_AF_CACHE_FILE, encoding="utf-8"))
+        except (OSError, ValueError):
+            _AF_CACHE = {}
+    return _AF_CACHE
+
+
+def af_team_logo(name: str):
+    """URL de logo via API-Football, EN REPLI de FotMob. None si introuvable/doute/panne (→ monogramme).
+    Best-effort STRICT : ne lève jamais. Positifs cachés sur disque ; négatifs en mémoire (re-tentés au boot)."""
+    key = _norm(name)
+    if not key or len(key) < 3:
+        return None
+    c = _af_load()
+    if key in c:
+        return c[key] or None            # positif (URL) OU négatif figé (None)
+    if key in _AF_NEG:
+        return None
+    q = _re.sub(r"\s+", " ", _re.sub(r"[^A-Za-z0-9 ]", " ", _clean(name))).strip()   # AF exige alphanum+espaces
+    if len(q) < 3:
+        _AF_NEG.add(key); return None
+    try:
+        from app import apifootball as AF
+        if not AF.configured():
+            return None                  # pas de clé -> ne pas cacher (re-tentera)
+        cl = AF._client()
+        try:
+            resp = AF._get(cl, "/teams", search=q).get("response", []) or []
+        finally:
+            cl.close()
+        want = AF._norm(name)
+        url = None
+        for r in resp[:6]:
+            t = r.get("team") or {}
+            tname, logo = t.get("name") or "", t.get("logo")
+            if not logo:
+                continue
+            if _AF_BAD.search(tname) and not _AF_BAD.search(name):   # résultat W/jeune/réserve, pas la requête
+                continue
+            if AF._ov(want, AF._norm(tname)) >= 0.5:                 # correspondance de tokens (helper testé)
+                url = logo; break
+    except Exception:
+        return None                      # panne -> ne PAS cacher (re-tentera)
+    if not url:
+        _AF_NEG.add(key); return None
+    with _LOCK:
+        c[key] = url
+        try:
+            os.makedirs(os.path.dirname(_AF_CACHE_FILE), exist_ok=True)
+            json.dump(c, open(_AF_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
+        except OSError:
+            pass
+    return url
