@@ -33,6 +33,12 @@ _ESPN = "https://site.api.espn.com/apis"
 _FOTMOB = "https://www.fotmob.com/api/data"
 _UNDERSTAT = "https://understat.com"
 
+# ── MIGRATION API-FOOTBALL — enrichissement HYBRIDE (flag OFF par défaut, shadow-first) ──────────────
+# Quand True : le bloc forme/xG/classement/H2H/arbitre/prédiction/over/série vient d'API-Football (remplace
+# Understat+Flashscore+Sportradar). FotMob RESTE (blessés large / compos probables / météo qu'API-Football
+# ne couvre pas — cf. mémoire wip-current-task). Réversible instantanément. Ne PAS flipper sans shadow validé.
+_APIFOOTBALL_ENRICH = False
+
 
 # ------------------------------------------------------------------ correspondance de noms
 # Unibet nomme les SÉLECTIONS NATIONALES en français, FotMob/ESPN en anglais -> table de
@@ -1404,32 +1410,63 @@ async def extras(client, sport: str, match: dict, prov: dict | None = None) -> s
         if r:
             tracker[key] = True
         return r
+    # HYBRIDE API-Football : bloc forme/xG/classement/H2H/arbitre/prédiction remplace Understat+Flashscore+
+    # Sportradar ; FotMob reste pour blessés/compos/météo. Flag OFF par défaut (shadow-first).
+    af_on = _APIFOOTBALL_ENRICH and sport == "foot"
+    try:
+        from app import apifootball as _AF
+        af_on = af_on and _AF.configured()
+    except Exception:
+        af_on = False
+
     facts: list = []
     if sport == "foot":
         facts += await _safe(_foot_extras(client, match), "fotmob")
-        facts += await _safe(_foot_xg(client, match), "understat")   # un échec xG ne détruit plus FotMob
+        if af_on:                                                    # xG API-Football (remplace Understat)
+            af_facts = await _safe(_af_enrich(match), "apifootball")
+            facts += af_facts
+        else:
+            facts += await _safe(_foot_xg(client, match), "understat")   # un échec xG ne détruit plus FotMob
     elif sport == "tennis":
         facts += await _safe(_tennis_extras(client, match), "espn")
     elif sport == "basket":
         facts += await _safe(_basket_extras(client, match), "espn")
     out = ""
     if facts:
-        out += ("\n\nDONNÉES MULTI-SOURCES (ESPN / FotMob / Understat — source indépendante n°2, "
+        _src = "ESPN / FotMob / API-Football" if af_on else "ESPN / FotMob / Understat"
+        out += (f"\n\nDONNÉES MULTI-SOURCES ({_src} — source indépendante n°2, "
                 "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
                 + "\n- ".join(facts))
-    fb = await _flashscore_block(sport, match)
-    if fb and fb.strip():
-        tracker["flashscore"] = True
-    out += fb
-    try:                                   # Sportradar (GISMO) : forme/série/H2H/classement
-        from app import sportradar
-        sb = await sportradar.block(client, sport, match)
-        if sb and sb.strip():
-            tracker["sportradar"] = True
-        out += sb
-    except Exception:
-        pass
+    if not af_on:                          # Flashscore + Sportradar remplacés par le bloc API-Football
+        fb = await _flashscore_block(sport, match)
+        if fb and fb.strip():
+            tracker["flashscore"] = True
+        out += fb
+        try:                               # Sportradar (GISMO) : forme/série/H2H/classement
+            from app import sportradar
+            sb = await sportradar.block(client, sport, match)
+            if sb and sb.strip():
+                tracker["sportradar"] = True
+            out += sb
+        except Exception:
+            pass
     return out
+
+
+async def _af_enrich(match: dict) -> list[str]:
+    """Faits d'enrichissement API-Football (adaptateur sync appelé hors boucle). [] si non configuré/non résolu."""
+    from app import apifootball as _AF
+    if not _AF.configured():
+        return []
+
+    def _work():
+        with _AF._client() as cl:
+            facts, _ = _AF.enrich_facts(cl, match.get("home"), match.get("away"), match.get("start"))
+            return facts
+    try:
+        return await asyncio.to_thread(_work)
+    except Exception:
+        return []
 
 
 async def _flashscore_block(sport: str, match: dict) -> str:

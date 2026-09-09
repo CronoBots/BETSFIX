@@ -460,6 +460,79 @@ def team_xg_form(cl: httpx.Client, team_id: int, n: int = 5) -> dict | None:
             "xga": round(sum(xgas) / len(xgas), 2) if xgas else None, "n": len(xgs)}
 
 
+def enrich_facts(cl: httpx.Client, home: str, away: str, ko_iso: str) -> tuple[list[str], dict]:
+    """Bloc de faits d'ENRICHISSEMENT API-Football pour un match (forme + moy buts + over% + série + xG +
+    H2H + arbitre + prédiction Poisson + classement). REMPLACE Flashscore/Sportradar/Understat.
+    ⚠️ NE remplace PAS FotMob (blessés large / compos probables / météo = gardés en hybride).
+    Renvoie (facts, coverage) ; coverage {bloc: bool} = traçabilité de ce qui a répondu.
+    Blessés inclus SEULEMENT si `coverage.injuries` de la ligue = True (Belgique/Amérique du Sud = False)."""
+    facts: list[str] = []
+    cov = {"resolve": False, "referee": False, "form": False, "xg": False, "injuries_covered": False,
+           "injuries": False, "h2h": False, "predictions": False, "standings": False}
+    f = resolve_fixture(cl, home, away, ko_iso)
+    if not f:
+        return facts, cov
+    cov["resolve"] = True
+    fid, lid, season = f["id"], f.get("league_id"), f.get("season")
+    th, ta = f.get("home_id"), f.get("away_id")
+
+    if f.get("referee"):
+        facts.append(f"Arbitre : {f['referee']} (API-Football)")
+        cov["referee"] = True
+
+    if lid and season:
+        for tid, label in ((th, home), (ta, away)):
+            st = team_stats(cl, tid, lid, season) if tid else None
+            if st and st.get("form"):
+                g = st.get("goals") or {}
+                gf = ((g.get("for") or {}).get("average") or {}).get("total")
+                ga = ((g.get("against") or {}).get("average") or {}).get("total")
+                ov = f" · over 2.5 {st['over25']}%" if st.get("over25") is not None else ""
+                sk = st.get("streak") or {}
+                skf = (f" · série {sk['wins']}V" if sk.get("wins") else
+                       f" · série {sk['draws']}N" if sk.get("draws") else "")
+                facts.append(f"Forme [{label}] : {st['form'][-6:]} · buts {gf}/match créés, {ga} concédés{ov}{skf} (API-Football)")
+                cov["form"] = True
+
+    for tid, label in ((th, home), (ta, away)):
+        xg = team_xg_form(cl, tid) if tid else None
+        if xg:
+            facts.append(f"xG [{label}] (moy. {xg['n']} derniers) : {xg['xg']} créés / {xg['xga']} concédés (API-Football)")
+            cov["xg"] = True
+
+    covg = coverage(cl, lid, season) if lid and season else None
+    if covg and covg.get("injuries"):
+        cov["injuries_covered"] = True
+        inj = injuries(cl, fid)
+        if inj:
+            names = ", ".join(f"{i.get('player')} ({i.get('reason')})" for i in inj[:8] if i.get("player"))
+            if names:
+                facts.append(f"Absents/incertains : {names} (API-Football)")
+                cov["injuries"] = True
+
+    if th and ta:
+        hh = h2h(cl, th, ta, last=5)
+        if hh:
+            facts.append("H2H (5 derniers) : " + " · ".join(x["score"] for x in hh) + " (API-Football)")
+            cov["h2h"] = True
+
+    pr = predictions(cl, fid)
+    if pr and (pr.get("percent") or {}).get("home"):
+        pc = pr["percent"]
+        facts.append(f"Prédiction API-Football (Poisson) : {pc.get('home')} / {pc.get('draw')} / {pc.get('away')} · advice: {pr.get('advice')}")
+        cov["predictions"] = True
+
+    if lid and season:
+        rk = {r["team_id"]: r for r in standings(cl, lid, season)}
+        for tid, label in ((th, home), (ta, away)):
+            r = rk.get(tid)
+            if r:
+                facts.append(f"Classement [{label}] : {r['rank']}e, {r['points']} pts, forme {r.get('form')} (API-Football)")
+                cov["standings"] = True
+
+    return facts, cov
+
+
 if __name__ == "__main__":                     # self-test manuel : python -m app.apifootball "Home" "Away" "ISO"
     import sys
     if not configured():
