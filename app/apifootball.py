@@ -28,7 +28,7 @@ import httpx
 
 HOST = "https://v3.football.api-sports.io"
 BK_PINNACLE, BK_UNIBET = 4, 16                 # ids stables (/odds/bookmakers)
-BET_1X2, BET_DC, BET_OU, BET_BTTS = 1, 12, 5, 8
+BET_1X2, BET_DC, BET_OU, BET_BTTS, BET_AH = 1, 12, 5, 8, 4   # Asian Handicap = 4
 
 _THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "1.2"))   # s entre requêtes (Free ~10/min)
 _TIMEOUT = 25
@@ -128,39 +128,74 @@ def raw_odds(cl: httpx.Client, fixture_id: int) -> dict:
     return out
 
 
-def sharp_map_1x2(odds: dict) -> dict:
-    """Proba Pinnacle DÉ-VIGGÉE (marge retirée) au format `sharp_map` BETSFIX (1X2). {} si Pinnacle absent."""
-    mw = (odds.get(BK_PINNACLE) or {}).get(BET_1X2) or {}
+def _line(s: str) -> str:
+    """Normalise une ligne (« 3.0 » -> « 3 », garde « 2.5/2.75/2.25 ») pour coller au format des codes BETSFIX."""
+    s = s.strip()
+    return s[:-2] if s.endswith(".0") else s
+
+
+def sharp_map(odds: dict) -> dict:
+    """Proba Pinnacle DÉ-VIGGÉE (marge retirée) au format `sharp_map` BETSFIX — LE PLUS COMPLET possible :
+    1X2, Double chance (dérivée du 1X2), et totaux Over/Under (dé-viggés par ligne). {} si Pinnacle absent."""
+    pin = odds.get(BK_PINNACLE) or {}
+    out: dict = {}
+    mw = pin.get(BET_1X2) or {}
     inv = {lab: 1.0 / mw[lab] for lab in ("Home", "Draw", "Away") if mw.get(lab)}
-    tot = sum(inv.values())
-    if len(inv) < 3 or tot <= 0:
-        return {}
-    return {"1X2 1": round(inv["Home"] / tot, 4), "1X2 X": round(inv["Draw"] / tot, 4),
-            "1X2 2": round(inv["Away"] / tot, 4)}
+    if len(inv) == 3 and sum(inv.values()) > 0:
+        tot = sum(inv.values())
+        p1, px, p2 = inv["Home"] / tot, inv["Draw"] / tot, inv["Away"] / tot
+        out.update({"1X2 1": round(p1, 4), "1X2 X": round(px, 4), "1X2 2": round(p2, 4),
+                    "DC 1X": round(p1 + px, 4), "DC 12": round(p1 + p2, 4), "DC X2": round(px + p2, 4),
+                    "WIN 1": round(p1, 4), "WIN 2": round(p2, 4),                       # alias vainqueur
+                    "REGTIME HOME": round(p1, 4), "REGTIME DRAW": round(px, 4),         # alias temps réglementaire
+                    "REGTIME AWAY": round(p2, 4)})
+    lines: dict = {}                                                  # totaux buts, dé-vig PAR ligne
+    for lab, odd in (pin.get(BET_OU) or {}).items():
+        m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
+        if m and odd:
+            lines.setdefault(_line(m.group(2)), {})[m.group(1)] = odd
+    for ln, oc in lines.items():
+        if "Over" in oc and "Under" in oc:
+            io, iu = 1.0 / oc["Over"], 1.0 / oc["Under"]; s = io + iu
+            out[f"OVER {ln}"] = round(io / s, 4); out[f"UNDER {ln}"] = round(iu / s, 4)
+    return out
 
 
-# Mapping (marché API-Football, valeur) -> code BETSFIX. Incrémental : 1X2 / DC / Over-Under / BTTS mappés.
-_OMAP_TODO = "handicaps (Asian) + totaux d'ÉQUIPE (Home/Away Team Goals) non encore mappés"
+sharp_map_1x2 = sharp_map            # alias rétrocompat (l'ancien nom ne couvrait que le 1X2)
+
+# Marchés BETSFIX NON disponibles sur API-Football (à combler autrement ou accepter) :
+_OMAP_GAPS = ("TEAMTOT plein-match (API-Football = totaux d'équipe MI-TEMPS seulement, bets 105-108) ; "
+              "xG (enrichissement top-5)")
 
 
 def unibet_omap(odds: dict) -> dict:
-    """Cotes Unibet réelles au format `omap` BETSFIX {code -> cote}. Couvre 1X2, Double chance, Over/Under
-    buts, BTTS (mapping incrémental — cf. _OMAP_TODO pour handicaps/totaux équipe)."""
+    """Cotes Unibet réelles au format `omap` BETSFIX {code -> cote} — LE PLUS COMPLET : 1X2 (+ alias WIN /
+    REGTIME), Double chance, Over/Under buts, BTTS, et HANDICAP asiatique (`HCAP HOME/AWAY <ligne>`).
+    ⚠️ `TEAMTOT` plein-match non produit (indisponible côté API-Football — cf. _OMAP_GAPS)."""
     uni = odds.get(BK_UNIBET) or {}
     om: dict = {}
-    for lab, code in (("Home", "1X2 1"), ("Draw", "1X2 X"), ("Away", "1X2 2")):
-        if (uni.get(BET_1X2) or {}).get(lab):
-            om[code] = uni[BET_1X2][lab]
+    mw = uni.get(BET_1X2) or {}
+    # 1X2 + alias BETSFIX équivalents (WIN vainqueur, REGTIME résultat temps réglementaire) = mêmes cotes.
+    for lab, codes in (("Home", ("1X2 1", "WIN 1", "REGTIME HOME")),
+                       ("Draw", ("1X2 X", "REGTIME DRAW")),
+                       ("Away", ("1X2 2", "WIN 2", "REGTIME AWAY"))):
+        if mw.get(lab):
+            for c in codes:
+                om[c] = mw[lab]
     for lab, code in (("Home/Draw", "DC 1X"), ("Home/Away", "DC 12"), ("Draw/Away", "DC X2")):
         if (uni.get(BET_DC) or {}).get(lab):
             om[code] = uni[BET_DC][lab]
-    for lab, cote in (uni.get(BET_OU) or {}).items():                # "Over 2.5" / "Under 2.5" -> "OVER 2.5"
+    for lab, cote in (uni.get(BET_OU) or {}).items():                # "Over 2.5" -> "OVER 2.5"
         m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
         if m:
-            om[f"{m.group(1).upper()} {m.group(2)}"] = cote
+            om[f"{m.group(1).upper()} {_line(m.group(2))}"] = cote
     for lab, code in (("Yes", "BTTS YES"), ("No", "BTTS NO")):
         if (uni.get(BET_BTTS) or {}).get(lab):
             om[code] = uni[BET_BTTS][lab]
+    for lab, cote in (uni.get(BET_AH) or {}).items():                # "Home -2.5" -> "HCAP HOME -2.5"
+        m = re.match(r"(Home|Away)\s+([+-]?[0-9.]+)", lab)
+        if m and cote:
+            om[f"HCAP {m.group(1).upper()} {_line(m.group(2))}"] = cote
     return om
 
 
