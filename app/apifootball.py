@@ -376,7 +376,9 @@ def standings(cl: httpx.Client, league_id: int, season: int) -> list:
         for row in group:
             out.append({"rank": row.get("rank"), "team": (row.get("team") or {}).get("name"),
                         "team_id": (row.get("team") or {}).get("id"), "points": row.get("points"),
-                        "goalsDiff": row.get("goalsDiff"), "form": row.get("form")})
+                        "goalsDiff": row.get("goalsDiff"), "form": row.get("form"),
+                        "status": row.get("status"), "description": row.get("description"),
+                        "home": row.get("home"), "away": row.get("away")})   # splits dom/ext = signal paris
     return out
 
 
