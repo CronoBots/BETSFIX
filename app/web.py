@@ -6163,8 +6163,10 @@ def _hero_graph_inner(*, roi, n: int, hit, avg_cote, chart: str, form: str, stre
         f'<div><span class="v">{n}</span><span class="l">Paris réglés</span></div>'
         f'<div><span class="v">{avg_cote or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>'
-        # 3 graphes SÉPARÉS empilés : ROI (équité) · Réussite (%) · Cote moyenne (demande user 2026-07-27).
-        f'{chart}{_rate_block(hit_points, uid, warmup)}{_cote_block(cote_points, uid, warmup)}'
+        # GRAPHE ROI (équité) SEUL (user 2026-09-10) : les graphes « Réussite (%) » et « Cote moyenne » sont
+        # RETIRÉS (les chiffres restent dans la sous-ligne KPI ci-dessus). _rate_block/_cote_block conservés
+        # (code mort) au cas où on voudrait les remettre.
+        f'{chart}'
         f'{form}{_streak_text(streak, best_streak)}')
 
 
@@ -10503,10 +10505,9 @@ def render_montante_bilan(st: dict, example: dict) -> str:
             f'<div><span class="v arec-pos">{_mont_eur(_bestg)}</span><span class="l">Plus gros gain</span></div>'
             f'<div><span class="v">{_avgc if _avgc is not None else "—"}</span>'
             '<span class="l">Cote moyenne</span></div></div>')
-    # COURBES « Taux de réussite » + « Cote moyenne » (user 2026-08-19), comme les autres onglets. Warmup abaissé
-    # (montante ~1 pari/jour -> on montre les courbes sans attendre 13 paris).
-    _curves = (_rate_block(_hit_curve(_res), "mbil", warmup=3)
-               + _cote_block(_cote_curve([(s.get("result"), s.get("cote")) for s in _steps]), "mbil", warmup=3))
+    # GRAPHES « Taux de réussite » + « Cote moyenne » RETIRÉS (user 2026-09-10), comme les autres onglets
+    # (les chiffres restent dans la sous-ligne KPI ci-dessus). _rate_block/_cote_block = code mort conservé.
+    _curves = ""
     _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
     _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
     # HISTORIQUE EN LISTE — MÊME composant que les autres onglets (`_recent_bets_html`) : pastille W/L + affiche +
