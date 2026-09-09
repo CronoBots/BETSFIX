@@ -27,6 +27,19 @@ un **MODÈLE** (pas un arbitrage). Piste n°1 = **/predictions (Poisson) d'API-F
 « où un modèle diverge du marché » → flague les candidats → Claude confirme (stage-2). À tester. Sinon, la
 couverture élargie = plus d'analyses Claude (coût qui scale, borné par le nb de matchs criblés).
 
+**PROXY POISSON TESTÉ 2026-09-09 → INUTILISABLE.** Comparé sharp-EV vs poisson-EV sur 26 matchs (Pinnacle+Unibet+
+1X2) : sharp flague **0** (efficient), Poisson flague **26/26** (bruit total). Les probas `/predictions.percent`
+d'API-Football sont **peu fiables/plates** (Barça-Feyenoord : Feyenoord donné 33% @25.0 → « +725% EV » alors que
+sharp=3% ; multiples 45%/50% plats). → **Poisson NON viable comme stage-1.**
+
+### ⚖️ VERDICT DÉFINITIF (2026-09-09) — pas de raccourci cheap
+Les DEUX proxies cheap échouent : **sharp = le marché** (trop efficient, 0 candidat) ; **Poisson API-Football =
+bruit** (probas plates, tout flaggé faux). **La seule proba fiable qui trouve la VRAIE value = l'analyse Claude**
+(fantômes). Conséquences : (1) l'**entonnoir cheap stage-1 sans-LLM N'EXISTE PAS** avec les signaux dispo ; (2)
+**élargir la couverture = plus d'analyses Claude** (coût ∝ nb de matchs — à borner/prioriser) ; (3) c'est aussi la
+**MOAT** de BETSFIX (edge = jugement Claude multi-sources, pas un arbitrage mécanique copiable). Le sharp peut au
+mieux **PRIORISER** quels matchs valent une analyse Claude (pas les trouver). Ne PAS bâtir un funnel cheap illusoire.
+
 ## 2. L'insight clé : la value se détecte SANS LLM
 
 L'analyse Claude (génération des fantômes + « pourquoi ») est la partie **chère et lente**. Mais on n'en a pas
