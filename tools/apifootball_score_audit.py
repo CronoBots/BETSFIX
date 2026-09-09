@@ -111,7 +111,7 @@ def main() -> int:
                 diffs.append((d.get("name"), mid, bf, af, enjeu, in_combo and leg_mids[mid]))
                 # correction auto : SEULEMENT l'affichage d'une abstention hors combiné (aucun ROI)
                 if args.fix and not played and not in_combo:
-                    h, a2 = best["reg"]["home"], best["reg"]["away"]
+                    h, a2 = best["final"]["home"], best["final"]["away"]   # score FINAL (cohérent avec `af`)
                     d["result"]["score"] = af
                     d["result"]["raw"] = {**(d["result"].get("raw") or {}), "home": h, "away": a2,
                                           "label": af, "src": "apifootball(audit)"}
