@@ -189,6 +189,26 @@ def _af_load() -> dict:
     return _AF_CACHE
 
 
+def set_known_logo(name: str, url) -> None:
+    """Enregistre le logo EXACT d'une équipe (URL API-Football obtenue via l'ID du FIXTURE résolu au scan) dans
+    le cache de repli. Rend le repli logo EXACT (plus de recherche floue -> zéro risque « équipe féminine »).
+    Best-effort, ne lève jamais. Le nom est celui qu'affiche BETSFIX (Unibet) -> clé normalisée = celle du site."""
+    key = _norm(name)
+    if not key or not url:
+        return
+    c = _af_load()
+    if c.get(key) == url:
+        return
+    with _LOCK:
+        c[key] = url
+        _AF_NEG.discard(key)
+        try:
+            os.makedirs(os.path.dirname(_AF_CACHE_FILE), exist_ok=True)
+            json.dump(c, open(_AF_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
+        except OSError:
+            pass
+
+
 def af_team_logo(name: str):
     """URL de logo via API-Football, EN REPLI de FotMob. None si introuvable/doute/panne (→ monogramme).
     Best-effort STRICT : ne lève jamais. Positifs cachés sur disque ; négatifs en mémoire (re-tentés au boot)."""

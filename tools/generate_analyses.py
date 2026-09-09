@@ -1873,7 +1873,15 @@ def _apifootball_omap(match: dict) -> dict:
         cl = AF._client()
         try:
             f = AF.resolve_fixture(cl, match.get("home", ""), match.get("away", ""), match.get("start", ""))
-            return AF.unibet_omap(AF.raw_odds(cl, f["id"])) if f else {}
+            if not f:
+                return {}
+            try:                               # LOGO EXACT (par l'ID du fixture) -> repli logo fiable, zéro risque
+                from app import crest           # « Al Nassr W » (résolution par nom = exacte via le fixture)
+                crest.set_known_logo(match.get("home", ""), f.get("home_logo"))
+                crest.set_known_logo(match.get("away", ""), f.get("away_logo"))
+            except Exception:
+                pass
+            return AF.unibet_omap(AF.raw_odds(cl, f["id"]))
         finally:
             cl.close()
     except Exception:
