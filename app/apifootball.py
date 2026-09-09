@@ -29,6 +29,7 @@ import httpx
 HOST = "https://v3.football.api-sports.io"
 BK_PINNACLE, BK_UNIBET = 4, 16                 # ids stables (/odds/bookmakers)
 BET_1X2, BET_DC, BET_OU, BET_BTTS, BET_AH = 1, 12, 5, 8, 4   # Asian Handicap = 4
+BET_TOT_HOME, BET_TOT_AWAY = 16, 17                          # totaux d'équipe PLEIN-MATCH ("Total - Home/Away")
 
 _THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "1.2"))   # s entre requêtes (Free ~10/min)
 _TIMEOUT = 25
@@ -158,14 +159,26 @@ def sharp_map(odds: dict) -> dict:
         if "Over" in oc and "Under" in oc:
             io, iu = 1.0 / oc["Over"], 1.0 / oc["Under"]; s = io + iu
             out[f"OVER {ln}"] = round(io / s, 4); out[f"UNDER {ln}"] = round(iu / s, 4)
+    # Totaux d'ÉQUIPE plein-match dé-viggés par ligne (Pinnacle "Total - Home/Away" = bets 16/17).
+    for betid, side in ((BET_TOT_HOME, "HOME"), (BET_TOT_AWAY, "AWAY")):
+        tl: dict = {}
+        for lab, odd in (pin.get(betid) or {}).items():
+            m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
+            if m and odd:
+                tl.setdefault(_line(m.group(2)), {})[m.group(1)] = odd
+        for ln, oc in tl.items():
+            if "Over" in oc and "Under" in oc:
+                io, iu = 1.0 / oc["Over"], 1.0 / oc["Under"]; s = io + iu
+                out[f"TEAMTOT {side} OVER {ln}"] = round(io / s, 4)
+                out[f"TEAMTOT {side} UNDER {ln}"] = round(iu / s, 4)
     return out
 
 
 sharp_map_1x2 = sharp_map            # alias rétrocompat (l'ancien nom ne couvrait que le 1X2)
 
 # Marchés BETSFIX NON disponibles sur API-Football (à combler autrement ou accepter) :
-_OMAP_GAPS = ("TEAMTOT plein-match (API-Football = totaux d'équipe MI-TEMPS seulement, bets 105-108) ; "
-              "xG (enrichissement top-5)")
+# TEAMTOT plein-match EST couvert via "Total - Home/Away" (bets 16/17, Unibet+Pinnacle). Reste :
+_OMAP_GAPS = "xG (enrichissement top-5, pas un marché de pari) — seul gap restant."
 
 
 def unibet_omap(odds: dict) -> dict:
@@ -196,6 +209,11 @@ def unibet_omap(odds: dict) -> dict:
         m = re.match(r"(Home|Away)\s+([+-]?[0-9.]+)", lab)
         if m and cote:
             om[f"HCAP {m.group(1).upper()} {_line(m.group(2))}"] = cote
+    for betid, side in ((BET_TOT_HOME, "HOME"), (BET_TOT_AWAY, "AWAY")):   # "Total - Home/Away" -> TEAMTOT
+        for lab, cote in (uni.get(betid) or {}).items():
+            m = re.match(r"(Over|Under)\s+([0-9.]+)", lab)
+            if m and cote:
+                om[f"TEAMTOT {side} {m.group(1).upper()} {_line(m.group(2))}"] = cote
     return om
 
 
