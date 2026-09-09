@@ -418,6 +418,41 @@ def h2h(cl: httpx.Client, home_id: int, away_id: int, last: int = 6) -> list:
     return out
 
 
+def team_xg_form(cl: httpx.Client, team_id: int, n: int = 5) -> dict | None:
+    """Moyenne xG CRÉÉS / CONCÉDÉS sur les N derniers matchs FINIS d'une équipe — REMPLACE Understat.
+
+    xG post-match via `/fixtures/statistics` (type « expected_goals », dispo top-5, délai ~qq h post-FT).
+    Économe : 1 appel pour la liste des N derniers + 1 appel batch `ids=` (stats inline). Renvoie
+    {xg, xga, n} (moyennes) ou None si aucun xG dispo (ligue hors top-5 / matchs trop récents).
+    Métrique IDENTIQUE à `sources._foot_xg` (moyenne des 5 derniers) pour un enrichissement équivalent.
+    """
+    resp = _get(cl, "/fixtures", team=team_id, last=n).get("response") or []
+    fids = [str((x.get("fixture") or {}).get("id")) for x in resp if (x.get("fixture") or {}).get("id")]
+    if not fids:
+        return None
+    xgs, xgas = [], []
+    for x in _get(cl, "/fixtures", ids="-".join(fids[:20])).get("response") or []:
+        by_team = {}
+        for s in (x.get("statistics") or []):
+            tid = (s.get("team") or {}).get("id")
+            xg = next((v.get("value") for v in (s.get("statistics") or [])
+                       if "expected" in str(v.get("type") or "").lower()), None)
+            if tid is not None and xg is not None:
+                try:
+                    by_team[tid] = float(xg)
+                except (TypeError, ValueError):
+                    pass
+        if team_id in by_team:
+            xgs.append(by_team[team_id])
+            opp = next((t for t in by_team if t != team_id), None)   # xGA = xG de l'adversaire
+            if opp is not None:
+                xgas.append(by_team[opp])
+    if not xgs:
+        return None
+    return {"xg": round(sum(xgs) / len(xgs), 2),
+            "xga": round(sum(xgas) / len(xgas), 2) if xgas else None, "n": len(xgs)}
+
+
 if __name__ == "__main__":                     # self-test manuel : python -m app.apifootball "Home" "Away" "ISO"
     import sys
     if not configured():
