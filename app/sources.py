@@ -1424,8 +1424,16 @@ async def extras(client, sport: str, match: dict, prov: dict | None = None) -> s
     facts: list = []
     if sport == "foot":
         facts += await _safe(_foot_extras(client, match), "fotmob")
-        if af_on:                                                    # xG API-Football (remplace Understat)
+        if af_on:                                                    # API-Football = source d'enrichissement PRIMAIRE
+            # 100% API-FOOTBALL (user 2026-09-09 : « doit être utilisé pour CHAQUE match ») : API-Football
+            # résout ~100% des matchs (mesuré 12/12). Si la 1re passe revient VIDE (hoquet réseau / cache jour
+            # raté), on RETENTE une fois -> on ne perd jamais l'enrichissement API-Football sur un simple hoquet.
             af_facts = await _safe(_af_enrich(match), "apifootball")
+            if not af_facts:
+                af_facts = await _safe(_af_enrich(match), "apifootball")
+            if not af_facts:                                         # diagnostic : gap réel à surveiller (rare)
+                print(f"  ⚠️ API-FOOTBALL ENRICH VIDE : {match.get('name', '?')} "
+                      f"(fixture non résolu / fetch KO) — enrichissement API-Football manquant.")
             facts += af_facts
         else:
             facts += await _safe(_foot_xg(client, match), "understat")   # un échec xG ne détruit plus FotMob
