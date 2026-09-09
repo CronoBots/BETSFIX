@@ -184,15 +184,16 @@ def _matchups(sport: str, force: bool = False) -> list:
     return _mu_cache.get(sid, [])
 
 
-# --- COUPE iPROYAL (migration hors-PC — PRÉPARÉE, OFF par défaut) --------------------------------------
-# Quand BETSFIX_DROP_IPROYAL est vrai : on NE touche PLUS au proxy résidentiel iProyal NI au catalogue
-# Pinnacle 40 Mo. L'ancre sharp est alors servie par API-Football (drop-in `apifootball.sharp_anchor` :
-# MÊME dé-vig multiplicatif, MÊME format sp/smk, PROUVÉ identique à iProyal au même instant, cf. wip-current-
-# task § ANCRE SHARP) ; le repli The Odds API est assuré par les appelants (generate_analyses). Résultat =
-# 2 sources sharp SANS PROXY -> iProyal droppable -> VPS -> couper le tunnel Cloudflare. Réversible (env vide).
-# ⚠️ OFF par défaut : c'est une PRÉPARATION. Armer via l'env quand la couverture prod est validée.
+# --- SOURCE iPROYAL RETIRÉE (user 2026-09-09) — DÉFAUT = ON -------------------------------------------
+# L'ancre sharp ne passe PLUS par le proxy résidentiel iProyal ni le catalogue Pinnacle 40 Mo : elle est
+# servie par API-Football (drop-in `apifootball.sharp_anchor` : MÊME dé-vig multiplicatif, MÊME format sp/smk,
+# PROUVÉ identique à iProyal au même instant + à The Odds API — cas Barça-Feyenoord : API-Football/The Odds API/
+# iProyal-corrigé = tous 90 %). Le repli The Odds API (sans proxy) est assuré par les appelants (generate_
+# analyses, prioritaire sur ce délégué). Résultat = ancre 100 % SANS PROXY -> iProyal droppable -> VPS ->
+# couper le tunnel Cloudflare. ⚠️ SofaScore utilise ENCORE `sofa_proxy` (enrichissement, à migrer à part).
+# RÉVERSIBLE : BETSFIX_DROP_IPROYAL=0 (ou false/no/off) réactive iProyal-Pinnacle comme avant.
 def _drop_iproyal() -> bool:
-    return os.environ.get("BETSFIX_DROP_IPROYAL", "").strip().lower() in ("1", "true", "yes", "on")
+    return os.environ.get("BETSFIX_DROP_IPROYAL", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
 _af_anchor_cache: dict = {}     # (home,away,ko) -> (expire_ts, anchor|None) : sharp_probs ET sharp_markets
@@ -267,6 +268,15 @@ def _find(home: str, away: str, sport: str, ko: str | None = None) -> dict | Non
         # comme « Universidad Católica » matchait SEUL et acceptait un HOMONYME (UC Chili résolu en UC Équateur
         # vs Manta, 3 jours plus tard, proba 91 % fantôme). On EXIGE donc que les DEUX côtés matchent.
         if (_hh >= 1 and _ha >= 1) or (_xh >= 1 and _xa >= 1):
+            # 🛡️ VALIDATION COUP D'ENVOI même sur le match par NOMS (2026-09-09) : deux noms identiques ne
+            # suffisent PAS — le catalogue Pinnacle contient des DOUBLONS/entrées périmées du même affiche à
+            # une AUTRE date (cas vécu FC Barcelone–Feyenoord : `_find` prenait un « Barcelona–Feyenoord » à
+            # KO +14,8 h -> cotes junk 61 % marge 11 %). Si le KO est connu, on EXIGE que le matchup soit à
+            # ±6 h du vrai coup d'envoi ; sinon c'est un AUTRE match -> on continue de chercher le bon.
+            if ko_ts is not None:
+                mts = _parse_ts(m.get("starts"))
+                if mts is not None and abs(mts - ko_ts) > 6 * 3600:
+                    continue
             return m
         # REPLI COUP D'ENVOI (translittération d'UN seul côté, ex. sigle) : un côté matche + KO TRÈS proche
         # (±6 h -> identifie le fixture de façon unique le jour même). Fenêtre resserrée (était ±12 h) pour ne

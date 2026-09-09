@@ -13,6 +13,7 @@ def test_dec_american_vers_decimal():
 
 def test_sharp_probs_devig_et_alignement(monkeypatch):
     # NOTRE home = Connecticut Sun, mais Pinnacle liste Indiana Fever en « home » -> doit RÉALIGNER.
+    monkeypatch.setattr(pin, "_drop_iproyal", lambda: False)   # teste le CHEMIN iProyal (retiré par défaut)
     monkeypatch.setattr(pin, "_matchups",
                         lambda sport: [{"id": 1, "home": "Indiana Fever", "away": "Connecticut Sun"}])
     markets = [{"type": "moneyline", "period": 0, "prices": [
@@ -27,6 +28,7 @@ def test_sharp_probs_devig_et_alignement(monkeypatch):
 
 
 def test_sharp_probs_foot_avec_nul(monkeypatch):
+    monkeypatch.setattr(pin, "_drop_iproyal", lambda: False)   # teste le CHEMIN iProyal (retiré par défaut)
     monkeypatch.setattr(pin, "_matchups", lambda sport: [{"id": 9, "home": "Lyon", "away": "Paris"}])
     markets = [{"type": "moneyline", "period": 0, "prices": [
         {"designation": "home", "price": 200}, {"designation": "draw", "price": 240},
@@ -38,5 +40,25 @@ def test_sharp_probs_foot_avec_nul(monkeypatch):
 
 
 def test_sharp_probs_match_introuvable(monkeypatch):
+    monkeypatch.setattr(pin, "_drop_iproyal", lambda: False)   # teste le CHEMIN iProyal (retiré par défaut)
     monkeypatch.setattr(pin, "_matchups", lambda sport: [])
     assert pin.sharp_probs("X", "Y", "basket") is None
+
+
+def test_drop_iproyal_defaut_on(monkeypatch):
+    # SOURCE iPROYAL RETIRÉE (défaut) : sharp_probs/markets délèguent à API-Football, catalogue coupé, ZÉRO
+    # appel iProyal (`_matchups`/`_get` ne doivent JAMAIS être touchés). Réversible via BETSFIX_DROP_IPROYAL=0.
+    monkeypatch.delenv("BETSFIX_DROP_IPROYAL", raising=False)
+    assert pin._drop_iproyal() is True
+    def _boom(*a, **k):
+        raise AssertionError("chemin iProyal atteint alors que la source est retirée")
+    monkeypatch.setattr(pin, "_matchups", _boom)
+    monkeypatch.setattr(pin, "_get", _boom)
+    monkeypatch.setattr(pin, "_af_anchor",
+                        lambda h, a, ko: {"sp": {"home": 0.9, "draw": 0.06, "away": 0.04, "margin": 0.03},
+                                          "smk": {"totals": {2.5: 0.55}, "spreads": {}}})
+    assert pin.sharp_probs("A", "B", "foot", "2026-09-09T18:00:00Z")["home"] == 0.9
+    assert pin.sharp_markets("A", "B", "foot", "2026-09-09T18:00:00Z")["totals"] == {2.5: 0.55}
+    assert pin.refresh_catalog("foot") == 0                    # catalogue 40 Mo NON téléchargé
+    monkeypatch.setenv("BETSFIX_DROP_IPROYAL", "0")
+    assert pin._drop_iproyal() is False                        # réversible
