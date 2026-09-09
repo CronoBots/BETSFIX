@@ -184,11 +184,50 @@ def _matchups(sport: str, force: bool = False) -> list:
     return _mu_cache.get(sid, [])
 
 
+# --- COUPE iPROYAL (migration hors-PC — PRÉPARÉE, OFF par défaut) --------------------------------------
+# Quand BETSFIX_DROP_IPROYAL est vrai : on NE touche PLUS au proxy résidentiel iProyal NI au catalogue
+# Pinnacle 40 Mo. L'ancre sharp est alors servie par API-Football (drop-in `apifootball.sharp_anchor` :
+# MÊME dé-vig multiplicatif, MÊME format sp/smk, PROUVÉ identique à iProyal au même instant, cf. wip-current-
+# task § ANCRE SHARP) ; le repli The Odds API est assuré par les appelants (generate_analyses). Résultat =
+# 2 sources sharp SANS PROXY -> iProyal droppable -> VPS -> couper le tunnel Cloudflare. Réversible (env vide).
+# ⚠️ OFF par défaut : c'est une PRÉPARATION. Armer via l'env quand la couverture prod est validée.
+def _drop_iproyal() -> bool:
+    return os.environ.get("BETSFIX_DROP_IPROYAL", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+_af_anchor_cache: dict = {}     # (home,away,ko) -> (expire_ts, anchor|None) : sharp_probs ET sharp_markets
+_AF_ANCHOR_TTL = 120            # partagent 1 seul fetch/match (comme `_markets` pour iProyal -> ÷2 conso)
+
+
+def _af_anchor(home: str, away: str, ko: str | None):
+    """Ancre sharp via API-Football (SANS proxy), cachée par match. None si indispo. Best-effort strict."""
+    k = (home, away, ko or "")
+    hit = _af_anchor_cache.get(k)
+    if hit and hit[0] > _time.time():
+        return hit[1]
+    anchor = None
+    try:
+        from app import apifootball as _AF
+        if _AF.configured():
+            cl = _AF._client()
+            try:
+                anchor = _AF.sharp_anchor(cl, home, away, ko or "")
+            finally:
+                cl.close()
+    except Exception:
+        anchor = None
+    _af_anchor_cache[k] = (_time.time() + _AF_ANCHOR_TTL, anchor)
+    return anchor
+
+
 def refresh_catalog(sport: str = "foot") -> int:
     """FORCE le rafraîchissement du catalogue (ignore mémoire + TTL) : refetch réseau + ré-écrit le cache
     disque. Appelé 1×/jour au scan du matin (user 2026-08-17) -> annuaire DÉTERMINISTE et frais, exactement
     1 fetch 40 Mo/jour (vs TTL glissant ~1,33/jour à heure dérivante). Renvoie le nb de matchs captés
-    (0 = fetch KO -> l'ancien cache disque est conservé, aucune casse)."""
+    (0 = fetch KO -> l'ancien cache disque est conservé, aucune casse).
+    ⚠️ COUPE iPROYAL : si BETSFIX_DROP_IPROYAL, on NE télécharge PLUS le catalogue 40 Mo (« stop catalogue »)."""
+    if _drop_iproyal():
+        return 0
     return len(_matchups(sport, force=True))
 
 
@@ -257,6 +296,9 @@ def _markets(mid):
 def sharp_probs(home: str, away: str, sport: str, ko: str | None = None) -> dict | None:
     """Probas SHARP de-viggées du VAINQUEUR via Pinnacle : {home, away, draw, margin}, alignées sur
     NOTRE home/away (par noms, repli coup d'envoi `ko`). None si match/cote introuvable. draw=None hors foot."""
+    if _drop_iproyal():                              # COUPE iPROYAL -> ancre API-Football (sans proxy)
+        a = _af_anchor(home, away, ko)
+        return a.get("sp") if a else None
     m = _find(home, away, sport, ko)
     if not m:
         return None
@@ -299,6 +341,9 @@ def sharp_markets(home: str, away: str, sport: str, ko: str | None = None) -> di
     Aligné sur NOTRE home/away par noms. None si match/marchés introuvables. Best-effort strict.
     But : ancre sharp pour les paris hors-vainqueur (Over/Under, handicaps) — proba_sharp × cote_unibet − 1
     > 0 = value robuste, exactement comme le 1X2 sharp mais sur ces marchés."""
+    if _drop_iproyal():                              # COUPE iPROYAL -> marchés sharp via API-Football
+        a = _af_anchor(home, away, ko)
+        return a.get("smk") if a else None
     m = _find(home, away, sport, ko)
     if not m:
         return None

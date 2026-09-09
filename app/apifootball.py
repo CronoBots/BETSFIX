@@ -362,6 +362,109 @@ def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
             "elapsed": ms["elapsed"], "status": ms["status"], "finished": ms["finished"]}
 
 
+# Types de stats API-Football -> clés normalisées du « Live Match Center » (§5bis docs/LIVE_DETECTOR.md).
+_LIVE_STAT_MAP = {
+    "Ball Possession": "possession", "expected_goals": "xg", "Total Shots": "shots_total",
+    "Shots on Goal": "shots_on", "Shots off Goal": "shots_off", "Blocked Shots": "shots_blocked",
+    "Shots insidebox": "shots_inbox", "Shots outsidebox": "shots_outbox", "Corner Kicks": "corners",
+    "Fouls": "fouls", "Offsides": "offsides", "Goalkeeper Saves": "saves", "Yellow Cards": "yellow",
+    "Red Cards": "red", "Total passes": "passes", "Passes accurate": "passes_acc",
+    "Passes %": "passes_pct", "goals_prevented": "goals_prevented",
+}
+
+
+def _stat_val(v):
+    """Normalise une valeur de stat API-Football : « 54% »->54 (int) · « 1.23 »->1.23 (float) ·
+    entier->int · None->None. Garde la chaîne si non numérique."""
+    if v is None or isinstance(v, (int, float)):
+        return v
+    s = str(v).strip()
+    if s.endswith("%"):
+        try:
+            return int(s[:-1])
+        except ValueError:
+            return None
+    try:
+        f = float(s)
+        return int(f) if f.is_integer() else round(f, 2)
+    except ValueError:
+        return s or None
+
+
+def live_match_stats(cl: httpx.Client, fixture_id: int) -> dict | None:
+    """« LIVE MATCH CENTER » (§5bis docs/LIVE_DETECTOR.md) — payload COMPLET d'un match pour l'affichage
+    premium façon SofaScore. 100 % READ-ONLY (aucune écriture, aucun impact picks/règlement).
+
+    UN SEUL appel `/fixtures?id=` renvoie fixture + teams + goals + events + statistics + players inline
+    (doc « optimize quota »). None si fixture introuvable. Structure :
+      status/elapsed/finished/in_play · score {home,away} · halftime
+      teams {home,away:{id,name,logo}}
+      stats {home,away: possession/xg/shots_*/corners/fouls/offsides/saves/cartons/passes...}
+      ratings {home,away} = note MOYENNE des joueurs (comme SofaScore) · has_xg (top-5 seulement)
+      events [{minute,extra,team,type,detail,player,assist}] triés (buts/cartons/remplacements)
+    ⚠️ Les stats API-Football sont MATCH COMPLET (pas de split mi-temps côté stats ; seuls les EVENTS
+    portent la minute -> le toggle Tout/1ʳᵉ/2ᵉ du front se fait sur les events). xG dispo top-5 seulement."""
+    r = (_get(cl, "/fixtures", id=fixture_id).get("response") or [None])[0]
+    if not r:
+        return None
+    state = _state_from_fixture(r)
+    tm = r.get("teams") or {}
+    th_id = (tm.get("home") or {}).get("id")
+    ta_id = (tm.get("away") or {}).get("id")
+
+    def _side(team_id):
+        return "home" if team_id == th_id else "away" if team_id == ta_id else None
+
+    stats = {"home": {}, "away": {}}
+    has_xg = False
+    for block in (r.get("statistics") or []):
+        side = _side((block.get("team") or {}).get("id"))
+        if not side:
+            continue
+        for st in (block.get("statistics") or []):
+            key = _LIVE_STAT_MAP.get(st.get("type"))
+            if not key:
+                continue
+            val = _stat_val(st.get("value"))
+            stats[side][key] = val
+            if key == "xg" and val not in (None, 0):
+                has_xg = True
+
+    ratings = {"home": None, "away": None}
+    for block in (r.get("players") or []):
+        side = _side((block.get("team") or {}).get("id"))
+        if not side:
+            continue
+        rs = []
+        for p in (block.get("players") or []):
+            g = ((p.get("statistics") or [{}])[0] or {}).get("games") or {}
+            try:
+                rs.append(float(g.get("rating")))
+            except (TypeError, ValueError):
+                pass
+        if rs:
+            ratings[side] = round(sum(rs) / len(rs), 2)
+
+    events = []
+    for e in (r.get("events") or []):
+        t = e.get("time") or {}
+        events.append({"minute": t.get("elapsed"), "extra": t.get("extra"),
+                       "team": _side((e.get("team") or {}).get("id")),
+                       "type": e.get("type"), "detail": e.get("detail"),
+                       "player": (e.get("player") or {}).get("name"),
+                       "assist": (e.get("assist") or {}).get("name")})
+    events.sort(key=lambda x: ((x["minute"] or 0), (x["extra"] or 0)))
+
+    return {"fixture_id": fixture_id, "status": state["status"], "elapsed": state["elapsed"],
+            "finished": state["finished"], "in_play": state["in_play"],
+            "score": state["goals"], "halftime": state["halftime"],
+            "teams": {"home": {"id": th_id, "name": (tm.get("home") or {}).get("name"),
+                               "logo": (tm.get("home") or {}).get("logo")},
+                      "away": {"id": ta_id, "name": (tm.get("away") or {}).get("name"),
+                               "logo": (tm.get("away") or {}).get("logo")}},
+            "stats": stats, "ratings": ratings, "has_xg": has_xg, "events": events}
+
+
 # --- ENRICHISSEMENT (remplace FotMob / Flashscore / Sportradar) — fixture-scopé, marche sur tous les plans ---
 def injuries(cl: httpx.Client, fixture_id: int) -> list:
     """Joueurs ABSENTS/INCERTAINS d'un match (remplace « blessés » FotMob). `type` = 'Missing Fixture'
