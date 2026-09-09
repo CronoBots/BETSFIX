@@ -6890,7 +6890,11 @@ def _render_match_center(stats: dict | None) -> str:
     if (sh.get("red") or sa.get("red")):
         rows.append(_mcx_bar(sh.get("red"), sa.get("red"), "Cartons rouges"))
     rt = stats.get("ratings") or {}
-    if rt.get("home") or rt.get("away"):
+    # Note moyenne joueurs : CACHÉE en direct (user 2026-09-09) — les notes live d'API-Football sont
+    # provisoires et basses tôt dans le match (3.49 à la 27') = trompeur. On ne l'affiche qu'une fois le
+    # match TERMINÉ (notes fiables ~6-8). Le match center étant live-only aujourd'hui, elle n'apparaît donc
+    # pas en direct ; le gate reste correct si on étend un jour l'Aperçu aux matchs terminés.
+    if stats.get("finished") and (rt.get("home") or rt.get("away")):
         rows.append(_mcx_bar(rt.get("home"), rt.get("away"), "Note moyenne joueurs"))
     body = "".join(r for r in rows if r)
     # Timeline des events (buts / cartons / remplacements), plus récents en tête.
