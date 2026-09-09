@@ -85,6 +85,30 @@ async def _p_theoddsapi(c):
     return (True, "OK (clé valide)")
 
 
+async def _p_apifootball(c):
+    """API-Football = RÈGLEMENT + ancre SHARP + cotes OMAP primaires (depuis 2026-09-09). Ping /status :
+    affiche le plan + le QUOTA du jour (surveillance : clé valide/active ? proche du plafond 7500 ?). Repli
+    scraping PARTOUT si KO (dégrade proprement -> non critique). Rend visible une clé expirée AVANT qu'elle morde."""
+    from app import apifootball as AF
+    if not AF.configured():
+        return (False, "non configuré (.env : BETSFIX_APIFOOTBALL_KEY) — repli scraping partout")
+
+    def _work():
+        cl = AF._client()
+        try:
+            return AF._get(cl, "/status").get("response") or {}
+        finally:
+            cl.close()
+    r = await asyncio.to_thread(_work)
+    sub = r.get("subscription") or {}
+    req = r.get("requests") or {}
+    if not sub:
+        return (False, "réponse vide (clé invalide/expirée ?)")
+    plan, active = sub.get("plan"), sub.get("active")
+    cur, lim = req.get("current"), req.get("limit_day")
+    return (bool(active), f"{plan} · {cur}/{lim} req aujourd'hui" + ("" if active else " — INACTIF"))
+
+
 async def _p_flashscore(c):
     return await _http_ok(c, "https://www.flashscore.com/", json_expected=False)
 
@@ -141,6 +165,8 @@ _SOURCES = [
     ("pinnacle", "Pinnacle (iProyal)", "ancre sharp PRIMAIRE (catalogue MONDIAL via proxy résidentiel)",
      False, _p_pinnacle),
     ("theoddsapi", "The Odds API", "ancre sharp de repli (gratuit, 68 ligues)", False, _p_theoddsapi),
+    ("apifootball", "API-Football", "RÈGLEMENT + ancre SHARP + cotes OMAP primaires (repli scraping)",
+     False, _p_apifootball),
     # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
     # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
     ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),
