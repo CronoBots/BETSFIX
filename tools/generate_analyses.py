@@ -2068,12 +2068,20 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if _afsharp and _afsharp.get("sp"):                # n°1 (flip) : Pinnacle via API-Football (résolu au scan)
             sp = _afsharp["sp"]; _sharp_src = "Pinnacle(API-Football)"
         else:
-            # n°1 : Pinnacle BRUT via iProyal (catalogue MONDIAL, toutes ligues — user 2026-08-13 « prioritaire »)
-            sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport, _ko)
-            if sp is None and theoddsapi.configured():     # repli : The Odds API (gratuit, 68 ligues)
+            # REPLI si API-Football n'a pas répondu (transitoire / ligue non peuplée). ORDRE (2026-09-09) :
+            # The Odds API AVANT iProyal. Preuve Barça-Feyenoord : The Odds API + API-Football = 90 % (marge 3-4 %)
+            # = LE VRAI, alors qu'iProyal renvoyait 61 % (marge 11 %) = junk (résolution douteuse / cache périmé).
+            # On préfère donc la source PROPRE sans proxy ; iProyal (couverture MONDIALE) reste le DERNIER repli
+            # pour les ligues hors The Odds API (~68 ligues). Le garde marge/magnitude plus bas filtre tout résidu.
+            sp = None
+            if theoddsapi.configured():
                 sp = await asyncio.to_thread(theoddsapi.sharp_probs, home, away, sport, _comp, _ko)
-            if sp is not None:
-                _sharp_src = "Pinnacle"
+                if sp is not None:
+                    _sharp_src = "Pinnacle(The Odds API)"
+            if sp is None:                                  # dernier repli : iProyal (worldwide)
+                sp = await asyncio.to_thread(pinnacle.sharp_probs, home, away, sport, _ko)
+                if sp is not None:
+                    _sharp_src = "Pinnacle(iProyal)"
     except Exception:
         sp = None
     # ⚠️ GARDE ANTI-RÉSOLUTION FAUSSE de l'ancre (user 2026-09-02 — cas Saint-Trond–Union : Pinnacle donnait le
@@ -2142,10 +2150,12 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         if _afsharp and (_afsharp.get("smk") or {}).get("totals"):   # n°1 (flip) : marchés sharp via API-Football
             smk = _afsharp["smk"]
         else:
-            # n°1 : Pinnacle BRUT via iProyal (toutes ligues) ; repli The Odds API
-            smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport, _ko)
-            if smk is None and theoddsapi.configured():    # repli : The Odds API (gratuit)
+            # REPLI (2026-09-09) : The Odds API AVANT iProyal (source propre sans proxy d'abord ; cf. bloc sp).
+            smk = None
+            if theoddsapi.configured():
                 smk = await asyncio.to_thread(theoddsapi.sharp_markets, home, away, sport, _comp, _ko)
+            if smk is None:                                # dernier repli : iProyal (worldwide)
+                smk = await asyncio.to_thread(pinnacle.sharp_markets, home, away, sport, _ko)
     except Exception:
         smk = None
     if _sharp_conflict:
