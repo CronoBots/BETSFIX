@@ -7367,15 +7367,22 @@ def _live_clock_html(sport_key, home, away) -> str:
     « 92:27 (+3') » en prolongation. '' si pas d'horloge. PARTAGÉ carte normale (_sport_row) ET jambe de
     combiné (_leg_card) -> même horloge partout (user 2026-08-17 : jambes présentées comme une carte)."""
     try:
-        _clk = match_select.live_clock(match_select.live_state_for(sport_key, home, away))
+        _ld = match_select.live_state_for(sport_key, home, away)
+        _clk = match_select.live_clock(_ld)
     except Exception:
-        _clk = None
+        _ld, _clk = None, None
     if not _clk:
         return ""
     _cm, _cs, _crun, _cpid = _clk
     _pid = (_cpid or "").upper()
     if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
         return '<span class="tm-min" data-run="0">HT</span>'
+    # API-FOOTBALL (user 2026-09-09) : MINUTE SEULE (« 90' »), pas de secondes ni de ticker JS
+    # (API-Football ne fournit pas les secondes). data-run=0 -> le ticker ne fait pas défiler.
+    if isinstance(_ld, dict) and _ld.get("_af"):
+        _ex = _ld.get("_af_extra")
+        _mlabel = f"{_cm}+{_ex}'" if isinstance(_ex, int) and _ex else f"{_cm}'"
+        return f'<span class="tm-min" data-run="0">{_mlabel}</span>'
     # HORLOGE SEULE, sans indicateur « (+N') » (user 2026-08-20) : le temps additionnel ANNONCÉ (+6) n'est PAS
     # dans le flux de paris Unibet (seulement l'overlay vidéo broadcast) -> on n'affiche pas un « +N » calculé
     # maison qui contredit le broadcast. L'horloge continue de défiler au-delà de 90 (91:00, 92:00…), comme le

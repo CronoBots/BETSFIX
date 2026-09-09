@@ -381,6 +381,24 @@ def _winner_odds(betoffers) -> tuple | None:
     return None
 
 
+def _af_live_on() -> bool:
+    """Score/minute/statut live via API-Football (défaut ON). Réversible : BETSFIX_AF_LIVE=0/false."""
+    import os
+    return os.environ.get("BETSFIX_AF_LIVE", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _af_live_all_sync():
+    """Matchs live API-Football (sync -> asyncio.to_thread). None si non configuré / erreur. Best-effort."""
+    try:
+        from app import apifootball as _AF
+        if not _AF.configured():
+            return None
+        with _AF._client() as cl:
+            return _AF.live_all(cl)
+    except Exception:
+        return None
+
+
 async def fetch_live_odds(sport: str, client=None) -> dict:
     """Cotes Unibet FRAÎCHES (vainqueur du match) pour tout un sport, en UN appel listView,
     clé = noms d'équipes. Mis en cache 25 s. Sert à actualiser les cotes affichées à chaque page
@@ -438,6 +456,12 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
     hit = _ODDS_CACHE.get(sport)
     path = LISTVIEW.get(sport, "football")
     out, states, metas = {}, {}, {}
+    # SCORE/MINUTE/STATUT LIVE via API-Football (user 2026-09-09 : « API-Football à 100% ») — 1 appel
+    # `/fixtures?live=all` partagé. On l'utilise en PRIORITÉ ; repli Unibet automatique si un match n'y est
+    # pas (matching nom+KO). Foot uniquement. Réversible : BETSFIX_AF_LIVE=0. Best-effort (jamais bloquant).
+    _af_live = None
+    if sport == "foot" and _af_live_on():
+        _af_live = await asyncio.to_thread(_af_live_all_sync)
     try:
         raw = await _acquire_listview(sport, path, client)   # réseau (collector) OU fichier synchro (server)
         for it in (raw or {}).get("events") or []:
@@ -449,6 +473,15 @@ async def _fetch_live_odds_now(sport: str, client=None) -> dict:
             ld = it.get("liveData")        # score + horloge EN DIRECT (même réponse, 0 appel en plus)
             if ld:
                 states[key] = ld
+            if _af_live:                   # API-Football PRIORITAIRE (score+minute+statut) ; Unibet = repli
+                try:
+                    from app import apifootball as _AF
+                    _afld = _AF.live_clockdata(ev.get("homeName"), ev.get("awayName"),
+                                               ev.get("start"), _af_live)
+                    if _afld:
+                        states[key] = _afld
+                except Exception:
+                    pass
             pn = [p.get("name", "") for p in (ev.get("path") or [])]
             metas[key] = {"circuit": _circuit_of(pn), "comp": ev.get("group") or "",
                           "start": ev.get("start"), "country": _country_of(pn)}

@@ -362,6 +362,63 @@ def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
             "elapsed": ms["elapsed"], "status": ms["status"], "finished": ms["finished"]}
 
 
+_LIVE_ALL_CACHE: dict = {}      # -> (expire_ts, [matchs live]) : 1 appel /fixtures?live=all partagé
+_LIVE_ALL_TTL = 12
+# Statut API-Football -> période façon Unibet matchClock (drop-in pour web.live_fields/live_clock).
+_PERIOD_ID = {"1H": "FIRST_HALF", "HT": "FIRST_HALF", "2H": "SECOND_HALF",
+              "ET": "EXTRA_TIME", "BT": "EXTRA_TIME", "P": "PENALTIES", "LIVE": "SECOND_HALF"}
+_RUNNING = frozenset({"1H", "2H", "ET", "LIVE"})
+
+
+def live_all(cl: httpx.Client) -> list:
+    """TOUS les matchs EN DIRECT en UN appel `/fixtures?live=all` (score + minute + statut). Caché ~12 s.
+    Alimente le score/minute live de l'affichage (remplace le liveData Unibet). Best-effort -> [] si KO."""
+    hit = _LIVE_ALL_CACHE.get("all")
+    if hit and hit[0] > time.time():
+        return hit[1]
+    out = []
+    try:
+        for x in _get(cl, "/fixtures", live="all").get("response", []) or []:
+            st = (x.get("fixture") or {}).get("status") or {}
+            g = x.get("goals") or {}
+            tm = x.get("teams") or {}
+            out.append({"home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
+                        "ko": (x.get("fixture") or {}).get("date"),
+                        "gh": g.get("home"), "ga": g.get("away"),
+                        "elapsed": st.get("elapsed"), "short": st.get("short"),
+                        "extra": st.get("extra") if isinstance(st.get("extra"), int) else None})
+    except Exception:
+        out = (hit[1] if hit else [])
+    _LIVE_ALL_CACHE["all"] = (time.time() + _LIVE_ALL_TTL, out)
+    return out
+
+
+def live_clockdata(home: str, away: str, ko_iso: str, live_list: list) -> dict | None:
+    """Trouve le match EN DIRECT API-Football correspondant à un match BETSFIX (nom + KO ±90 min) dans
+    `live_list` (cf. live_all) et renvoie un objet AU FORMAT `liveData` Unibet (drop-in pour web.live_fields /
+    match_select.live_clock) : {score:{home,away}, matchClock:{minute,second,running,periodId}, _af_*}.
+    `second`=0 (API-Football ne donne QUE la minute → affichage « 46' », choix user 2026-09-09). None si pas de
+    match live correspondant (→ l'appelant garde le liveData Unibet en repli, aucun match ne disparaît)."""
+    nh, na, kts = _norm(home), _norm(away), _ts(ko_iso)
+    best, bs = None, 0.0
+    for x in live_list or []:
+        xts = _ts(x.get("ko"))
+        if kts and xts and abs(kts - xts) > 90 * 60:
+            continue
+        s = (_ov(nh, _norm(x.get("home"))) + _ov(na, _norm(x.get("away")))) / 2
+        if s > bs:
+            bs, best = s, x
+    if not best or bs < 0.5:
+        return None
+    short = best.get("short") or ""
+    minute = best["elapsed"] if isinstance(best.get("elapsed"), int) else 0
+    return {"score": {"home": best.get("gh"), "away": best.get("ga")},
+            "matchClock": {"minute": minute, "second": 0, "running": short in _RUNNING,
+                           "periodId": _PERIOD_ID.get(short, "")},
+            "_af": True, "_af_status": short, "_af_finished": short in FINISHED_STATUS,
+            "_af_extra": best.get("extra")}
+
+
 # Types de stats API-Football -> clés normalisées du « Live Match Center » (§5bis docs/LIVE_DETECTOR.md).
 _LIVE_STAT_MAP = {
     "Ball Possession": "possession", "expected_goals": "xg", "Total Shots": "shots_total",
