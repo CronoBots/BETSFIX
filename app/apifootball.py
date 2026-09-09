@@ -152,16 +152,34 @@ def _ts(s) -> float | None:
         return None
 
 
+# Cache des fixtures d'un JOUR (métadonnées de résolution : id/noms/logos/ligue/heure — STABLES intra-journée).
+# resolve_fixture est appelé par sharp + cotes + logos + règlement -> sans ce cache, chaque match re-fetchait
+# `/fixtures?date` (même grosse réponse) : ~28 fetches identiques/scan. TTL court (120 s) = sûr (résolution NS
+# stable) et NE cache QUE la RÉSOLUTION (jamais /odds ni les scores : le règlement garde son propre cache frais).
+_DAY_FIXTURES_CACHE: dict = {}      # day -> (expire_ts, [fixtures])
+_DAY_FIXTURES_TTL = 120
+
+
+def _day_fixtures(cl: httpx.Client, day: str) -> list:
+    hit = _DAY_FIXTURES_CACHE.get(day)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    resp = _get(cl, "/fixtures", date=day).get("response", []) or []
+    _DAY_FIXTURES_CACHE[day] = (time.time() + _DAY_FIXTURES_TTL, resp)
+    return resp
+
+
 def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_score: float = 0.5) -> dict | None:
     """Retrouve le fixture API-Football d'un match BETSFIX par NOM + coup d'envoi (±90 min pour désambiguïser
-    senior/U19 du même jour). Renvoie {id, home, away, league, ts} ou None."""
+    senior/U19 du même jour). Renvoie {id, home, away, home_id, away_id, home_logo, away_logo, league, ts} ou None.
+    Utilise le cache jour (`_day_fixtures`) -> 1 seul fetch `/fixtures?date` partagé par tous les matchs du scan."""
     kts = _ts(ko_iso)
     day = (ko_iso or "")[:10]
     if not day:
         return None
     nh, na = _norm(home), _norm(away)
     best, bs = None, 0.0
-    for x in _get(cl, "/fixtures", date=day).get("response", []):
+    for x in _day_fixtures(cl, day):
         xts = _ts(x["fixture"]["date"])
         if kts and xts and abs(kts - xts) > 90 * 60:
             continue
@@ -172,8 +190,11 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
         return {"id": best["fixture"]["id"], "home": best["teams"]["home"]["name"],
                 "away": best["teams"]["away"]["name"],
                 "home_id": best["teams"]["home"]["id"], "away_id": best["teams"]["away"]["id"],
+                "home_logo": (best["teams"]["home"] or {}).get("logo"),
+                "away_logo": (best["teams"]["away"] or {}).get("logo"),
                 "league": best["league"]["name"], "league_id": best["league"]["id"],
                 "season": best["league"]["season"], "ts": _ts(best["fixture"]["date"]),
+                "status": (best["fixture"] or {}).get("status", {}).get("short"),
                 "referee": (best["fixture"] or {}).get("referee"), "score": round(bs, 3)}
     return None
 

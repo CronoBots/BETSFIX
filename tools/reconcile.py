@@ -246,6 +246,13 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                     print(f"  · audit règlement API-Football : {_ar}")
             except Exception as exc:
                 print(f"  (audit règlement API-Football ignoré : {exc})")
+            try:                               # détecte les matchs analysés REPORTÉS/ANNULÉS -> alerte owner privée
+                from app import settle_audit as _saudit2
+                _pp = await asyncio.to_thread(_saudit2.postponed_alert)
+                if _pp.get("flagged"):
+                    print(f"  · matchs reportés/annulés détectés (alerte owner) : {_pp}")
+            except Exception as exc:
+                print(f"  (détection reportés API-Football ignorée : {exc})")
         # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
         try:
             from app import combo_safe as _cs

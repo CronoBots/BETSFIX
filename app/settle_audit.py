@@ -50,6 +50,65 @@ def _save(p: str, d: dict) -> None:
     os.replace(tmp, p)
 
 
+# Statuts API-Football « anormaux » pour un match à venir : reporté / annulé / abandonné / suspendu / forfait.
+_PP_STATUS = {"PST": "reporté", "CANC": "annulé", "ABD": "abandonné", "SUSP": "suspendu",
+              "AWD": "forfait technique", "WO": "walkover"}
+
+
+def postponed_alert() -> dict:
+    """Détecte via API-Football les matchs ANALYSÉS à venir qui sont REPORTÉS/ANNULÉS/etc. et ALERTE l'owner
+    en privé (lecture seule : ne modifie NI résultat NI stats NI sélection ; ne pose qu'un flag anti-doublon
+    `af_pp_alerted`). Sans clé API-Football → no-op propre. But : ne pas laisser un pari « à venir » sur un match
+    qui n'aura pas lieu. Best-effort, ne lève jamais."""
+    if not AF.configured():
+        return {"checked": 0, "flagged": 0}
+    now = datetime.now(timezone.utc)
+    checked = flagged = 0
+    alerts = []
+    cl = None
+    try:
+        cl = AF._client()
+        for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+            try:
+                d = json.load(open(p, encoding="utf-8"))
+            except Exception:
+                continue
+            if d.get("af_pp_alerted") or A.is_settled(d):
+                continue
+            st = d.get("start") or ""
+            try:
+                ko = datetime.fromisoformat(st.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if not (now - timedelta(hours=3) <= ko <= now + timedelta(hours=48)):   # fenêtre proche du KO
+                continue
+            checked += 1
+            f = AF.resolve_fixture(cl, d.get("home"), d.get("away"), st)
+            status = (f or {}).get("status")
+            if status in _PP_STATUS:
+                flagged += 1
+                alerts.append(f"• {d.get('name')} ({st[:16]}) → {_PP_STATUS[status]} ({status})")
+                d["af_pp_alerted"] = status
+                _save(p, d)
+    except Exception:
+        pass
+    finally:
+        if cl is not None:
+            try:
+                cl.close()
+            except Exception:
+                pass
+    if alerts:
+        try:
+            from app import notify
+            notify.send_owner_sync("⚠️ BETSFIX — matchs analysés REPORTÉS/ANNULÉS (API-Football, privé)\n\n"
+                                   + "\n".join(alerts)
+                                   + "\n\n(pari « à venir » sur un match qui n'aura peut-être pas lieu — à vérifier)")
+        except Exception:
+            pass
+    return {"checked": checked, "flagged": flagged}
+
+
 def audit_recent(days: int = 2, fix_abstentions: bool = True, alert: bool = True) -> dict:
     """Audite les matchs foot réglés des `days` derniers jours pas encore audités. Renvoie un résumé."""
     if not AF.configured():
