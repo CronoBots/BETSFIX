@@ -31,7 +31,8 @@ BK_PINNACLE, BK_UNIBET = 4, 16                 # ids stables (/odds/bookmakers)
 BET_1X2, BET_DC, BET_OU, BET_BTTS, BET_AH = 1, 12, 5, 8, 4   # Asian Handicap = 4
 BET_TOT_HOME, BET_TOT_AWAY = 16, 17                          # totaux d'équipe PLEIN-MATCH ("Total - Home/Away")
 
-_THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "1.2"))   # s entre requêtes (Free ~10/min)
+_THROTTLE = float(os.environ.get("BETSFIX_APIFOOTBALL_THROTTLE", "0.5"))   # s entre requêtes. Pro = 300/min
+#   (0.5 s = 120/min, marge x2.5). Free ~10/min -> mettre 6.5 en env. `_get` respecte X-RateLimit-Remaining.
 _TIMEOUT = 25
 
 
@@ -128,7 +129,8 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
         return {"id": best["fixture"]["id"], "home": best["teams"]["home"]["name"],
                 "away": best["teams"]["away"]["name"],
                 "home_id": best["teams"]["home"]["id"], "away_id": best["teams"]["away"]["id"],
-                "league": best["league"]["name"], "ts": _ts(best["fixture"]["date"]), "score": round(bs, 3)}
+                "league": best["league"]["name"], "league_id": best["league"]["id"],
+                "season": best["league"]["season"], "ts": _ts(best["fixture"]["date"]), "score": round(bs, 3)}
     return None
 
 
@@ -301,6 +303,31 @@ def predictions(cl: httpx.Client, fixture_id: int) -> dict | None:
             "advice": pr.get("advice"), "percent": pr.get("percent"),
             "under_over": pr.get("under_over"), "goals": pr.get("goals"),
             "comparison": {k: cmp.get(k) for k in ("form", "att", "def", "poisson_distribution", "h2h", "goals", "total")}}
+
+
+def team_stats(cl: httpx.Client, team_id: int, league_id: int, season: int) -> dict | None:
+    """Stats d'une équipe sur la saison (forme, buts pour/contre, clean sheets, séries) — remplace la forme
+    Sportradar/FotMob. Nécessite plan Pro+ (saison courante). Renvoie form / goals / clean_sheet / fixtures."""
+    r = _get(cl, "/teams/statistics", team=team_id, league=league_id, season=season).get("response") or {}
+    if not r:
+        return None
+    return {"form": r.get("form"), "goals": r.get("goals"), "fixtures": r.get("fixtures"),
+            "clean_sheet": r.get("clean_sheet"), "failed_to_score": r.get("failed_to_score")}
+
+
+def standings(cl: httpx.Client, league_id: int, season: int) -> list:
+    """Classement d'une ligue (rang, points, forme, buts) — remplace le classement Sportradar/Flashscore.
+    Nécessite plan Pro+ (saison courante). Renvoie [{rank, team, points, goalsDiff, form}]."""
+    resp = _get(cl, "/standings", league=league_id, season=season).get("response") or []
+    if not resp:
+        return []
+    out = []
+    for group in (resp[0].get("league") or {}).get("standings") or []:
+        for row in group:
+            out.append({"rank": row.get("rank"), "team": (row.get("team") or {}).get("name"),
+                        "team_id": (row.get("team") or {}).get("id"), "points": row.get("points"),
+                        "goalsDiff": row.get("goalsDiff"), "form": row.get("form")})
+    return out
 
 
 def h2h(cl: httpx.Client, home_id: int, away_id: int, last: int = 6) -> list:

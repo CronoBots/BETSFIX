@@ -132,8 +132,8 @@ Log ("SOURCES DONE (exit {0})" -f $LASTEXITCODE)
 # Pinnacle dé-viggée + la carte Unibet du jour à API-Football, accumule data/apifootball_shadow/<date>.json.
 # INACTIF si BETSFIX_APIFOOTBALL_KEY absent (.env). N'influence NI la sélection NI les stats NI les sidecars.
 # Placé APRÈS le scan (odds fraîches = timing aligné, écart d'ancre = vraie divergence, pas line movement).
-# Throttle 6.5 s = plan Free (~10 req/min). Cf. app/apifootball.py, tools/apifootball_shadow.py.
+# Throttle 0.5 s = plan Pro (300 req/min). Cf. app/apifootball.py, tools/apifootball_shadow.py.
 Log 'SHADOW API-FOOTBALL : comparaison lecture seule'
-$env:BETSFIX_APIFOOTBALL_THROTTLE = '6.5'
+$env:BETSFIX_APIFOOTBALL_THROTTLE = '0.5'   # Pro = 300/min
 & $py 'tools\apifootball_shadow.py' 2>&1 | Add-BfxStream $log
 Log ("SHADOW API-FOOTBALL DONE (exit {0})" -f $LASTEXITCODE)
