@@ -1,0 +1,84 @@
+{
+ "get": "fixtures/headtohead",
+ "parameters": {
+  "h2h": "575-1026"
+ },
+ "errors": [],
+ "results": 1,
+ "paging": {
+  "current": 1,
+  "total": 1
+ },
+ "response": [
+  {
+   "fixture": {
+    "id": 1635609,
+    "referee": "L. M. Branco Godinho",
+    "timezone": "UTC",
+    "date": "2026-09-08T16:45:00+00:00",
+    "timestamp": 1788885900,
+    "periods": {
+     "first": null,
+     "second": null
+    },
+    "venue": {
+     "id": null,
+     "name": "Allwyn Arena",
+     "city": "Athens"
+    },
+    "status": {
+     "long": "Match Finished",
+     "short": "FT",
+     "elapsed": 90,
+     "extra": null
+    }
+   },
+   "league": {
+    "id": 2,
+    "name": "UEFA Champions League",
+    "country": "World",
+    "logo": "https://media.api-sports.io/football/leagues/2.png",
+    "flag": null,
+    "season": 2026,
+    "round": "League Stage - 1",
+    "standings": true
+   },
+   "teams": {
+    "home": {
+     "id": 575,
+     "name": "AEK Athens FC",
+     "logo": "https://media.api-sports.io/football/teams/575.png",
+     "winner": true
+    },
+    "away": {
+     "id": 1026,
+     "name": "Lask Linz",
+     "logo": "https://media.api-sports.io/football/teams/1026.png",
+     "winner": false
+    }
+   },
+   "goals": {
+    "home": 1,
+    "away": 0
+   },
+   "score": {
+    "halftime": {
+     "home": 1,
+     "away": 0
+    },
+    "fulltime": {
+     "home": 1,
+     "away": 0
+    },
+    "extratime": {
+     "home": null,
+     "away": null
+    },
+    "penalty": {
+     "home": null,
+     "away": null
+    }
+   }
+  }
+ ]
+}

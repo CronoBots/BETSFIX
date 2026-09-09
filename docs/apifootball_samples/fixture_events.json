@@ -1,0 +1,278 @@
+{
+ "get": "fixtures/events",
+ "parameters": {
+  "fixture": "1635609"
+ },
+ "errors": [],
+ "results": 12,
+ "paging": {
+  "current": 1,
+  "total": 1
+ },
+ "response": [
+  {
+   "time": {
+    "elapsed": 11,
+    "extra": null
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": null,
+    "name": "M. Nikolić"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Card",
+   "detail": "Yellow Card",
+   "comments": "Time Wasting"
+  },
+  {
+   "time": {
+    "elapsed": 21,
+    "extra": null
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 2118,
+    "name": "Răzvan Marin"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Goal",
+   "detail": "Normal Goal",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 40,
+    "extra": null
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 1828,
+    "name": "Luka Jovic"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Card",
+   "detail": "Yellow Card",
+   "comments": "Dissent"
+  },
+  {
+   "time": {
+    "elapsed": 42,
+    "extra": null
+   },
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "player": {
+    "id": 162718,
+    "name": "Melayro Bogarde"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Card",
+   "detail": "Yellow Card",
+   "comments": "Foul"
+  },
+  {
+   "time": {
+    "elapsed": 65,
+    "extra": null
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 1828,
+    "name": "Luka Jovic"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Var",
+   "detail": "Goal cancelled",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 65,
+    "extra": null
+   },
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "player": {
+    "id": 7627,
+    "name": "Robert Ljubicic"
+   },
+   "assist": {
+    "id": 417,
+    "name": "Alessandro Schöpf"
+   },
+   "type": "subst",
+   "detail": "Substitution 1",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 65,
+    "extra": null
+   },
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "player": {
+    "id": 15876,
+    "name": "Kasper Jorgensen"
+   },
+   "assist": {
+    "id": 7756,
+    "name": "Florian Flecker"
+   },
+   "type": "subst",
+   "detail": "Substitution 2",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 74,
+    "extra": null
+   },
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "player": {
+    "id": 271327,
+    "name": "Christoph Lang"
+   },
+   "assist": {
+    "id": 7722,
+    "name": "Sasa Kalajdzic"
+   },
+   "type": "subst",
+   "detail": "Substitution 3",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 80,
+    "extra": null
+   },
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "player": {
+    "id": 7197,
+    "name": "Andres Andrade"
+   },
+   "assist": {
+    "id": null,
+    "name": null
+   },
+   "type": "Card",
+   "detail": "Yellow Card",
+   "comments": "Foul"
+  },
+  {
+   "time": {
+    "elapsed": 82,
+    "extra": null
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 1828,
+    "name": "Luka Jovic"
+   },
+   "assist": {
+    "id": 237121,
+    "name": "Ambrósini António Cabaça Salvador"
+   },
+   "type": "subst",
+   "detail": "Substitution 1",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 90,
+    "extra": 1
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 8543,
+    "name": "Aboubakary Koita"
+   },
+   "assist": {
+    "id": 1818,
+    "name": "Mijat Gaćinović"
+   },
+   "type": "subst",
+   "detail": "Substitution 2",
+   "comments": null
+  },
+  {
+   "time": {
+    "elapsed": 90,
+    "extra": 1
+   },
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "player": {
+    "id": 1321,
+    "name": "Lovro Majer"
+   },
+   "assist": {
+    "id": 125239,
+    "name": "Kervin Arriaga"
+   },
+   "type": "subst",
+   "detail": "Substitution 3",
+   "comments": null
+  }
+ ]
+}

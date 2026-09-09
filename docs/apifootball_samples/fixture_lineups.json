@@ -1,0 +1,437 @@
+{
+ "get": "fixtures/lineups",
+ "parameters": {
+  "fixture": "1635609"
+ },
+ "errors": [],
+ "results": 2,
+ "paging": {
+  "current": 1,
+  "total": 1
+ },
+ "response": [
+  {
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png",
+    "colors": null
+   },
+   "formation": "4-4-2",
+   "coach": {
+    "id": 1928,
+    "name": "M. Nikolić",
+    "photo": "https://media.api-sports.io/football/coachs/1928.png"
+   },
+   "startXI": [
+    {
+     "player": {
+      "id": 31538,
+      "name": "A. Brignoli",
+      "number": 91,
+      "pos": "G",
+      "grid": "1:1"
+     }
+    },
+    {
+     "player": {
+      "id": 61257,
+      "name": "L. Rota",
+      "number": 12,
+      "pos": "D",
+      "grid": "2:4"
+     }
+    },
+    {
+     "player": {
+      "id": 20689,
+      "name": "H. Moukoudi",
+      "number": 2,
+      "pos": "D",
+      "grid": "2:3"
+     }
+    },
+    {
+     "player": {
+      "id": 141841,
+      "name": "Filipe Relvas",
+      "number": 44,
+      "pos": "D",
+      "grid": "2:2"
+     }
+    },
+    {
+     "player": {
+      "id": 26936,
+      "name": "S. Pilios",
+      "number": 3,
+      "pos": "D",
+      "grid": "2:1"
+     }
+    },
+    {
+     "player": {
+      "id": 1321,
+      "name": "L. Majer",
+      "number": 14,
+      "pos": "M",
+      "grid": "3:4"
+     }
+    },
+    {
+     "player": {
+      "id": 28041,
+      "name": "M. Vitális",
+      "number": 27,
+      "pos": "M",
+      "grid": "3:3"
+     }
+    },
+    {
+     "player": {
+      "id": 2118,
+      "name": "R. Marin",
+      "number": 18,
+      "pos": "M",
+      "grid": "3:2"
+     }
+    },
+    {
+     "player": {
+      "id": 8543,
+      "name": "A. Koita",
+      "number": 11,
+      "pos": "M",
+      "grid": "3:1"
+     }
+    },
+    {
+     "player": {
+      "id": 7398,
+      "name": "B. Varga",
+      "number": 19,
+      "pos": "F",
+      "grid": "4:2"
+     }
+    },
+    {
+     "player": {
+      "id": 1828,
+      "name": "L. Jović",
+      "number": 9,
+      "pos": "F",
+      "grid": "4:1"
+     }
+    }
+   ],
+   "substitutes": [
+    {
+     "player": {
+      "id": 105320,
+      "name": "O. Zubkov",
+      "number": 10,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 237121,
+      "name": "Zini",
+      "number": 90,
+      "pos": "F",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 1986,
+      "name": "D. Vida",
+      "number": 21,
+      "pos": "D",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 606,
+      "name": "P. Mantalos",
+      "number": 20,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 30553,
+      "name": "C. Lykogiannis",
+      "number": 22,
+      "pos": "D",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 55404,
+      "name": "K. Kairinen",
+      "number": 6,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 206,
+      "name": "João Mário",
+      "number": 23,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 1818,
+      "name": "M. Gaćinović",
+      "number": 8,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 592903,
+      "name": "Marios Balamotis",
+      "number": 41,
+      "pos": "G",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 125239,
+      "name": "K. Arriaga",
+      "number": 16,
+      "pos": "M",
+      "grid": null
+     }
+    }
+   ]
+  },
+  {
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png",
+    "colors": null
+   },
+   "formation": "3-1-4-2",
+   "coach": {
+    "id": 1913,
+    "name": "D. Kühbauer",
+    "photo": "https://media.api-sports.io/football/coachs/1913.png"
+   },
+   "startXI": [
+    {
+     "player": {
+      "id": 263057,
+      "name": "L. Jungwirth",
+      "number": 1,
+      "pos": "G",
+      "grid": "1:1"
+     }
+    },
+    {
+     "player": {
+      "id": 38781,
+      "name": "X. Mbuyamba",
+      "number": 4,
+      "pos": "D",
+      "grid": "2:3"
+     }
+    },
+    {
+     "player": {
+      "id": 363691,
+      "name": "Alemão",
+      "number": 43,
+      "pos": "D",
+      "grid": "2:2"
+     }
+    },
+    {
+     "player": {
+      "id": 7197,
+      "name": "A. Andrade",
+      "number": 16,
+      "pos": "D",
+      "grid": "2:1"
+     }
+    },
+    {
+     "player": {
+      "id": 162718,
+      "name": "M. Bogarde",
+      "number": 6,
+      "pos": "M",
+      "grid": "3:1"
+     }
+    },
+    {
+     "player": {
+      "id": 15876,
+      "name": "K. Jørgensen",
+      "number": 20,
+      "pos": "M",
+      "grid": "4:4"
+     }
+    },
+    {
+     "player": {
+      "id": 7627,
+      "name": "R. Ljubičić",
+      "number": 10,
+      "pos": "M",
+      "grid": "4:3"
+     }
+    },
+    {
+     "player": {
+      "id": 7738,
+      "name": "S. Horvath",
+      "number": 30,
+      "pos": "M",
+      "grid": "4:2"
+     }
+    },
+    {
+     "player": {
+      "id": 50873,
+      "name": "G. Bello",
+      "number": 2,
+      "pos": "M",
+      "grid": "4:1"
+     }
+    },
+    {
+     "player": {
+      "id": 367672,
+      "name": "M. Usor",
+      "number": 8,
+      "pos": "F",
+      "grid": "5:2"
+     }
+    },
+    {
+     "player": {
+      "id": 271327,
+      "name": "C. Lang",
+      "number": 27,
+      "pos": "F",
+      "grid": "5:1"
+     }
+    }
+   ],
+   "substitutes": [
+    {
+     "player": {
+      "id": 551281,
+      "name": "M. Verhaeghe",
+      "number": 21,
+      "pos": "D",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 7573,
+      "name": "T. Schützenauer",
+      "number": 33,
+      "pos": "G",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 417,
+      "name": "A. Schöpf",
+      "number": 18,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 511959,
+      "name": "N. Kane",
+      "number": 45,
+      "pos": "F",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 7722,
+      "name": "S. Kalajdzic",
+      "number": 11,
+      "pos": "F",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 400054,
+      "name": "M. Freckleton",
+      "number": 3,
+      "pos": "D",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 7756,
+      "name": "F. Flecker",
+      "number": 29,
+      "pos": "F",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 324019,
+      "name": "Daniel Elfadli",
+      "number": 23,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 303684,
+      "name": "Y. Dibango",
+      "number": 25,
+      "pos": "D",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 181786,
+      "name": "K. Daněk",
+      "number": 9,
+      "pos": "M",
+      "grid": null
+     }
+    },
+    {
+     "player": {
+      "id": 472147,
+      "name": "Fabian Schillinger",
+      "number": 50,
+      "pos": "G",
+      "grid": null
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,160 @@
+{
+ "get": "fixtures/statistics",
+ "parameters": {
+  "fixture": "1635609"
+ },
+ "errors": [],
+ "results": 2,
+ "paging": {
+  "current": 1,
+  "total": 1
+ },
+ "response": [
+  {
+   "team": {
+    "id": 575,
+    "name": "AEK Athens FC",
+    "logo": "https://media.api-sports.io/football/teams/575.png"
+   },
+   "statistics": [
+    {
+     "type": "Passes accurate",
+     "value": 341
+    },
+    {
+     "type": "Shots insidebox",
+     "value": 10
+    },
+    {
+     "type": "Shots outsidebox",
+     "value": 8
+    },
+    {
+     "type": "Blocked Shots",
+     "value": 9
+    },
+    {
+     "type": "Free Kicks",
+     "value": 14
+    },
+    {
+     "type": "Shots on Goal",
+     "value": 4
+    },
+    {
+     "type": "Goalkeeper Saves",
+     "value": 3
+    },
+    {
+     "type": "Shots off Goal",
+     "value": 5
+    },
+    {
+     "type": "Offsides",
+     "value": 2
+    },
+    {
+     "type": "Total passes",
+     "value": 405
+    },
+    {
+     "type": "Total Shots",
+     "value": 18
+    },
+    {
+     "type": "Yellow Cards",
+     "value": 1
+    },
+    {
+     "type": "Corner Kicks",
+     "value": 7
+    },
+    {
+     "type": "Fouls",
+     "value": 7
+    },
+    {
+     "type": "Red Cards",
+     "value": 0
+    },
+    {
+     "type": "Ball Possession",
+     "value": "49%"
+    }
+   ]
+  },
+  {
+   "team": {
+    "id": 1026,
+    "name": "Lask Linz",
+    "logo": "https://media.api-sports.io/football/teams/1026.png"
+   },
+   "statistics": [
+    {
+     "type": "Passes accurate",
+     "value": 345
+    },
+    {
+     "type": "Shots insidebox",
+     "value": 5
+    },
+    {
+     "type": "Shots outsidebox",
+     "value": 6
+    },
+    {
+     "type": "Blocked Shots",
+     "value": 2
+    },
+    {
+     "type": "Free Kicks",
+     "value": 6
+    },
+    {
+     "type": "Shots on Goal",
+     "value": 3
+    },
+    {
+     "type": "Goalkeeper Saves",
+     "value": 2
+    },
+    {
+     "type": "Shots off Goal",
+     "value": 6
+    },
+    {
+     "type": "Offsides",
+     "value": 0
+    },
+    {
+     "type": "Total passes",
+     "value": 426
+    },
+    {
+     "type": "Total Shots",
+     "value": 11
+    },
+    {
+     "type": "Yellow Cards",
+     "value": 2
+    },
+    {
+     "type": "Corner Kicks",
+     "value": 3
+    },
+    {
+     "type": "Fouls",
+     "value": 15
+    },
+    {
+     "type": "Red Cards",
+     "value": 0
+    },
+    {
+     "type": "Ball Possession",
+     "value": "51%"
+    }
+   ]
+  }
+ ]
+}
