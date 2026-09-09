@@ -68,6 +68,15 @@ Live. Indépendant du détecteur (pas de modèle/VPS requis) → **feature de R�
 - **Premium, pas chargé** : PWA-first, 4-5 stats qui parlent + reste en dépliable ; xG masqué proprement hors top-5
   (pas de « — ») ; rafraîchir sans recharger la carte ; cohérent avec le style CLASSIC (bord/filigrane). Le VPS aide
   (polling), mais l'affichage peut **démarrer avant** le VPS.
+- **✅ DIRECTION VALIDÉE user 2026-09-09 (réf. maquette artifact « live-card-matchcenter »)** : style **« match center »
+  façon SofaScore** = bloc « Aperçu du match » à **barres appariées vert(dom)/bleu(ext)** sous la carte, + toggle
+  Tout/1ʳᵉ/2ᵉ. Contenu 100% API-Football : **possession** (split bar) · **xG** (top-5) · total tirs / cadrés /
+  bloqués / dans-hors surface · corners · fautes · hors-jeux · coups francs · arrêts gardien · cartons · passes
+  (+précision) · **note moyenne joueurs** (moyenne des `rating`) · timeline events (buts/cartons/subs). 
+  ⚠️ **NON repris** (propriétaire SofaScore, absent d'API-Football, nécessiterait le proxy qu'on retire) : **carte
+  des tirs** (positions x/y), **heatmaps** passes/attaques, métriques « maison » (grosses occasions, passes en
+  profondeur, touches surface), momentum seconde-par-seconde. → on livre le **cœur premium** (~80% du look SofaScore),
+  on saute les extras propriétaires.
 
 ## 6. Séquencement
 1. Fin migration (en cours).
