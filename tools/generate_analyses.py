@@ -1859,7 +1859,8 @@ def _build_sharp_map(sp, smk) -> dict:
 # pick-shadow (après fix du signe handicap AWAY) : picks EXISTANTS identiques, quelques picks EN PLUS (lignes
 # que le scraping ratait). N'affecte QUE l'omap ; l'ancre sharp reste sur scraping (brique séparée). Mettre à
 # True quand le pick-shadow confirme « 0 pick existant changé » sur plusieurs jours. Cf. tools/apifootball_pick_shadow.py.
-_APIFOOTBALL_ODDS = False
+_APIFOOTBALL_ODDS = True     # ARMÉ 2026-09-09 : pick-shadow 7/7 identiques + couverture omap 34/34 (100%) sur les
+                             # matchs analysés + bug signe handicap AWAY corrigé. Repli scraping Kambi si non résolu.
 
 
 def _apifootball_omap(match: dict) -> dict:
