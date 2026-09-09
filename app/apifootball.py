@@ -126,8 +126,9 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
             bs, best = s, x
     if best and bs >= min_score:
         return {"id": best["fixture"]["id"], "home": best["teams"]["home"]["name"],
-                "away": best["teams"]["away"]["name"], "league": best["league"]["name"],
-                "ts": _ts(best["fixture"]["date"]), "score": round(bs, 3)}
+                "away": best["teams"]["away"]["name"],
+                "home_id": best["teams"]["home"]["id"], "away_id": best["teams"]["away"]["id"],
+                "league": best["league"]["name"], "ts": _ts(best["fixture"]["date"]), "score": round(bs, 3)}
     return None
 
 
@@ -261,6 +262,57 @@ def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
         return None
     return {"home": ms["goals"]["home"], "away": ms["goals"]["away"],
             "elapsed": ms["elapsed"], "status": ms["status"], "finished": ms["finished"]}
+
+
+# --- ENRICHISSEMENT (remplace FotMob / Flashscore / Sportradar) — fixture-scopé, marche sur tous les plans ---
+def injuries(cl: httpx.Client, fixture_id: int) -> list:
+    """Joueurs ABSENTS/INCERTAINS d'un match (remplace « blessés » FotMob). `type` = 'Missing Fixture'
+    (ne jouera pas) ou 'Questionable' (peut-être). Dispo depuis avril 2021, MAJ /4 h."""
+    out = []
+    for x in _get(cl, "/injuries", fixture=fixture_id).get("response", []):
+        p = x.get("player") or {}
+        out.append({"player": p.get("name"), "team": (x.get("team") or {}).get("name"),
+                    "type": p.get("type"), "reason": p.get("reason")})
+    return out
+
+
+def lineups(cl: httpx.Client, fixture_id: int) -> list:
+    """Compositions (formation, coach, XI, remplaçants) — remplace les compos Flashscore/FotMob.
+    Dispo 20-40 min avant le KO (selon coverage de la ligue)."""
+    out = []
+    for x in _get(cl, "/fixtures/lineups", fixture=fixture_id).get("response", []):
+        out.append({"team": (x.get("team") or {}).get("name"), "formation": x.get("formation"),
+                    "coach": (x.get("coach") or {}).get("name"),
+                    "xi": [(e.get("player") or {}).get("name") for e in (x.get("startXI") or [])],
+                    "subs": [(e.get("player") or {}).get("name") for e in (x.get("substitutes") or [])]})
+    return out
+
+
+def predictions(cl: httpx.Client, fixture_id: int) -> dict | None:
+    """Prédiction maison API-Football (Poisson + forme + stats + H2H ; N'utilise PAS les cotes) : gagnant,
+    win-or-draw, conseil, %, over/under, comparaison (form/att/def/poisson/h2h/goals). BONUS d'enrichissement,
+    dispo 21 j avant le match. À traiter comme un SIGNAL informatif, PAS comme l'ancre sharp."""
+    r = (_get(cl, "/predictions", fixture=fixture_id).get("response") or [None])[0]
+    if not r:
+        return None
+    pr = r.get("predictions") or {}
+    cmp = r.get("comparison") or {}
+    return {"winner": (pr.get("winner") or {}).get("name"), "win_or_draw": pr.get("win_or_draw"),
+            "advice": pr.get("advice"), "percent": pr.get("percent"),
+            "under_over": pr.get("under_over"), "goals": pr.get("goals"),
+            "comparison": {k: cmp.get(k) for k in ("form", "att", "def", "poisson_distribution", "h2h", "goals", "total")}}
+
+
+def h2h(cl: httpx.Client, home_id: int, away_id: int, last: int = 6) -> list:
+    """Historique des confrontations directes (remplace le H2H FotMob/Flashscore). Derniers `last` matchs."""
+    out = []
+    for x in _get(cl, "/fixtures/headtohead", h2h=f"{home_id}-{away_id}", last=last).get("response", []):
+        g = x.get("goals") or {}
+        tm = x.get("teams") or {}
+        out.append({"date": (x.get("fixture") or {}).get("date"),
+                    "home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
+                    "score": f"{g.get('home')}-{g.get('away')}"})
+    return out
 
 
 if __name__ == "__main__":                     # self-test manuel : python -m app.apifootball "Home" "Away" "ISO"
