@@ -4372,6 +4372,25 @@ async def main():
                                 _ab_side["data_score"] = (len(_ab_side["sources"])
                                                           + (1 if _ab_side.get("streaks") else 0)
                                                           + (1 if _ab_side.get("h2h") else 0))
+                            # 🛡️ INVARIANT ANTI-ABSTENTION-FANTÔME (user 2026-09-09) : une abstention n'est
+                            # LÉGITIME que si les sélecteurs mécaniques ne produisent RIEN sur les ghosts + omap
+                            # FINAUX. Or ce chemin (re)capte un omap FRAIS (l.4326-4335, refetch Unibet inclus)
+                            # qui peut COMPLÉTER une cote absente quand `apply_to_sidecar` a tourné plus tôt (bug
+                            # mesuré : ~1-3 paris Confiance GAGNANTS/jour laissés en abstention car l'omap était
+                            # incomplet à l'instant de sélection — 09-04 Genoa, 09-05 Forest, 09-08 x3, 09-09 x3).
+                            # On RE-TENTE ICI sur l'omap frais : si un pari mécanique qualifie -> ce n'est PLUS une
+                            # abstention (confidence_bet/value_bet figé -> affiché + compté). Même sélecteur exact
+                            # (aucune nouvelle logique) -> phare protégé. FORWARD only (matchs non commencés).
+                            try:
+                                from app import confidence_pick as _cp2, value_pick as _vp2
+                                if _cp2.apply_to_sidecar(_ab_side) or _vp2.apply_to_sidecar(_ab_side):
+                                    _ab_side["abstained"] = False
+                                    _mb = _ab_side.get("confidence_bet") or _ab_side.get("value_bet") or {}
+                                    print(f"  🛡️ PARI MÉCANIQUE RATTRAPÉ à l'abstention (omap frais) : "
+                                          f"{m.get('name', '?')} -> {_mb.get('sel')} @{_mb.get('cote')} "
+                                          f"(conf {_mb.get('prob')}) — n'était PAS affiché, corrigé.")
+                            except Exception as _rce:
+                                print(f"    (rattrapage pari mécanique ignoré : {_rce})")
                             try:
                                 json.dump(_ab_side, open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
