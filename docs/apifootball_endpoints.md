@@ -24,6 +24,30 @@ att/def/forme pré-calculés. À traiter comme **feature/fantôme** (une opinion
 
 ---
 
+## INVENTAIRE COMPLET v3 (audit 2026-09-09 — TOUS les endpoints confirmés joignables)
+
+**✅ Sondés + documentés ci-dessous (17) — couvrent 100 % des besoins BETSFIX :**
+status · fixtures (+live) · fixtures/statistics (xG) · fixtures/events · fixtures/lineups · fixtures/players ·
+odds (pré-match) · odds/live · odds/bookmakers · odds/bets · predictions · injuries · fixtures/headtohead ·
+standings · teams/statistics · teams · leagues · players/topscorers.
+
+**✅ Confirmés joignables mais NON nécessaires à BETSFIX (16) — existent, testés OK :**
+| Endpoint | Résultats | Utilité BETSFIX |
+|---|---|---|
+| `sidelined` | 13/joueur | 🟡 **suspensions/absences historiques** — pourrait compléter `injuries` là où sa couverture=False (Belgique) |
+| `odds/live/bets` | 266 | 🟡 **catalogue des paris in-play** — NÉCESSAIRE pour le mapping du futur détecteur live |
+| `venues` | 709 | 🟢 stade (affichage cosmétique) |
+| `players/squads`, `players`, `players/topassists`, `players/topyellowcards` | 1-20 | joueurs (hors nos marchés) |
+| `fixtures/rounds` | 38 | libellé de journée (mineur) |
+| `coachs` | 3 | entraîneur (mineur) |
+| `timezone` (427) · `countries` (171) · `leagues/seasons` (20) · `teams/seasons` (17) · `transfers` (353) · `trophies` (27) · `odds/mapping` (100) | — | ❌ inutiles pour nous |
+
+**Conclusion audit** : la surface v3 est **entièrement cartographiée**. Les 17 endpoints documentés couvrent règlement +
+cotes + ancre sharp + enrichissement + xG. Rien d'utile ne manque. 2 endpoints notés pour le futur : `odds/live/bets`
+(mapping détecteur live) et `sidelined` (blessés Belgique/Amérique du Sud où `injuries`=False).
+
+---
+
 > Généré par sonde sur fixture réel 1635609 (league 2, season 2026, teams 575/1026).
 > Base `https://v3.football.api-sports.io` · header `x-apisports-key` · GET only.
 > Échantillons JSON complets dans `docs/apifootball_samples/`.
