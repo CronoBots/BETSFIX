@@ -51,6 +51,9 @@ def _proxy_session() -> AsyncSession | None:
     global _proxy_sess
     if "pytest" in sys.modules:      # jamais d'appel réseau réel (proxy) pendant les tests
         return None
+    from app.config import drop_iproyal
+    if drop_iproyal():               # iPROYAL RETIRÉ (défaut) : SofaScore reste sur direct curl_cffi + RapidAPI
+        return None
     proxy = (_cfg().sofa_proxy or "").strip()
     if not proxy:
         return None

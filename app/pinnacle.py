@@ -192,8 +192,10 @@ def _matchups(sport: str, force: bool = False) -> list:
 # analyses, prioritaire sur ce délégué). Résultat = ancre 100 % SANS PROXY -> iProyal droppable -> VPS ->
 # couper le tunnel Cloudflare. ⚠️ SofaScore utilise ENCORE `sofa_proxy` (enrichissement, à migrer à part).
 # RÉVERSIBLE : BETSFIX_DROP_IPROYAL=0 (ou false/no/off) réactive iProyal-Pinnacle comme avant.
+# Point de vérité UNIQUE = config.drop_iproyal() (partagé avec SofaScore sofa_http/sofa_browser).
 def _drop_iproyal() -> bool:
-    return os.environ.get("BETSFIX_DROP_IPROYAL", "1").strip().lower() not in ("0", "false", "no", "off")
+    from app.config import drop_iproyal
+    return drop_iproyal()
 
 
 _af_anchor_cache: dict = {}     # (home,away,ko) -> (expire_ts, anchor|None) : sharp_probs ET sharp_markets

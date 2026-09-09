@@ -1,9 +1,19 @@
 """Configuration de l'application, chargée depuis les variables d'environnement / .env."""
 
+import os
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def drop_iproyal() -> bool:
+    """iPROYAL RETIRÉ (user 2026-09-09) — DÉFAUT ON. Point de vérité UNIQUE partagé par TOUS les
+    consommateurs du proxy résidentiel iProyal (`sofa_proxy`) : Pinnacle (ancre sharp) ET SofaScore
+    (sofa_http/sofa_browser). Quand True (défaut, env vide) : aucun appel ne passe par iProyal ->
+    ancre sharp via API-Football + The Odds API, SofaScore via direct curl_cffi + RapidAPI. Objectif :
+    résilier iProyal -> VPS -> couper le tunnel Cloudflare. RÉVERSIBLE : BETSFIX_DROP_IPROYAL=0."""
+    return os.environ.get("BETSFIX_DROP_IPROYAL", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
 class Settings(BaseSettings):

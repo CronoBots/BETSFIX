@@ -19,6 +19,7 @@ soit le nombre de matchs.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import time
 import unicodedata
@@ -33,11 +34,12 @@ _ESPN = "https://site.api.espn.com/apis"
 _FOTMOB = "https://www.fotmob.com/api/data"
 _UNDERSTAT = "https://understat.com"
 
-# ── MIGRATION API-FOOTBALL — enrichissement HYBRIDE (flag OFF par défaut, shadow-first) ──────────────
-# Quand True : le bloc forme/xG/classement/H2H/arbitre/prédiction/over/série vient d'API-Football (remplace
-# Understat+Flashscore+Sportradar). FotMob RESTE (blessés large / compos probables / météo qu'API-Football
-# ne couvre pas — cf. mémoire wip-current-task). Réversible instantanément. Ne PAS flipper sans shadow validé.
-_APIFOOTBALL_ENRICH = False
+# ── MIGRATION API-FOOTBALL — enrichissement HYBRIDE (ARMÉ user 2026-09-09 — DÉFAUT ON) ──────────────
+# Le bloc forme/xG/classement/H2H/arbitre/prédiction/over/série vient d'API-Football et remplace **Understat +
+# Flashscore**. FotMob RESTE (blessés large / compos probables / météo) et **Sportradar RESTE** (GISMO gratuit,
+# SANS proxy : séries de pari granulaires qui alimentent `_cool_conf` et qu'API-Football ne couvre pas aussi
+# finement). Aucun de ces deux n'utilise iProyal. RÉVERSIBLE : BETSFIX_APIFOOTBALL_ENRICH=0.
+_APIFOOTBALL_ENRICH = os.environ.get("BETSFIX_APIFOOTBALL_ENRICH", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
 # ------------------------------------------------------------------ correspondance de noms
@@ -1437,19 +1439,19 @@ async def extras(client, sport: str, match: dict, prov: dict | None = None) -> s
         out += (f"\n\nDONNÉES MULTI-SOURCES ({_src} — source indépendante n°2, "
                 "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
                 + "\n- ".join(facts))
-    if not af_on:                          # Flashscore + Sportradar remplacés par le bloc API-Football
+    if not af_on:                          # Flashscore remplacé par le bloc API-Football (Understat aussi, + haut)
         fb = await _flashscore_block(sport, match)
         if fb and fb.strip():
             tracker["flashscore"] = True
         out += fb
-        try:                               # Sportradar (GISMO) : forme/série/H2H/classement
-            from app import sportradar
-            sb = await sportradar.block(client, sport, match)
-            if sb and sb.strip():
-                tracker["sportradar"] = True
-            out += sb
-        except Exception:
-            pass
+    try:                                   # Sportradar (GISMO, GRATUIT, SANS proxy) — TOUJOURS gardé : séries de
+        from app import sportradar         # pari granulaires (alimentent `_cool_conf`) qu'API-Football ne couvre
+        sb = await sportradar.block(client, sport, match)   # pas aussi finement. Ne dépend PAS d'iProyal.
+        if sb and sb.strip():
+            tracker["sportradar"] = True
+        out += sb
+    except Exception:
+        pass
     return out
 
 

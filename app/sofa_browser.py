@@ -63,7 +63,9 @@ def _chrome_path() -> str | None:
 
 
 def _proxy() -> str:
-    from app.config import get_settings
+    from app.config import drop_iproyal, get_settings
+    if drop_iproyal():               # iPROYAL RETIRÉ (défaut) : plus de Chrome via proxy résidentiel
+        return ""
     return (get_settings().sofa_proxy or "").strip()
 
 
