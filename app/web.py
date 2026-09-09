@@ -6912,7 +6912,9 @@ def _render_match_center(stats: dict | None) -> str:
         evs.append(f'<div class="mcx-ev {align}"><span class="mcx-ev-m">{mlab}</span>'
                    f'<span class="mcx-ev-i">{ic}</span><span class="mcx-ev-p">{who}</span></div>')
     tl = f'<div class="mcx-tl">{"".join(evs)}</div>' if evs else ""
-    xgn = "" if stats.get("has_xg") else '<div class="mcx-foot">xG indisponible hors grands championnats.</div>'
+    # xG : absent EN DIRECT (API-Football le calcule ~après le match) et jamais couvert hors grands
+    # championnats -> message NEUTRE (ne pas affirmer « hors grands championnats » sur un match de C1 en cours).
+    xgn = "" if stats.get("has_xg") else '<div class="mcx-foot">xG indisponible en direct (mis à jour après le match).</div>'
     return f'<div class="mcx-body">{body}</div>{tl}{xgn}'
 
 
