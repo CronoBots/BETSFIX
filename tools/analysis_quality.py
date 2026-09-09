@@ -350,9 +350,14 @@ def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
         analyse = "⚠️" if analyse == "✅" else analyse; issues.append("ANALYSE : panel de validation absent")
     if sig["n_shadow"] < 6:
         analyse = "⚠️" if analyse == "✅" else analyse; issues.append(f"ANALYSE : peu de fantômes ({sig['n_shadow']})")
-    # SOURCES : ≥2 sources indépendantes + ancre sharp + vraies cotes Unibet
+    # SOURCES : ≥2 sources indépendantes + ancre sharp + vraies cotes Unibet.
+    # ⚠️ MIGRATION API-FOOTBALL (2026-09-09) : API-Football est une source CONSOLIDÉE (forme + buts + over% +
+    # classement + H2H + prédiction Poisson en un seul provider) = l'équivalent de ≥2 sources legacy. Sur les
+    # ligues que seul API-Football couvre (ex. Saudi Pro League), elle répond SEULE (n_src=1) mais la donnée est
+    # riche -> on ne lève PLUS le ❌ « <2 requis » quand `apifootball` a répondu. Un match à 1 SEULE source
+    # LEGACY (sans API-Football) reste flaggé (vraie pauvreté de données).
     sources = "✅"
-    if sig["n_src"] < 2:
+    if sig["n_src"] < 2 and "apifootball" not in sig["src_names"]:
         sources = "❌"; issues.append(f"SOURCES : {sig['n_src']} source(s) (<2 requis)")
     if sig.get("sharp_conflict"):
         sources = "⚠️" if sources == "✅" else sources
