@@ -92,3 +92,9 @@ Log 'SOIR SHADOW API-FOOTBALL : comparaison lecture seule'
 $env:BETSFIX_APIFOOTBALL_THROTTLE = '0.5'   # Pro = 300/min
 & $py 'tools\apifootball_shadow.py' 2>&1 | Add-BfxStream $log
 Log ("SOIR SHADOW API-FOOTBALL DONE (exit {0})" -f $LASTEXITCODE)
+
+# SHADOW DES PICKS (Étape 2 migration, LECTURE SEULE) : cf. scan_daily.ps1. Compare le pick réel au pick sur
+# cotes API-Football, accumule data/apifootball_shadow/picks/<date>/. N'influence NI sélection NI pari joué.
+Log 'SOIR SHADOW PICKS API-FOOTBALL : le pick changerait-il ? (lecture seule)'
+& $py 'tools\apifootball_pick_shadow.py' 2>&1 | Add-BfxStream $log
+Log ("SOIR SHADOW PICKS API-FOOTBALL DONE (exit {0})" -f $LASTEXITCODE)
