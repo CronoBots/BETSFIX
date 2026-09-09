@@ -1886,7 +1886,8 @@ def _apifootball_omap(match: dict) -> dict:
 # matchs à venir (les écarts historiques ~23 pt = pur line-movement, capture à J+1). Armer quand le shadow
 # confirme la COUVERTURE en prod (chaque match scanné résout son ancre). C'est le DERNIER verrou avant de
 # retirer iProyal → VPS → couper le tunnel Cloudflare. Cf. mémoire wip-current-task § ANCRE SHARP.
-_APIFOOTBALL_SHARP = False
+_APIFOOTBALL_SHARP = True    # ARMÉ 2026-09-09 : couverture 100% (23/23, 4j) + iProyal prouvé FAUX sur 5% d'ancres
+                             # (cache périmé) où API-Football colle au marché. Repli iProyal->TheOddsAPI si non résolu.
 
 
 def _apifootball_sharp(match: dict) -> dict | None:
