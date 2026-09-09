@@ -3018,6 +3018,27 @@ CSS = """
   .mc-r-live .vb-live{margin-bottom:2px}
   .cleg-fold-bet>.cleg-fold-s{font-size:11px}
   .cleg-fold-bet .cleg-why{font-size:11.5px;color:#a7bcd6;line-height:1.5}
+  /* ── LIVE MATCH CENTER (§5bis) : barres appariées vert(dom)/bleu(ext) façon SofaScore + timeline ── */
+  .mcx{margin-top:8px}
+  .mcx-load,.mcx-na{font-size:11.5px;color:#8fa2b8;text-align:center;padding:8px 0}
+  .mcx-body{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .mcx-row{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto;
+       column-gap:8px;row-gap:4px;align-items:center}
+  .mcx-h{grid-column:1;text-align:left;font-size:12px;font-weight:800;color:#e6eefb}
+  .mcx-a{grid-column:3;text-align:right;font-size:12px;font-weight:800;color:#e6eefb}
+  .mcx-lab{grid-column:2;font-size:10.5px;color:#8fa2b8;font-weight:600;white-space:nowrap}
+  .mcx-bar{grid-column:1 / 4;grid-row:2;display:flex;height:5px;border-radius:3px;overflow:hidden;
+       background:rgba(255,255,255,.05);gap:2px}
+  .mcx-bh{background:#34d27b;border-radius:3px 0 0 3px}          /* domicile = vert (comme le badge Live) */
+  .mcx-ba{background:#33b7ef;border-radius:0 3px 3px 0}          /* extérieur = bleu */
+  .mcx-tl{margin-top:11px;padding-top:9px;border-top:1px solid rgba(255,255,255,.06);
+       display:flex;flex-direction:column;gap:6px}
+  .mcx-ev{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#c4d2e2}
+  .mcx-ev-a{flex-direction:row-reverse;text-align:right}        /* event extérieur = miroir (côté droit) */
+  .mcx-ev-m{color:#8fa2b8;font-weight:700;min-width:30px}
+  .mcx-ev-i{font-size:12.5px}
+  .mcx-ev-p{font-weight:600}
+  .mcx-foot{margin-top:8px;font-size:10px;color:#6f8098;text-align:center;font-style:italic}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -4571,6 +4592,17 @@ _CARDS_JS = (
     ".catch(function(){a.removeAttribute('data-l');x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}"
     "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
     "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
+    # LIVE MATCH CENTER : à l'ouverture du pli « 📊 Aperçu du match » (.mcx-fold), on charge les stats live
+    # (lazy -> 0 fetch au rendu de page) puis on RAFRAÎCHIT toutes les 30 s tant que le pli reste ouvert
+    # (poll silencieux, pas de flash « Chargement »). Le container garde son texte initial jusqu'à la 1re réponse.
+    "function _mcxLoad(box,d){fetch(box.getAttribute('data-mcx')).then(function(r){return r.text();})"
+    ".then(function(h){if(d.open)box.innerHTML=h;}).catch(function(){});}"
+    "document.addEventListener('toggle',function(e){var d=e.target;"
+    "if(!d||!d.classList||!d.classList.contains('mcx-fold'))return;"
+    "var box=d.querySelector('.mcx');if(!box)return;"
+    "if(d.open){_mcxLoad(box,d);if(!box._iv)box._iv=setInterval(function(){"
+    "if(d.open)_mcxLoad(box,d);else{clearInterval(box._iv);box._iv=0;}},30000);}"
+    "else if(box._iv){clearInterval(box._iv);box._iv=0;}},true);"
     "document.addEventListener('click',function(e){"
     # un clic DANS l'analyse (.exp : détails repliables, bulles, etc.) ne doit PAS replier la carte :
     # on (dé)plie via l'en-tête de la carte uniquement. (cf. accordéon data-exp, même garde)
@@ -6785,6 +6817,122 @@ def _why_fold(text: str, label: str = "Pourquoi ce choix", bare: bool = False) -
             'onclick="event.stopPropagation()">' + html.escape(label)
             + '<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_lis}</ul></details>')
+
+
+# ── LIVE MATCH CENTER (§5bis LIVE_DETECTOR) — stats live style SofaScore via API-Football ─────────────
+# REMPLACE le pli « Pourquoi ce choix » en LIVE (user 2026-09-09 : le pourquoi = contexte d'avant-match,
+# inutile une fois que ça joue). Chargé en LAZY par JS quand on déplie -> 0 appel réseau au rendu de page.
+_MC_CACHE: dict = {}          # mid -> (expire_ts, stats|None) : évite de marteler API-Football (JS poll + N viewers)
+_MC_TTL = 25
+
+
+def _mc_stats(mid: str):
+    """Stats live API-Football d'un match BETSFIX (résolu via son sidecar : home/away/coup d'envoi).
+    Caché ~25 s. None si non configuré / fixture non résolu / pas de stats. READ-ONLY, best-effort."""
+    import time as _t
+    hit = _MC_CACHE.get(mid)
+    if hit and hit[0] > _t.time():
+        return hit[1]
+    stats = None
+    try:
+        from app import apifootball as _AF
+        if _AF.configured():
+            m = analyses.meta("foot", mid) or {}
+            home, away, ko = m.get("home"), m.get("away"), m.get("start")
+            if home and away and ko:
+                with _AF._client() as cl:
+                    f = _AF.resolve_fixture(cl, home, away, ko)
+                    if f:
+                        stats = _AF.live_match_stats(cl, f["id"])
+    except Exception:
+        stats = None
+    _MC_CACHE[mid] = (_t.time() + _MC_TTL, stats)
+    return stats
+
+
+def _mcx_bar(h, a, label: str, pct: bool = False) -> str:
+    """Une ligne de stat à BARRE APPARIÉE (vert domicile / bleu extérieur, façon SofaScore). '' si les 2 None."""
+    hv = h if isinstance(h, (int, float)) else None
+    av = a if isinstance(a, (int, float)) else None
+    if hv is None and av is None:
+        return ""
+    hh, aa = (hv or 0), (av or 0)
+    tot = hh + aa
+    hfrac = (hh / tot * 100) if tot else 50
+    sfx = "%" if pct else ""
+    dh = (f"{hv:g}{sfx}" if hv is not None else "–")
+    da = (f"{av:g}{sfx}" if av is not None else "–")
+    return (f'<div class="mcx-row"><span class="mcx-h">{dh}</span>'
+            f'<span class="mcx-lab">{html.escape(label)}</span>'
+            f'<span class="mcx-a">{da}</span>'
+            f'<div class="mcx-bar"><i class="mcx-bh" style="width:{hfrac:.0f}%"></i>'
+            f'<i class="mcx-ba" style="width:{100 - hfrac:.0f}%"></i></div></div>')
+
+
+def _render_match_center(stats: dict | None) -> str:
+    """Bloc « Aperçu du match » : barres appariées (possession/xG/tirs/corners/fautes/passes/note) +
+    timeline d'events (buts/cartons/remplacements). Message propre si stats indisponibles."""
+    if not stats:
+        return '<div class="mcx-na">Stats live indisponibles pour ce match.</div>'
+    sh = (stats.get("stats") or {}).get("home") or {}
+    sa = (stats.get("stats") or {}).get("away") or {}
+    rows = [_mcx_bar(sh.get("possession"), sa.get("possession"), "Possession", pct=True)]
+    if stats.get("has_xg"):
+        rows.append(_mcx_bar(sh.get("xg"), sa.get("xg"), "xG (buts attendus)"))
+    for key, lab in (("shots_total", "Tirs"), ("shots_on", "Tirs cadrés"),
+                     ("shots_inbox", "Tirs dans la surface"), ("corners", "Corners"),
+                     ("fouls", "Fautes"), ("offsides", "Hors-jeu"), ("saves", "Arrêts du gardien"),
+                     ("passes", "Passes")):
+        rows.append(_mcx_bar(sh.get(key), sa.get(key), lab))
+    if sh.get("passes_pct") is not None or sa.get("passes_pct") is not None:
+        rows.append(_mcx_bar(sh.get("passes_pct"), sa.get("passes_pct"), "Précision des passes", pct=True))
+    rows.append(_mcx_bar(sh.get("yellow"), sa.get("yellow"), "Cartons jaunes"))
+    if (sh.get("red") or sa.get("red")):
+        rows.append(_mcx_bar(sh.get("red"), sa.get("red"), "Cartons rouges"))
+    rt = stats.get("ratings") or {}
+    if rt.get("home") or rt.get("away"):
+        rows.append(_mcx_bar(rt.get("home"), rt.get("away"), "Note moyenne joueurs"))
+    body = "".join(r for r in rows if r)
+    # Timeline des events (buts / cartons / remplacements), plus récents en tête.
+    evs = []
+    for ev in reversed(stats.get("events") or []):
+        typ, det = ev.get("type"), (ev.get("detail") or "")
+        if typ == "Goal":
+            ic = "⚽"
+        elif typ == "Card":
+            ic = "🟥" if "Red" in det else "🟨"
+        elif typ == "subst":
+            ic = "🔁"
+        else:
+            continue
+        mn, ex = ev.get("minute"), ev.get("extra")
+        mlab = (f"{mn}'" + (f"+{ex}" if ex else "")) if mn is not None else ""
+        who = html.escape(ev.get("player") or "")
+        align = "mcx-ev-h" if ev.get("team") == "home" else "mcx-ev-a"
+        evs.append(f'<div class="mcx-ev {align}"><span class="mcx-ev-m">{mlab}</span>'
+                   f'<span class="mcx-ev-i">{ic}</span><span class="mcx-ev-p">{who}</span></div>')
+    tl = f'<div class="mcx-tl">{"".join(evs)}</div>' if evs else ""
+    xgn = "" if stats.get("has_xg") else '<div class="mcx-foot">xG indisponible hors grands championnats.</div>'
+    return f'<div class="mcx-body">{body}</div>{tl}{xgn}'
+
+
+async def live_match_center_fragment(mid: str) -> str:
+    """Fragment HTML du Live Match Center d'un match (async : le fetch réseau sync part en thread)."""
+    import asyncio as _aio
+    stats = await _aio.to_thread(_mc_stats, str(mid))
+    return _render_match_center(stats)
+
+
+def _live_match_center_fold(mid) -> str:
+    """Pli « 📊 Aperçu du match » (REMPLACE « Pourquoi » en live). Corps chargé en LAZY (data-mcx) à
+    l'ouverture -> aucun appel réseau au rendu de page. Même patron `.cleg-fold` que le « Pourquoi »."""
+    if not mid:
+        return ""
+    return ('<details class="cleg-fold cleg-fold-bet mcx-fold"><summary class="cleg-fold-s" '
+            'onclick="event.stopPropagation()">📊 Aperçu du match'
+            '<span class="cleg-chev">▾</span></summary>'
+            f'<div class="mcx" data-mcx="/foot/match/{html.escape(str(mid))}/livecenter">'
+            '<div class="mcx-load">Chargement des stats…</div></div></details>')
 
 
 def _load_day_programme() -> dict:
@@ -12146,6 +12294,12 @@ def _sport_row(r: dict) -> str:
         # Texte COMPLET (comme les jambes de combiné) : le bloc « 🎯 » n'est plus répété dans le dépli
         # (card_details) -> le pli en est le SEUL porteur, on ne tronque donc pas le raisonnement.
         _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)) if _pmid else ""
+        # EN LIVE (user 2026-09-09) : le « Pourquoi ce choix » (contexte d'AVANT-match, périmé une fois que ça
+        # joue) est REMPLACÉ par « 📊 Aperçu du match » = stats live style SofaScore (API-Football). Même
+        # emplacement (le pli est posé après scoreboard + chance live, cf. head plus bas). À-venir/terminé : le
+        # « Pourquoi » reste inchangé. Foot uniquement (source live = API-Football).
+        if is_live and _pmid and sport_key == "foot":
+            _pwhy = _live_match_center_fold(_pmid)
         # LIVE : MÊME ORDRE que les jambes de combiné (demande user 2026-07-21) — verdict, PUIS scoreboard
         # + chance live (posés par _live_score_row après mc-sub), et le pli « Pourquoi » EN DERNIER (avec
         # son filet). Hors live : le pli reste sous le verdict (pas de scoreboard).

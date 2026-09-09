@@ -362,6 +362,18 @@ async def foot_competitions() -> dict[int, str]:
 
 
 @router.get(
+    "/foot/match/{event_id}/livecenter",
+    response_class=HTMLResponse,
+    summary="Live Match Center — fragment HTML des stats live (API-Football, style SofaScore)",
+)
+async def foot_livecenter(event_id: int) -> HTMLResponse:
+    """Fragment du bloc « Aperçu du match » d'un match EN DIRECT (barres possession/xG/tirs/… + timeline),
+    chargé en lazy par le pli de la carte live. `event_id` = id de fiche BETSFIX (résolu via son sidecar
+    vers le fixture API-Football). READ-ONLY, best-effort (message propre si stats indisponibles)."""
+    return HTMLResponse(await web.live_match_center_fragment(str(event_id)))
+
+
+@router.get(
     "/foot/match/{event_id}/statistics",
     summary="Statistiques d'un match (possession, tirs, xG, passes, duels…)",
     response_model=MatchStatistics,
