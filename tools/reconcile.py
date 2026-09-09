@@ -233,6 +233,19 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             await asyncio.to_thread(_cdr.notify_combos, "foot")
         except Exception as exc:
             print(f"  (Telegram combinés ignoré : {exc})")
+        # FILET D'AUDIT RÈGLEMENT via API-Football (user 2026-09-09) : après le règlement, compare chaque score
+        # réglé RÉCENT au score AUTORITATIF d'API-Football (`/fixtures?date` = 1 appel/jour, dédup `af_audited`).
+        # ABSTENTION -> corrige l'affichage (0 ROI) ; PARI JOUÉ / JAMBE COMBINÉ -> ALERTE PRIVÉE owner (ROI en jeu,
+        # JAMAIS auto-corrigé). Best-effort, ne casse jamais le règlement ; inactif sans clé (.env). A attrapé le
+        # cas réel FC Bruges-Aston Villa 5-3 (FotMob corrompu) vs 2-3. Cf. app/settle_audit.py.
+        if not dry:
+            try:
+                from app import settle_audit as _saudit
+                _ar = await asyncio.to_thread(_saudit.audit_recent, 2)
+                if _ar.get("fixed") or _ar.get("alerts"):
+                    print(f"  · audit règlement API-Football : {_ar}")
+            except Exception as exc:
+                print(f"  (audit règlement API-Football ignoré : {exc})")
         # COMBINÉ SÉCURITÉ FOOT (double chance la plus sûre ~2, info seule hors ROI) : règle + tranche.
         try:
             from app import combo_safe as _cs
