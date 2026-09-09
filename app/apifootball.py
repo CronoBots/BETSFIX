@@ -379,14 +379,18 @@ def live_all(cl: httpx.Client) -> list:
     out = []
     try:
         for x in _get(cl, "/fixtures", live="all").get("response", []) or []:
-            st = (x.get("fixture") or {}).get("status") or {}
+            fxt = x.get("fixture") or {}
+            st = fxt.get("status") or {}
             g = x.get("goals") or {}
             tm = x.get("teams") or {}
             out.append({"home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
-                        "ko": (x.get("fixture") or {}).get("date"),
+                        "ko": fxt.get("date"),
                         "gh": g.get("home"), "ga": g.get("away"),
                         "elapsed": st.get("elapsed"), "short": st.get("short"),
-                        "extra": st.get("extra") if isinstance(st.get("extra"), int) else None})
+                        "extra": st.get("extra") if isinstance(st.get("extra"), int) else None,
+                        # timestamps epoch du coup d'envoi de chaque mi-temps -> horloge À LA SECONDE
+                        # reconstructible (maintenant − début_mi-temps), API-Football ne donne pas les secondes.
+                        "periods": fxt.get("periods") or {}})
     except Exception:
         out = (hit[1] if hit else [])
     _LIVE_ALL_CACHE["all"] = (time.time() + _LIVE_ALL_TTL, out)
@@ -412,8 +416,20 @@ def live_clockdata(home: str, away: str, ko_iso: str, live_list: list) -> dict |
         return None
     short = best.get("short") or ""
     minute = best["elapsed"] if isinstance(best.get("elapsed"), int) else 0
+    second = 0
+    # HORLOGE À LA SECONDE reconstruite depuis le timestamp de la mi-temps EN COURS (API-Football ne donne
+    # que la minute) : total = maintenant − début_mi-temps (+45 min en 2e MT). Le ticker JS fait défiler ;
+    # resync à chaque refresh (cache 12 s). Repli sur `elapsed` (minute, sec 0) si pas de timestamp / dérive
+    # aberrante (>3 min d'écart = donnée douteuse) -> jamais d'horloge fantaisiste.
+    per = best.get("periods") or {}
+    p1, p2 = per.get("first"), per.get("second")
+    anchor = p2 if (short == "2H" and p2) else (p1 if short == "1H" else None)
+    if anchor:
+        tot = int(time.time()) - int(anchor) + (45 * 60 if short == "2H" else 0)
+        if tot >= 0 and abs(tot // 60 - minute) <= 3:      # cohérent avec elapsed -> on prend la seconde
+            minute, second = tot // 60, tot % 60
     return {"score": {"home": best.get("gh"), "away": best.get("ga")},
-            "matchClock": {"minute": minute, "second": 0, "running": short in _RUNNING,
+            "matchClock": {"minute": minute, "second": second, "running": short in _RUNNING,
                            "periodId": _PERIOD_ID.get(short, "")},
             "_af": True, "_af_status": short, "_af_finished": short in FINISHED_STATUS,
             "_af_extra": best.get("extra")}

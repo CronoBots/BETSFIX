@@ -7377,9 +7377,10 @@ def _live_clock_html(sport_key, home, away) -> str:
     _pid = (_cpid or "").upper()
     if _pid == "FIRST_HALF" and not _crun and _cm >= 45:
         return '<span class="tm-min" data-run="0">HT</span>'
-    # API-FOOTBALL (user 2026-09-09) : MINUTE SEULE (« 90' »), pas de secondes ni de ticker JS
-    # (API-Football ne fournit pas les secondes). data-run=0 -> le ticker ne fait pas défiler.
-    if isinstance(_ld, dict) and _ld.get("_af"):
+    # API-FOOTBALL HORS-JEU (mi-temps ET / pause, pas d'horloge qui court) : minute seule, pas de ticker.
+    # EN JEU (1H/2H), l'horloge est reconstruite À LA SECONDE (cf. apifootball.live_clockdata via periods) ->
+    # elle tombe dans le ticker commun ci-dessous (data-min/sec/run=1), MÊME rendu « 46:54 » qu'avant.
+    if isinstance(_ld, dict) and _ld.get("_af") and not _crun:
         _ex = _ld.get("_af_extra")
         _mlabel = f"{_cm}+{_ex}'" if isinstance(_ex, int) and _ex else f"{_cm}'"
         return f'<span class="tm-min" data-run="0">{_mlabel}</span>'
