@@ -1,0 +1,5 @@
+# Fins de ligne LF forcées pour les fichiers exécutés sur Linux (VPS) — un CRLF dans un shebang
+# casse le script (« bad interpreter »). Garantit un clone propre quelle que soit la config Windows.
+*.sh              text eol=lf
+deploy/vps/*.service  text eol=lf
+deploy/vps/crontab.txt text eol=lf
