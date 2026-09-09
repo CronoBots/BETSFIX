@@ -7520,6 +7520,13 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     _why = ('<details class="cleg-fold cleg-fold-bet"><summary class="cleg-fold-s" onclick="event.stopPropagation()">'
             f'{html.escape(why_label)}<span class="cleg-chev">▾</span></summary>'
             f'<ul class="why-ul">{_wtl}</ul></details>') if (_wt and _wtl) else ""   # jamais un pli vide
+    # EN LIVE (user 2026-09-09) : sur une jambe de combiné FOOT en DIRECT, le « Pourquoi cette jambe »
+    # (contexte d'avant-match) est REMPLACÉ par « 📊 Aperçu du match » = stats live style SofaScore
+    # (API-Football). Même emplacement/pli. `_res is None and _lfz.get("score")` = match réellement en cours.
+    if _res is None and _lfz and _lfz.get("score") and _sp == "foot" and l.get("mid"):
+        _mcx = _live_match_center_fold(l.get("mid"))
+        if _mcx:
+            _why = _mcx
     # LIGNE VERDICT (façon provisoire) : Confiance CALIBRÉE (la jambe porte `prob` en FRACTION + `code`) ·
     # Marché · Value (masquée si négative — combiné = info seule) + grosse COTE. Remplace la pastille cote.
     _verdict = ""
