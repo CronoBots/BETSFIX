@@ -4340,6 +4340,16 @@ async def main():
                                         "shadow": _shadow, "abstained": True,
                                         **({"omap": _ab_omap} if _ab_omap else {}),
                                         "generated": datetime.now(timezone.utc).isoformat()}
+                            # SOURCES d'enrichissement de CETTE passe (fix 2026-09-09) : une abstention qui n'a
+                            # JAMAIS eu de fiche COMPLÈTE (_write_sidecar, réservé aux paris) restait
+                            # `sources: None` -> le QC retombait sur un scan de tokens du .md et affichait un
+                            # FAUX « SOURCES <2 » sur des matchs pourtant enrichis (ex. PSG-Slovan =
+                            # API-Football + Sportradar). On persiste le tracker `sources_prov` de build_dossier
+                            # -> QC exact. (La préservation ci-dessous ne prend le relais que si cette passe
+                            # n'a rien enrichi.)
+                            _ab_srcs = sorted(k for k, v in ((meta or {}).get("sources_prov") or {}).items() if v)
+                            if _ab_srcs:
+                                _ab_side["sources"] = _ab_srcs
                             # PRÉSERVATION AUDIT (user 2026-09-01) : la fiche d'abstention garde les CHAMPS
                             # D'ANALYSE déjà écrits (sources, ancre sharp, panel de validation, marchés, H2H,
                             # streaks, votes publics) pour l'audit qualité. Sans ça, la re-analyse en abstention
@@ -4356,6 +4366,12 @@ async def main():
                                        "country", "sofa_url", "unibet_url"):
                                 if _prev_side.get(_k) is not None and _ab_side.get(_k) is None:
                                     _ab_side[_k] = _prev_side[_k]
+                            # data_score COHÉRENT avec les sources/streaks/h2h finaux (recalculé si on a des
+                            # sources fraîches -> évite un data_score préservé périmé).
+                            if _ab_side.get("sources"):
+                                _ab_side["data_score"] = (len(_ab_side["sources"])
+                                                          + (1 if _ab_side.get("streaks") else 0)
+                                                          + (1 if _ab_side.get("h2h") else 0))
                             try:
                                 json.dump(_ab_side, open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
