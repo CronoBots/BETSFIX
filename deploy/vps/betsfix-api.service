@@ -1,0 +1,20 @@
+# systemd — API uvicorn (remplace le superviseur PowerShell api_service_loop.ps1 ; systemd = relance auto).
+# Installer : sudo cp deploy/vps/betsfix-api.service /etc/systemd/system/ && sudo systemctl enable --now betsfix-api
+# Adapter WorkingDirectory / User / chemin venv. --host 127.0.0.1 : mettre un reverse-proxy (nginx/caddy) OU
+# cloudflared DEVANT (cf. README, section façade). Ne PAS exposer 8000 en public directement.
+[Unit]
+Description=BETSFIX API (uvicorn FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=betsfix
+WorkingDirectory=/opt/betsfix
+Environment=TZ=Europe/Brussels
+ExecStart=/opt/betsfix/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

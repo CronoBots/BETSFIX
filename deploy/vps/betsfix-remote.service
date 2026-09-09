@@ -1,0 +1,22 @@
+# systemd — session REMOTE CONTROL (= toi qui me pilotes depuis claude.ai/code pour modifier/déployer).
+# OPTIONNEL : ne l'active que si tu veux garder la main depuis ton téléphone AVEC le PC éteint.
+# Prérequis : `claude login` fait sur le VPS (abonnement Pro Max, auth persistée dans ~/.claude).
+# Installer : sudo cp deploy/vps/betsfix-remote.service /etc/systemd/system/ && sudo systemctl enable --now betsfix-remote
+# ⚠️ Garde un accès SSH de secours : si cette session casse le VPS, c'est par SSH qu'on rentre le réparer.
+[Unit]
+Description=BETSFIX Remote Control (Claude Code)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=betsfix
+WorkingDirectory=/opt/betsfix
+Environment=TZ=Europe/Brussels
+Environment=HOME=/home/betsfix
+ExecStart=/usr/bin/claude --remote-control BETSFIX --dangerously-skip-permissions
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

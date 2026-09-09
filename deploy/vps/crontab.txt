@@ -1,0 +1,15 @@
+# Crontab BETSFIX (VPS Linux) — `crontab -e` et coller. Remplacer /opt/betsfix par le chemin réel du repo.
+# Fuseau belge (les scans raisonnent en heure Brussels). flock = anti-doublon (comme l'anti-course Windows).
+CRON_TZ=Europe/Brussels
+
+# Scan JOUR 10h + Scan SOIR 19h + VAGUE toutes les 30 min (publie les paris ~1h avant chaque KO).
+# VERROU PARTAGÉ betsfix-scan.lock : jamais 2 scans/vagues en parallèle (-n = skip si déjà pris).
+0 10 * * *   flock -n /tmp/betsfix-scan.lock /opt/betsfix/deploy/vps/scan_daily.sh
+0 19 * * *   flock -n /tmp/betsfix-scan.lock /opt/betsfix/deploy/vps/scan_evening.sh
+*/30 * * * * flock -n /tmp/betsfix-scan.lock /opt/betsfix/deploy/vps/scan_wave.sh
+
+# Reconcile LÉGER (aucun appel Claude) : règlement + résultats. Verrou propre, toutes les 10 min.
+*/10 * * * * flock -n /tmp/betsfix-reconcile.lock bash -lc 'cd /opt/betsfix && . .venv/bin/activate && TZ=Europe/Brussels python tools/reconcile.py --no-bilan >> data/reconcile_cron.log 2>&1'
+
+# Snapshot Cloudflare KV (filet failover si le VPS tombe), toutes les 30 min.
+*/30 * * * * bash -lc 'cd /opt/betsfix && . .venv/bin/activate && python deploy/snapshot_to_kv.py >> data/kv_cron.log 2>&1'
