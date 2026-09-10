@@ -1960,7 +1960,7 @@ CSS = """
   /* MÊME fond que la carte PERF des onglets sport (.spf) : dégradé cyan + bordure + glow cyan */
   .sx-hero{background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
-       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:14px 15px 12px;position:relative;overflow:hidden}
+       box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm);padding:14px 15px 12px;position:relative;overflow:hidden}
   .sx-hero-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .sx-hero-roi{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.02em}
   .sx-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
@@ -3004,7 +3004,7 @@ CSS = """
   .cal-h{font-size:15px;font-weight:900;color:var(--text);margin:24px 0 10px}
   .cal-verdict{padding:13px 14px;border-radius:16px;border:1px solid rgba(34,184,255,.60);
        background:linear-gradient(180deg,rgba(34,184,255,.09),rgba(34,184,255,.02));
-       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);margin-bottom:12px}
+       box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm);margin-bottom:12px}
   .cal-verdict.cal-ok{border-color:rgba(52,210,123,.4)}
   .cal-verdict.cal-over{border-color:rgba(244,198,74,.4)}
   .cal-verdict.cal-under{border-color:rgba(34,184,255,.4)}
@@ -3640,7 +3640,7 @@ CSS = """
   /* Carte « Évolution du profit » (/stats) : courbe d'équité unique + repères */
   .sx-card{background:rgba(34,184,255,.055);   /* teinte UNIE : fond stable à l'ouverture de l'historique */
        border:1px solid rgba(34,184,255,.60);border-radius:16px;
-       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
+       box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm);padding:12px 12px 10px;margin:12px 0}
   /* ONGLET STATS (.statsx) : fond cyan (comme la carte .spf des onglets sport) sur TOUTES les lignes —
      scopé pour NE PAS toucher les mêmes composants affichés DANS les onglets sport (qui restent sombres
      pour contraster avec la carte .spf cyan qui les contient). */
