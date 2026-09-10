@@ -906,7 +906,11 @@ CSS = """
      remboursé = gris. Posé via la classe `mc-r-*`. */
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
-  .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
+  /* PERF NATIF (user 2026-09-10, « app pas page web ») : le navigateur SAUTE le layout+paint des cartes
+     HORS écran (listes longues fluides). Progressif : ignoré par les vieux navigateurs (aucun risque).
+     `auto <h>` = estimation qui devient exacte après 1er rendu -> pas de saut de scrollbar. */
+  .row.mc{content-visibility:auto;contain-intrinsic-size:auto 300px;
+       padding:0;margin:7px 0;overflow:hidden;position:relative;
        background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);   /* GLOW halo comme le graphe ROI (user 2026-09-10) : lumière cyan douce, cohérente quelle que soit la position de scroll */
        border:1px solid var(--st-soon);
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO AUTOUR cyan comme les cadres stats (user 2026-09-10) — intensité relevée pour être VISIBLE dans la liste (contexte déjà teinté) */
@@ -2448,7 +2452,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
+  .cleg{content-visibility:auto;contain-intrinsic-size:auto 260px;background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
        border-radius:12px;padding:11px 12px 10px;
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO cyan = même que les cartes/cadres stats (user 2026-09-10) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
