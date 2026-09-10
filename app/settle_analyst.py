@@ -1683,9 +1683,9 @@ async def _settle_analyses_impl() -> int:
                         return None
                     from app import sources as _src
                     return await _src.player_scored_or_assisted(d, who)
-                if c.startswith("FIRSTGOAL"):               # premier but du match -> events FotMob
-                    from app import sources as _src
-                    fg = await _src.first_goal_side(d)
+                if c.startswith("FIRSTGOAL"):               # premier but du match -> events API-Football
+                    from app import apifootball as _af
+                    fg = await asyncio.to_thread(_af.first_goal_side, d)
                     if fg is None:
                         return None                         # indispo -> on retentera
                     if fg == "":                            # aucun but trouvé
@@ -1733,12 +1733,12 @@ async def _settle_analyses_impl() -> int:
                     if val is None:
                         return None
                     return "push" if val == line else ("won" if ((val > line) == (gp[2] == "OVER")) else "lost")
-                if c.startswith("FIRSTSCORER"):             # premier buteur (joueur) -> events FotMob
+                if c.startswith("FIRSTSCORER"):             # premier buteur (joueur) -> events API-Football
                     _, _, who = c.partition("|")
                     if not who:
                         return None
-                    from app import sources as _src
-                    sc = await _src.first_scorer(d)
+                    from app import apifootball as _af
+                    sc = await asyncio.to_thread(_af.first_scorer, d)
                     if sc is None:
                         return None                         # indispo -> retente
                     if sc == "":                            # aucun but -> remboursé

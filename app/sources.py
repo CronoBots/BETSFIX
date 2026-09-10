@@ -30,7 +30,6 @@ UA = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.
 _T = 18.0          # timeout (s) par requête — tolérant (qualité > vitesse) mais jamais bloquant
 _GAP = 0.35        # politesse entre 2 appels d'une même rafale (scoreboards datés)
 
-_ESPN = "https://site.api.espn.com/apis"   # GARDÉ : encore utilisé pour le FOOT (Coupe du Monde, world_cup_extras)
 _FOTMOB = "https://www.fotmob.com/api/data"
 
 # ── MIGRATION API-FOOTBALL — enrichissement HYBRIDE (ARMÉ user 2026-09-09 — DÉFAUT ON) ──────────────
@@ -544,38 +543,7 @@ def _orient(n0: str, n1: str, home: str, away: str) -> int | None:
 # Parsers de score FotMob/ESPN/tennis RETIRÉS 2026-09-10 (règlement -> API-Football).
 
 
-async def first_goal_side(d: dict) -> str | None:
-    """Côté ayant marqué le PREMIER but du match (FotMob events) : 'HOME' / 'AWAY', ou '' si AUCUN but
-    (0-0). None si indisponible -> le règlement re-tentera (jamais de devinette). Sert au marché
-    « Premier but <équipe> »."""
-    import httpx
-    home, away = d.get("home", ""), d.get("away", "")
-    if not (home and away):
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=_T) as client:
-            mid = await _fotmob_find(client, home, away, d.get("start") or "")
-            if not mid:
-                return None
-            j = await _get_json(client, f"{_FOTMOB}/matchDetails?matchId={mid}")
-    except Exception:
-        return None
-    ev = (((j or {}).get("content") or {}).get("matchFacts") or {}).get("events") or {}
-    evs = ev.get("events") if isinstance(ev, dict) else ev
-    if not isinstance(evs, list):
-        return None
-    goals = [e for e in evs if isinstance(e, dict) and e.get("type") == "Goal" and e.get("isHome") is not None]
-    if not goals:
-        return ""                       # aucun but -> 0-0 (le caller vérifie le score final pour confirmer)
-    goals.sort(key=lambda e: (e.get("time") if isinstance(e.get("time"), (int, float)) else 999))
-    # FotMob : home/away des events suit l'ordre FotMob -> on réaligne sur Unibet (home/away du sidecar).
-    gen = (j or {}).get("general") or {}
-    fm_home = ((gen.get("homeTeam") or {}).get("name")) or home
-    first_is_home = bool(goals[0].get("isHome"))
-    if not _is_home(fm_home, home, away):      # FotMob inverse home/away vs Unibet
-        first_is_home = not first_is_home
-    return "HOME" if first_is_home else "AWAY"
-
+# (first_goal_side / first_scorer FotMob RETIRÉS 2026-09-11 : premier but/buteur repris par apifootball.first_goal_side/first_scorer via les events)
 
 # (props joueur BASKET ESPN RETIRÉS 2026-09-11)
 
@@ -644,32 +612,6 @@ async def foot_player_stat(d: dict, player_query: str, stat: str, side: str | No
     return sum(found)                                     # agrégation équipe (gardien/total)
 
 
-async def first_scorer(d: dict) -> str | None:
-    """Nom du PREMIER BUTEUR du match (FotMob events). '' si AUCUN but (0-0). None si indisponible ->
-    le règlement re-tentera. Sert au marché « Premier buteur <joueur> » (matching STRICT côté caller)."""
-    import httpx
-    home, away = d.get("home", ""), d.get("away", "")
-    if not (home and away):
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=_T) as cl:
-            mid = await _fotmob_find(cl, home, away, d.get("start") or "")
-            if not mid:
-                return None
-            j = await _get_json(cl, f"{_FOTMOB}/matchDetails?matchId={mid}")
-    except Exception:
-        return None
-    ev = (((j or {}).get("content") or {}).get("matchFacts") or {}).get("events") or {}
-    evs = ev.get("events") if isinstance(ev, dict) else ev
-    if not isinstance(evs, list):
-        return None
-    goals = [e for e in evs if isinstance(e, dict) and e.get("type") == "Goal"]
-    if not goals:
-        return ""
-    goals.sort(key=lambda e: (e.get("time") if isinstance(e.get("time"), (int, float)) else 999))
-    return ((goals[0].get("player") or {}).get("name")) or None
-
-
 async def player_scored_or_assisted(d: dict, player_query: str) -> str | None:
     """« <joueur> marque OU passe décisive » via les events FotMob (buts = buteur `player.name` +
     passeur `assistStr`). 'won' si le joueur a marqué ou passé, 'lost' sinon (0 but OU non impliqué),
@@ -707,64 +649,8 @@ async def player_scored_or_assisted(d: dict, player_query: str) -> str | None:
 # `final_score` (FotMob/ESPN) RETIRÉ 2026-09-10 : plus utilisé pour le règlement (API-Football primaire).
 
 
-async def world_cup_extras(client, match: dict) -> str:
-    """Contexte COUPE DU MONDE (ESPN `fifa.world`) : ARBITRE désigné + phase/groupe + classement du
-    groupe (points, qualifs des 2 équipes). '' si match non trouvé. Sert à la méthodo CdM (cartons
-    selon l'arbitre, enjeux selon le classement/qualification)."""
-    home, away = match.get("home", ""), match.get("away", "")
-    dt = _start_dt(match.get("start") or "")
-    if not (home and away and dt):
-        return ""
-    base = f"{_ESPN}/site/v2/sports/soccer/fifa.world"
-    eid = None
-    for ymd in [(dt + timedelta(days=k)).strftime("%Y%m%d") for k in (0, -1, 1)]:
-        j = await _get_json(client, f"{base}/scoreboard?dates={ymd}")
-        for ev in (j or {}).get("events") or []:
-            comp = (ev.get("competitions") or [{}])[0]
-            nm = [((c.get("team") or {}).get("displayName")) or "" for c in (comp.get("competitors") or [])]
-            if len(nm) == 2 and _teams_match(home, away, nm[0], nm[1]):
-                eid = ev.get("id")
-                break
-        if eid:
-            break
-    if not eid:
-        return ""
-    facts = []
-    summ = await _get_json(client, f"{base}/summary?event={eid}")
-    # phase / tour
-    note = (((summ or {}).get("header") or {}).get("competitions") or [{}])[0].get("notes") or []
-    phase = note[0].get("headline") if note else None
-    # arbitre
-    refs = ((summ or {}).get("gameInfo") or {}).get("officials") or []
-    ref = next((o.get("displayName") for o in refs
-                if "referee" in ((o.get("position") or {}).get("name") or "").lower()), None)
-    ref = ref or (refs[0].get("displayName") if refs else None)
-    # classement du groupe (l'équipe qui matche -> bon groupe)
-    sj = await _get_json(client, f"{_ESPN}/v2/sports/soccer/fifa.world/standings")
-    th, ta = _tok(home), _tok(away)
-    for g in (sj or {}).get("children") or []:
-        entries = ((g.get("standings") or {}).get("entries")) or []
-        names = [((e.get("team") or {}).get("displayName")) or "" for e in entries]
-        if any(_overlap(th, _tok(n)) or _overlap(ta, _tok(n)) for n in names):
-            facts.append(f"Phase : {phase or g.get('name') or 'phase de groupes'} (Coupe du Monde)")
-            rows = []
-            for e in entries:
-                v = {s.get("abbreviation"): s.get("displayValue") for s in e.get("stats", [])}
-                rows.append(f"{((e.get('team') or {}).get('displayName'))} {v.get('P', '?')} pts "
-                            f"(J{v.get('GP', '?')}, {v.get('W', '?')}V-{v.get('D', '?')}N-{v.get('L', '?')}D)")
-            facts.append("Classement du groupe : " + " ; ".join(rows))
-            break
-    if not facts and phase:
-        facts.append(f"Phase : {phase} (Coupe du Monde)")
-    if ref:
-        facts.append(f"ARBITRE désigné : {ref} (RECHERCHE sa moyenne de CARTONS/match — décisif pour "
-                     f"le marché cartons)")
-    if not facts:
-        return ""
-    return "\n\nCONTEXTE COUPE DU MONDE (ESPN) :\n- " + "\n- ".join(facts)
+# (world_cup_extras ESPN RETIRÉ 2026-09-11 : Coupe du Monde couverte par les autres sources ; plus d'ESPN)
 
-
-# ================================================================== API publique
 async def extras(client, sport: str, match: dict, prov: dict | None = None) -> str:
     """Bloc « DONNÉES MULTI-SOURCES » prêt à coller dans le dossier de l'analyste.
     '' si rien trouvé / tout en échec (le scan continue sans).

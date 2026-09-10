@@ -2206,7 +2206,7 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
             from app import player_stats
             pblock = await asyncio.to_thread(player_stats.soccer_props_block, players)
     # COUPE DU MONDE : contexte (arbitre + phase/groupe + classement) + mission combiné.
-    wc_ctx = await sources.world_cup_extras(client, match) if big else ""
+    wc_ctx = ""   # (world_cup_extras ESPN retiré 2026-09-11)
     if big:
         combo = WC_NOTE + COMBO_MISSION
     elif combo_tb and sport == "tennis":

@@ -596,6 +596,72 @@ def live_match_stats(cl: httpx.Client, fixture_id: int) -> dict | None:
             "stats": stats, "ratings": ratings, "has_xg": has_xg, "events": events}
 
 
+# --- PREMIER BUT / PREMIER BUTEUR (events API-Football) — drop-in de sources.first_goal_side/first_scorer ---
+def _goal_events(d: dict, cl: httpx.Client | None = None) -> list | None:
+    """Buts d'un match (events `/fixtures?id=`) triés chronologiquement -> [{side,player,own}].
+    None si match introuvable/indispo (le règlement re-tentera) ; [] si aucun but (0-0). Le but contre son
+    camp (`Own Goal`) est attribué à l'équipe qui EN PROFITE ; les penalties ratés sont ignorés."""
+    if not configured():
+        return None
+    home, away, start = d.get("home", ""), d.get("away", ""), d.get("start")
+    if not (home and away):
+        return None
+    own = cl is None
+    try:
+        cl = cl or _client()
+        f = resolve_fixture(cl, home, away, start or "", min_score=0.6)
+        if not f:
+            return None
+        r = (_get(cl, "/fixtures", id=f["id"]).get("response") or [None])[0]
+    except Exception:
+        return None
+    finally:
+        if own and cl is not None:
+            try:
+                cl.close()
+            except Exception:
+                pass
+    if not r:
+        return None
+    tm = r.get("teams") or {}
+    th_id, ta_id = (tm.get("home") or {}).get("id"), (tm.get("away") or {}).get("id")
+    goals = []
+    for e in (r.get("events") or []):
+        if e.get("type") != "Goal":
+            continue
+        detail = e.get("detail") or ""
+        if detail == "Missed Penalty":          # penalty raté ≠ but
+            continue
+        tid = (e.get("team") or {}).get("id")
+        side = "HOME" if tid == th_id else "AWAY" if tid == ta_id else None
+        if side is None:
+            continue
+        if detail == "Own Goal":                 # compté pour l'ADVERSAIRE
+            side = "AWAY" if side == "HOME" else "HOME"
+        t = e.get("time") or {}
+        goals.append({"order": (t.get("elapsed") or 0) * 100 + (t.get("extra") or 0), "side": side,
+                      "player": (e.get("player") or {}).get("name") or "", "own": detail == "Own Goal"})
+    goals.sort(key=lambda g: g["order"])
+    return goals
+
+
+def first_goal_side(d: dict, cl: httpx.Client | None = None) -> str | None:
+    """Côté du PREMIER but du match : 'HOME'/'AWAY', '' si 0-0, None si indispo (règlement re-tente)."""
+    goals = _goal_events(d, cl)
+    if goals is None:
+        return None
+    return goals[0]["side"] if goals else ""
+
+
+def first_scorer(d: dict, cl: httpx.Client | None = None) -> str | None:
+    """Nom du PREMIER BUTEUR du match (matching STRICT côté caller) : '' si 0-0, None si indispo. Un but
+    contre son camp reste le 1er but chronologique -> le pari sur un joueur nommé perd (token mismatch)."""
+    goals = _goal_events(d, cl)
+    if goals is None:
+        return None
+    return goals[0]["player"] if goals else ""
+
+
 # --- ENRICHISSEMENT (remplace FotMob / Flashscore / Sportradar) — fixture-scopé, marche sur tous les plans ---
 def injuries(cl: httpx.Client, fixture_id: int) -> list:
     """Joueurs ABSENTS/INCERTAINS d'un match (remplace « blessés » FotMob). `type` = 'Missing Fixture'

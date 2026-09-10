@@ -54,3 +54,21 @@
 - 🟢 🏀 Basket : le marché « Vainqueur » est RÉ-INTÉGRÉ (repassé au-dessus des seuils).
 - 🔴 Combinés : les props joueur ressortent (calibration repassée sous le seuil).
 - 📉 Indice de fiabilité -4 pts (98 → 94).
+
+## 2026-08-12
+- 📉 ROI des paris joués -4.2 pts.
+
+## 2026-08-14
+- 📈 ROI des paris joués +7.0 pts.
+
+## 2026-08-21
+- 📈 ROI des paris joués +4.9 pts.
+
+## 2026-08-30
+- 📉 ROI des paris joués -5.0 pts.
+
+## 2026-09-01
+- 📈 ROI des paris joués +3.6 pts.
+
+## 2026-09-08
+- 📈 ROI des paris joués +4.5 pts.

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "bet-sizing": {
+      "source": "joellewis/finance_skills",
+      "sourceType": "github",
+      "skillPath": "plugins/wealth-management/skills/bet-sizing/SKILL.md",
+      "computedHash": "6218416713904b17d78f5e1047b195fbd5a2d9d39f76b51ec9849737e2c79642"
+    },
+    "betting": {
+      "source": "machina-sports/sports-skills",
+      "sourceType": "github",
+      "skillPath": "skills/betting/SKILL.md",
+      "computedHash": "1f7a8b334ae4042c714c3f601084a63d7c1dc4ca7deea345e52526c518ac2fb1"
+    },
+    "fastapi": {
+      "source": "fastapi/fastapi",
+      "sourceType": "github",
+      "skillPath": "fastapi/.agents/skills/fastapi/SKILL.md",
+      "computedHash": "187b2e06c41cdb6c6beeab15e6db4aeb1bf62f57735974646ad5646af8aacc66"
+    }
+  }
+}
