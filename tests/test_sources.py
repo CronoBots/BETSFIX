@@ -53,36 +53,7 @@ def test_fm_unavailable_nettoie_le_dict_fotmob():
 
 
 # ------------------------------------------------------------------ tennis
-def test_rank_of_trouve_par_jetons():
-    ranks = {"Jannik Sinner": 1, "Carlos Alcaraz": 2}
-    rk, nm = sources._rank_of(ranks, "Sinner, Jannik")
-    assert rk == 1 and nm == "Jannik Sinner"
-    rk, _nm = sources._rank_of(ranks, "Joueur Inconnu")
-    assert rk is None
-
-
-def test_tennis_form_dedup_et_tri():
-    idx = {"cirstea": [("20260610", True, "A. Inglis", "6-1 6-2", "HSBC"),
-                       ("20260601", False, "M. Andreeva", "4-6 3-6", "RG")],
-           "sorana": [("20260610", True, "A. Inglis", "6-1 6-2", "HSBC")]}   # doublon par jeton
-    form, fatigue = sources._tennis_form(idx, "Sorana Cirstea")
-    assert form.count("Inglis") == 1                  # dédupliqué
-    assert form.index("Inglis") < form.index("Andreeva")   # plus récent d'abord
-
-
-# ------------------------------------------------------------------ basket
-def test_bb_team_rows_par_jetons():
-    d = {"Atlanta Dream": ["x"], "New York Liberty": ["y"]}
-    assert sources._bb_team_rows(d, "Atlanta Dream (F)") == ["x"]
-    assert sources._bb_team_rows(d, "Inconnu FC") is None
-
-
-# ------------------------------------------------------------------ saison Understat
-# (test_us_season RETIRÉ 2026-09-10 : Understat supprimé, xG migré sur API-Football top-5)
-
-
-# ------------------------------------------------------------------ règlement de secours
-# (tests des parsers de score FotMob/ESPN/tennis RETIRÉS 2026-09-10 : scoring migré sur API-Football)
+# (tests tennis/basket RETIRÉS 2026-09-11 : code tennis/basket supprimé, BETSFIX = 100% foot)
 
 
 def test_parse_bets_ignore_les_notes_sans_cote_ni_proba():
