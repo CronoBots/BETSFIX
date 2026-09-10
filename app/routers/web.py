@@ -453,9 +453,13 @@ async def crest_route(name: str = ""):
     (httpx sync) pour ne pas bloquer la boucle asyncio."""
     from fastapi.responses import Response
     from app import crest as _crest
-    tid = await asyncio.to_thread(_crest.team_id, name)
-    url = _crest.logo_url(tid)
-    if not url:                          # FotMob a échoué -> REPLI API-Football gardé (comble un monogramme)
+    # 1) LOGO EXACT API-Football (posé au scan via l'ID du fixture) = le plus FIABLE + stable + VPS-friendly
+    #    (zéro scrape FotMob, zéro ambiguïté de nom). Cache seul, 0 réseau. user 2026-09-10.
+    url = _crest.known_logo(name)
+    if not url:                          # 2) FotMob (recherche par nom + CDN) pour les équipes pas encore connues
+        tid = await asyncio.to_thread(_crest.team_id, name)
+        url = _crest.logo_url(tid)
+    if not url:                          # 3) REPLI ultime : recherche API-Football par nom (comble un monogramme)
         url = await asyncio.to_thread(_crest.af_team_logo, name)
     return RedirectResponse(url, status_code=302) if url else Response(status_code=404)
 

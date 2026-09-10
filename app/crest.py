@@ -175,17 +175,25 @@ def logo_url(tid):
 # `apifootball._ov`/`_norm`), monogramme au moindre doute. Ne CHANGE JAMAIS un logo FotMob qui marche déjà. ──
 _AF_CACHE_FILE = os.path.join("data", "crest_af_cache.json")
 _AF_CACHE: dict | None = None
+_AF_CACHE_MTIME: float = 0.0     # mtime du fichier au dernier chargement -> relecture si le SCAN (autre process) l'enrichit
 _AF_NEG: set = set()          # échecs vus CETTE session (mémoire seule, re-tentés au boot — comme _NEG)
 _AF_BAD = _re.compile(r"\b(W|Women|Fem(?:enin|inas)?|U-?1[5-9]|U-?2[0-3]|II|Reserve[s]?|Academy|Youth)\b", _re.I)
 
 
 def _af_load() -> dict:
-    global _AF_CACHE
-    if _AF_CACHE is None:
+    global _AF_CACHE, _AF_CACHE_MTIME
+    try:
+        mt = os.path.getmtime(_AF_CACHE_FILE)
+    except OSError:
+        mt = 0.0
+    # Relit si jamais chargé OU si le fichier a changé sur disque (le SCAN/backfill écrit depuis un AUTRE
+    # process -> l'API doit voir les nouveaux logos exacts sans redémarrer). mtime = 1 stat, négligeable.
+    if _AF_CACHE is None or mt != _AF_CACHE_MTIME:
         try:
             _AF_CACHE = json.load(open(_AF_CACHE_FILE, encoding="utf-8"))
         except (OSError, ValueError):
             _AF_CACHE = {}
+        _AF_CACHE_MTIME = mt
     return _AF_CACHE
 
 
@@ -207,6 +215,14 @@ def set_known_logo(name: str, url) -> None:
             json.dump(c, open(_AF_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
         except OSError:
             pass
+
+
+def known_logo(name: str):
+    """Logo EXACT déjà connu (posé au scan par `set_known_logo` via l'ID du FIXTURE API-Football) — lecture
+    CACHE SEULE, ZÉRO réseau. C'est le logo le PLUS FIABLE (résolu par id de match, aucune ambiguïté de nom
+    type « Al Nassr W »). Renvoie l'URL `media.api-sports.io/...` ou None si pas encore connu (→ FotMob)."""
+    key = _norm(name)
+    return (_af_load().get(key) or None) if key else None
 
 
 def af_team_logo(name: str):
