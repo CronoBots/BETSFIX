@@ -629,7 +629,7 @@ def team_xg_form(cl: httpx.Client, team_id: int, n: int = 5) -> dict | None:
     xG post-match via `/fixtures/statistics` (type « expected_goals », dispo top-5, délai ~qq h post-FT).
     Économe : 1 appel pour la liste des N derniers + 1 appel batch `ids=` (stats inline). Renvoie
     {xg, xga, n} (moyennes) ou None si aucun xG dispo (ligue hors top-5 / matchs trop récents).
-    Métrique IDENTIQUE à `sources._foot_xg` (moyenne des 5 derniers) pour un enrichissement équivalent.
+    Métrique = moyenne xG des 5 derniers (a remplacé l'ancien xG Understat, retiré 2026-09-10).
     """
     resp = _get(cl, "/fixtures", team=team_id, last=n).get("response") or []
     fids = [str((x.get("fixture") or {}).get("id")) for x in resp if (x.get("fixture") or {}).get("id")]

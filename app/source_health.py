@@ -12,7 +12,7 @@ import time
 import httpx
 from datetime import datetime, timezone
 
-from app.sources import _FOTMOB, _UNDERSTAT   # _ESPN retiré (source tennis/basket, app 100 % foot)
+from app.sources import _FOTMOB   # _ESPN (tennis/basket) + _UNDERSTAT (retiré 2026-09-10) hors app foot
 
 _UA = {"User-Agent": "Mozilla/5.0"}
 _T = 12
@@ -38,10 +38,6 @@ async def _http_ok(client, url, headers=None, json_expected=True):
 async def _p_fotmob(c):
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     return await _http_ok(c, f"{_FOTMOB}/matches?date={today}")
-
-
-async def _p_understat(c):
-    return await _http_ok(c, f"{_UNDERSTAT}/", json_expected=False)
 
 
 async def _p_pinnacle(c):
@@ -169,7 +165,7 @@ _SOURCES = [
      False, _p_apifootball),
     # ESPN RETIRÉ de la sonde (user 2026-08-07 : app 100 % foot) — ESPN ne servait QUE tennis/basket, son
     # 403 déclenchait un faux « warn ». La sonde suit désormais uniquement les sources UTILES au football.
-    ("understat", "Understat", "foot : xG (top-5 ligues)", False, _p_understat),
+    # Understat RETIRÉ de la sonde (user 2026-09-10) — xG migré sur API-Football (top-5), Understat plus appelé.
     ("flashscore", "Flashscore", "forme/H2H/score (repli règlement)", False, _p_flashscore),
     ("livescore", "LiveScore", "score live + règlement", False, _p_livescore),
     ("sportradar", "Sportradar GISMO", "periods/stats (règlement)", False, _p_sportradar),

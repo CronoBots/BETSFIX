@@ -78,9 +78,7 @@ def test_bb_team_rows_par_jetons():
 
 
 # ------------------------------------------------------------------ saison Understat
-def test_us_season():
-    assert sources._us_season("2026-03-10T20:00:00Z") == "2025"   # printemps -> saison 2025-26
-    assert sources._us_season("2026-09-10T20:00:00Z") == "2026"   # automne -> saison 2026-27
+# (test_us_season RETIRÉ 2026-09-10 : Understat supprimé, xG migré sur API-Football top-5)
 
 
 # ------------------------------------------------------------------ règlement de secours
