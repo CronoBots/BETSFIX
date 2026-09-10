@@ -690,7 +690,7 @@ CSS = """
        color:var(--muted);margin-top:2px}
   /* Deux courbes d'équité ÉTIQUETÉES (Simples / Combinés) empilées dans l'onglet sport */
   .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .spf-cv{background:transparent;border:1px solid var(--border);border-radius:12px;
+  .spf-cv{background:radial-gradient(135% 125% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.03) 48%,transparent 74%);border:1px solid var(--border);border-radius:12px;
        padding:8px 10px 6px}   /* MÊME fond que les jambes de combiné (.cleg) — demande user 2026-07-24 */
   .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
   .spf-cv-t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff}   /* titre graphe : BLANC, un rien plus grand (demande user 2026-07-24) */
@@ -907,7 +907,7 @@ CSS = """
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
-       background:transparent;   /* FOND TRANSPARENT (user 2026-09-10) : le fond de page transparaît, comme sous le graphe ROI */
+       background:radial-gradient(135% 125% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.03) 48%,transparent 74%);   /* GLOW halo comme le graphe ROI (user 2026-09-10) : lumière cyan douce, cohérente quelle que soit la position de scroll */
        border:1px solid var(--st-soon)}
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
@@ -2447,7 +2447,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:transparent;border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
+  .cleg{background:radial-gradient(135% 125% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.03) 48%,transparent 74%);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
        border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
      dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
