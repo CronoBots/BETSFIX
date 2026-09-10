@@ -7137,7 +7137,9 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     # COMPLÈTE au tap plutôt qu'un extrait coupé à 3 lignes). Même patron que le combiné de match. Texte
     # ENTIER (nettoyé du markdown, plus de coupe à 180 car). Masqué une fois la jambe réglée (comme l'autre
     # combiné) ; `event.stopPropagation()` empêche le tap d'ouvrir/fermer la carte parente.
-    _wt = _clean_cap(l.get("why"), 100000) if (why and (_res is None or why_always)) else ""
+    # « Pourquoi ce choix » MASQUÉ une fois le pari RÉGLÉ (user 2026-09-10) : l'analyse = contexte d'avant-match,
+    # inutile une fois le résultat connu. `why_always` ne force PLUS l'affichage sur un réglé (`_res` non None).
+    _wt = _clean_cap(l.get("why"), 100000) if (why and _res is None) else ""
     # En PUCES (une par phrase) comme les simples/provisoires -> aéré, plus de pavé (demande user 2026-07-20).
     # + on retire le jargon de math de pari (redondant avec la barre verdict) — que des faits/risque.
     _wsents = [w for s in (_why_sentences(_wt) or ([_wt] if _wt else [])) if (w := _strip_meta_stat(s))]
@@ -11673,7 +11675,8 @@ def _sport_row(r: dict) -> str:
         # comme sous les jambes de combiné. Source = section « 🎯 Le pari à jouer » du .md (repli 🧪/📋).
         # Texte COMPLET (comme les jambes de combiné) : le bloc « 🎯 » n'est plus répété dans le dépli
         # (card_details) -> le pli en est le SEUL porteur, on ne tronque donc pas le raisonnement.
-        _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)) if _pmid else ""
+        # « Pourquoi ce choix » MASQUÉ une fois terminé (user 2026-09-10) : contexte d'avant-match inutile réglé.
+        _pwhy = _why_fold(_prov_why_snippet(sport_key, _pmid, maxlen=100000, played=True)) if (_pmid and not is_finished) else ""
         # EN LIVE (user 2026-09-09) : le « Pourquoi ce choix » (contexte d'AVANT-match, périmé une fois que ça
         # joue) est REMPLACÉ par « 📊 Aperçu du match » = stats live style SofaScore (API-Football). Même
         # emplacement (le pli est posé après scoreboard + chance live, cf. head plus bas). À-venir/terminé : le

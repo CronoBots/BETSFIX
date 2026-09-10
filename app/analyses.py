@@ -142,12 +142,27 @@ def load(sport: str, match_id) -> str | None:
     return _md_read(os.path.join(DIR, f"{sport}_{rid}.md"))
 
 
+_META_CHECK_TTL = 1.5      # s : fenêtre pendant laquelle on NE re-stat PAS un sidecar déjà validé
+_META_CHECKED: dict = {}   # path -> monotonic ts du dernier getmtime (anti re-stat intra/inter-render)
+
+
 def _meta_load(path: str) -> dict | None:
+    # PERF (2026-09-10) : les mêmes ~700 sidecars sont relus des DIZAINES de fois par render (chaque helper
+    # re-scanne le disque) -> `os.path.getmtime` était appelé ~5000×/render = 0,45 s de syscalls stat. On
+    # COURT-CIRCUITE le re-stat si le fichier a été validé il y a < _META_CHECK_TTL (aligné sur les throttles
+    # d'affichage existants : 2 s). Staleness ≤ 1,5 s sur un DISPLAY = invisible ; le scan/reconcile lit à part.
+    now = time.monotonic()
+    hit = _META_CACHE.get(path)
+    if hit is not None and (now - _META_CHECKED.get(path, 0.0)) < _META_CHECK_TTL:
+        d = hit[1]
+        return dict(d) if isinstance(d, dict) else d
     try:
         mtime = os.path.getmtime(path)
     except OSError:
+        _META_CACHE.pop(path, None)
+        _META_CHECKED.pop(path, None)
         return None
-    hit = _META_CACHE.get(path)
+    _META_CHECKED[path] = now
     if hit and hit[0] == mtime:
         d = hit[1]
     else:
