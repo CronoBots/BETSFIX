@@ -3996,6 +3996,14 @@ CSS = """
   }
 """
 
+# PERF (2026-09-10) : le CSS (~284 Ko = 75 % de la page) est CONSTANT -> servi comme fichier EXTERNE cacheable
+# (`/app.css`, cache 1 an + immutable) au lieu d'être ré-inliné à chaque chargement. Le `?v=<hash>` casse le
+# cache dès que le CSS change (nouveau hash -> nouvelle URL -> re-fetch). Après le 1er chargement, chaque
+# navigation ne transfère plus que le HTML dynamique (~15 Ko gzip au lieu de 91 Ko). `<link>` dans <head> =
+# render-blocking comme l'inline -> pas de flash de contenu non stylé.
+_CSS_VER = hashlib.md5(CSS.encode("utf-8")).hexdigest()[:10]
+_CSS_LINK = f'<link rel="stylesheet" href="/app.css?v={_CSS_VER}">'
+
 # Menu principal groupé par SPORT ; chaque sport a son sous-menu (Matchs / Fiabilité).
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
@@ -4862,7 +4870,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-<style>{CSS}</style></head><body class="sp-{e(sport)}">
+{_CSS_LINK}</head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
@@ -4908,7 +4916,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-<style>{CSS}</style></head><body class="sp-{e(active)}">
+{_CSS_LINK}</head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""

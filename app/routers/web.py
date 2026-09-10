@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 # App 100 % FOOT (tennis/basket retirés 2026-08-13) : les modules d'analyse tennis (analysis,
 # ace_markets, set_markets, tendencies, serve_return, markets tennis, rankings) ne sont plus importés.
@@ -777,10 +777,19 @@ _SW_JS = (
 )
 
 
+@router.get("/app.css", include_in_schema=False)
+async def app_css():
+    """PERF (2026-09-10) : le CSS de l'app (~284 Ko CONSTANTS = 75 % de chaque page) servi comme fichier
+    EXTERNE cacheable au lieu d'être ré-inliné à chaque chargement. Cache 1 an + immutable ; le `?v=<hash>`
+    du <link> (web._CSS_VER) change dès que le CSS change -> invalidation automatique. Après le 1er
+    chargement, chaque navigation ne transfère plus que le HTML dynamique (~15 Ko gzip au lieu de 91 Ko)."""
+    return Response(web.CSS, media_type="text/css",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @router.get("/sw.js", include_in_schema=False)
 async def service_worker():
     """Service worker (racine -> scope « / ») : reçoit les push et affiche la notification."""
-    from fastapi.responses import Response
     return Response(_SW_JS, media_type="application/javascript",
                     headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
