@@ -391,7 +391,7 @@ CSS = """
   .acctbtn{position:fixed;top:calc(env(safe-area-inset-top) + 16px);right:14px;z-index:55;
     display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;line-height:1;
     border-radius:999px;color:#cfe0f5;text-decoration:none;
-    background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    background:rgba(16,22,32,.88);/* backdrop-filter RETIRÉ 2026-09-10 : jank scroll iOS */
     border:1px solid rgba(150,182,222,.20)}
   .acctbtn:active{transform:scale(.94)}
   .acctbtn .ic{font-size:14px}   /* emoji profil réduit (demande user 2026-08-02) */
@@ -630,7 +630,7 @@ CSS = """
   /* Header sticky premium */
   .hdr{position:sticky;top:0;z-index:50;
        background:linear-gradient(180deg,rgba(12,15,22,.92),rgba(12,15,22,.78));
-       backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);
+       /* backdrop-filter RETIRÉ 2026-09-10 : jank scroll iOS */
        border-bottom:1px solid var(--border)}
   .hdr-in{max-width:720px;margin:0 auto;padding:12px 16px 10px}
   .brand{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:800;
@@ -953,7 +953,7 @@ CSS = """
      accent). Apparaît après un peu de scroll. */
   #bfx-totop{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:90;
        width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);
-       background:rgba(26,34,50,.5);color:#cfe0f5;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+       background:rgba(26,34,50,.85);color:#cfe0f5;/* backdrop-filter RETIRÉ 2026-09-10 */
        font-size:20px;font-weight:800;line-height:1;display:none;align-items:center;justify-content:center;
        box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer;
        -webkit-tap-highlight-color:transparent;opacity:0;transition:opacity .2s ease}   /* DISCRET + légèrement transparent (user 2026-09-06) */
@@ -8931,8 +8931,7 @@ _LZ_CSS = """
 .lz .lzlogo img{width:auto;height:auto;max-width:66%;max-height:52px;filter:drop-shadow(0 6px 20px rgba(34,184,255,.42))}
 .lz .acctbtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:75;display:inline-flex;
   align-items:center;gap:6px;font-size:12.5px;font-weight:600;line-height:1;padding:8px 13px;border-radius:999px;
-  color:#cfe0f5;text-decoration:none;background:rgba(16,22,32,.72);-webkit-backdrop-filter:blur(10px);
-  backdrop-filter:blur(10px);border:1px solid rgba(150,182,222,.20)}
+  color:#cfe0f5;text-decoration:none;background:rgba(16,22,32,.88);border:1px solid rgba(150,182,222,.20)/* backdrop-filter RETIRÉ 2026-09-10 */}
 .lz .acctbtn .ic{font-size:15px}
 .lz .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px}
 .lz .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
@@ -9110,7 +9109,7 @@ _LZ_CSS = """
 .lz .b18{font-weight:700;color:var(--dim);border:1px solid var(--line2);border-radius:6px;padding:1px 6px;font-size:11px}
 .lz .reveal{opacity:1;transform:none}   /* fragment SPA : contenu STATIQUE (pas d'anim JS) -> toujours visible */
 .lz .lznav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;max-width:720px;margin:0 auto;
-  background:rgba(11,14,20,.92);backdrop-filter:blur(16px);border-top:1px solid var(--line2);
+  background:rgba(11,14,20,.96);border-top:1px solid var(--line2);/* backdrop-filter RETIRÉ 2026-09-10 */
   padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
 .lz .lznav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;color:var(--faint);
   font-size:9px;font-weight:600}
