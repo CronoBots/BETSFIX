@@ -4064,6 +4064,13 @@ def _subnav(sport: str) -> str:
 # .cd[data-ts] (timestamp epoch s) toutes les secondes. Pas de dépendance, ~0 coût.
 _COUNTDOWN_JS = (
     "(function(){function p(n){return n<10?'0'+n:''+n;}"
+    # TRACEUR D'ACTIVITÉ scroll/touch/molette PARTAGÉ (chargé tôt, sur TOUTES les pages) : les timers 1 s et le
+    # refresh 45 s l'observent (window._bfxAct) pour ne PAS écrire dans le DOM en plein scroll = zéro saccade.
+    "if(!window._bfxActReg){window._bfxActReg=1;window._bfxAct=0;var _a=function(){window._bfxAct=Date.now();};"
+    "window.addEventListener('scroll',_a,{passive:true,capture:true});"
+    "document.addEventListener('scroll',_a,{passive:true,capture:true});"
+    "window.addEventListener('touchmove',_a,{passive:true});"
+    "window.addEventListener('wheel',_a,{passive:true});}"
     "function U(v,u){return v+'<span class=u>'+u+'</span>';}"
     "function f(ms){if(ms<=0)return'\\u25b6 live';"
     "var s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),"
@@ -4071,7 +4078,11 @@ _COUNTDOWN_JS = (
     "if(d>0)return U(p(d),'j')+U(p(h),'h');"
     "if(h>0)return U(p(h),'h')+U(p(m),'m');"
     "return U(p(m),'m')+U(p(x),'s');}"
-    "function t(){var n=Date.now(),e=document.getElementsByClassName('cd');"
+    # ANTI-JANK SCROLL (user 2026-09-10 : micro-pauses <1 s en continu au scroll) : ces écritures DOM chaque
+    # seconde forçaient un reflow -> saccade récurrente pendant le défilement. On saute le tick si scroll/touch
+    # récent (<1,1 s) ; le compte à rebours reprend/ resynchronise dès l'arrêt. Traceur window._bfxAct (_SPA_JS).
+    "function t(){if(window._bfxAct&&Date.now()-window._bfxAct<1100)return;"
+    "var n=Date.now(),e=document.getElementsByClassName('cd');"
     "for(var i=0;i<e.length;i++){var v=e[i].getAttribute('data-ts');if(!v)continue;"
     "var ms=parseInt(v,10)*1000-n;e[i].innerHTML=f(ms);"
     "e[i].className=ms<=0?'cd live':(ms<3600000?'cd soon':'cd');}}"
@@ -4084,7 +4095,9 @@ _COUNTDOWN_JS = (
 # sur la vraie valeur -> pas de dérive. Purement affichage.
 _LIVECLK_JS = (
     "(function(){function p(n){return n<10?'0'+n:''+n;}"
-    "function t(){var e=document.getElementsByClassName('tm-min'),i,el,m,s;"
+    # ANTI-JANK : idem compte à rebours -> pas d'écriture DOM pendant un scroll (reprend à l'arrêt).
+    "function t(){if(window._bfxAct&&Date.now()-window._bfxAct<1100)return;"
+    "var e=document.getElementsByClassName('tm-min'),i,el,m,s;"
     "for(i=0;i<e.length;i++){el=e[i];if(el.getAttribute('data-run')!=='1')continue;"
     "m=parseInt(el.getAttribute('data-min'),10);s=parseInt(el.getAttribute('data-sec'),10);"
     "if(isNaN(m)||isNaN(s))continue;s++;if(s>=60){s=0;m++;}"
@@ -4332,12 +4345,7 @@ _SPA_JS = (
     "var y=window.scrollY;"
     "p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
-    # traceur d'activité (scroll/touch/molette) partagé -> le refresh 45 s l'observe pour ne pas saccader.
-    "window._bfxAct=0;function _bfxA(){window._bfxAct=Date.now();}"
-    "window.addEventListener('scroll',_bfxA,{passive:true,capture:true});"
-    "document.addEventListener('scroll',_bfxA,{passive:true,capture:true});"
-    "window.addEventListener('touchmove',_bfxA,{passive:true});"
-    "window.addEventListener('wheel',_bfxA,{passive:true});"
+    # (traceur d'activité window._bfxAct posé par _COUNTDOWN_JS, chargé avant -> partagé par tous les timers.)
     "setInterval(fresh,45000);"
     # iOS PWA : au 1er paint, le viewport/safe-area n'est pas encore stable -> la barre fixe (bottom:0) se cale
     # trop haut avec une bande morte dessous, jusqu'au 1er changement d'onglet (qui force un reflow). On force CE
