@@ -545,7 +545,8 @@ def injuries(cl: httpx.Client, fixture_id: int) -> list:
     out = []
     for x in _get(cl, "/injuries", fixture=fixture_id).get("response", []):
         p = x.get("player") or {}
-        out.append({"player": p.get("name"), "team": (x.get("team") or {}).get("name"),
+        t = x.get("team") or {}
+        out.append({"player": p.get("name"), "team": t.get("name"), "team_id": t.get("id"),
                     "type": p.get("type"), "reason": p.get("reason")})
     return out
 
@@ -734,10 +735,26 @@ def enrich_facts(cl: httpx.Client, home: str, away: str, ko_iso: str) -> tuple[l
         cov["injuries_covered"] = True
         inj = injuries(cl, fid)
         if inj:
-            names = ", ".join(f"{i.get('player')} ({i.get('reason')})" for i in inj[:8] if i.get("player"))
-            if names:
-                facts.append(f"Absents/incertains : {names} (API-Football)")
-                cov["injuries"] = True
+            # SPLIT PAR ÉQUIPE + DÉDUP (l'API répète chaque joueur, cf. 14 entrées = 7 uniques ×2). L'absence
+            # d'un titulaire est un signal FORT et TEAM-SPÉCIFIQUE : Claude doit savoir QUELLE équipe est
+            # affaiblie. Fusionner les 2 camps (ancien comportement) rendait le fait inexploitable.
+            for tid, label in ((th, home), (ta, away)):
+                seen, names = set(), []
+                for i in inj:
+                    nm, ti = i.get("player"), i.get("team_id")
+                    if not nm or nm in seen:
+                        continue
+                    if tid and ti:                          # rattachement fiable par ID d'équipe
+                        if ti != tid:
+                            continue
+                    elif _ov(_norm(i.get("team")), _norm(label)) < 0.5:   # repli : match du NOM d'équipe
+                        continue
+                    seen.add(nm)
+                    r = i.get("reason")
+                    names.append(f"{nm} ({r})" if r else nm)
+                if names:
+                    facts.append(f"Absents [{label}] : {', '.join(names[:8])} (API-Football)")
+                    cov["injuries"] = True
 
     if th and ta:
         hh = h2h(cl, th, ta, last=5)
@@ -746,10 +763,28 @@ def enrich_facts(cl: httpx.Client, home: str, away: str, ko_iso: str) -> tuple[l
             cov["h2h"] = True
 
     pr = predictions(cl, fid)
-    if pr and (pr.get("percent") or {}).get("home"):
-        pc = pr["percent"]
-        facts.append(f"Prédiction API-Football (Poisson) : {pc.get('home')} / {pc.get('draw')} / {pc.get('away')} · advice: {pr.get('advice')}")
-        cov["predictions"] = True
+    if pr:
+        # Le % BRUT API-Football est souvent DÉGÉNÉRÉ (0/50/50, somme ≠ 100 — cf. Napoli-Arsenal, et le value
+        # screener « probas Poisson plates/fausses »). On ne l'injecte QUE s'il est SAIN (home>0 & somme ~100),
+        # sinon on tromperait Claude. Le `advice` (lisible) et les buts attendus restent utiles quand présents.
+        def _pi(x):
+            try:
+                return int(str(x).replace("%", "").strip())
+            except (ValueError, TypeError):
+                return None
+        pc = pr.get("percent") or {}
+        ph, pd, pa = _pi(pc.get("home")), _pi(pc.get("draw")), _pi(pc.get("away"))
+        bits = []
+        if ph and pd and pa and 90 <= ph + pd + pa <= 110:   # les 3 > 0 (0% = sortie dégénérée -> on jette)
+            bits.append(f"{home} {ph}% / nul {pd}% / {away} {pa}%")
+        # (champ `goals` d'API-Football = ligne over/under cryptique « -1.5 », PAS un xG -> non injecté,
+        #  l'`advice` porte déjà l'info buts si pertinente.)
+        if pr.get("advice"):
+            bits.append(f"conseil « {pr['advice']} »")
+        if bits:
+            facts.append("Prédiction API-Football (modèle maison, INDICATIF — pas l'ancre sharp) : "
+                         + " · ".join(bits))
+            cov["predictions"] = True
 
     if lid and season:
         rk = {r["team_id"]: r for r in standings(cl, lid, season)}
