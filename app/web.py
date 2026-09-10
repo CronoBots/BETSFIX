@@ -557,6 +557,9 @@ CSS = """
     /* Thème « néon » (inspiré OddScore) : fond quasi-noir + accent vert-lime + corail pour le négatif */
     --bg:#080d15;--bg2:#0d0d10;--surface:#141417;--surface2:#1d1d21;   /* fond bleu très sombre (user 2026-09-03) : même température que les cartes -> ensemble unifié/premium */
     --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#8b8b95;
+    /* Fond PREMIUM des cartes/panneaux = le MÊME dégradé bleuté que le panneau stats (.spf-cv), user 2026-09-10.
+       Opaque (pas de translucide -> pas de halo de page changeant au dépli, cf. note 2026-08-16). */
+    --card-grad:linear-gradient(180deg,#0f1620,#0b0d13);
     /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
     --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
     --halo:rgba(34,184,255,.09);
@@ -961,7 +964,7 @@ CSS = """
        color:var(--muted);margin-top:2px}
   /* Deux courbes d'équité ÉTIQUETÉES (Simples / Combinés) empilées dans l'onglet sport */
   .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .spf-cv{background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border);border-radius:12px;
+  .spf-cv{background:var(--card-grad);border:1px solid var(--border);border-radius:12px;
        padding:8px 10px 6px}   /* MÊME fond que les jambes de combiné (.cleg) — demande user 2026-07-24 */
   .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
   .spf-cv-t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff}   /* titre graphe : BLANC, un rien plus grand (demande user 2026-07-24) */
@@ -1166,7 +1169,7 @@ CSS = """
   /* Fond UNI (plus de dégradé étirable) : sinon, quand la carte se déplie et grandit, le dégradé se
      redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
-            background:#0d1119;   /* fond OPAQUE/uni (user 2026-08-16) : le translucide laissait voir les halos de page -> changeait au dépli */
+            background:var(--card-grad);   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
             /* GLOW 18px : occupe la marge latérale (16px) et se fond au bord de l'écran. Le halo peut aller
                DANS la marge grâce au clip élargi de #panels (avant il était coupé net au bord de la carte). */
             box-shadow:0 0 18px rgba(34,184,255,.22)}
@@ -1178,6 +1181,7 @@ CSS = """
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
+       background:var(--card-grad);   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
        border:1px solid var(--st-soon)}
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
@@ -2880,7 +2884,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:#0d1119;border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond UNI (user 2026-08-16) : stable au dépli ; position/overflow = ancrage du filigrane */
+  .cleg{background:var(--card-grad);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
        border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
      dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
