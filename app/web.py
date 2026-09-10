@@ -285,7 +285,7 @@ CSS = """
     --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#8b8b95;
     /* Fond PREMIUM des cartes/panneaux = le MÊME dégradé bleuté que le panneau stats (.spf-cv), user 2026-09-10.
        Opaque (pas de translucide -> pas de halo de page changeant au dépli, cf. note 2026-08-16). */
-    --card-grad:linear-gradient(180deg,#0f1620,#0b0d13);
+    --card-grad:linear-gradient(180deg,#1b2536,#141c2a);
     /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
     --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
     --halo:rgba(34,184,255,.09);
