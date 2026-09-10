@@ -677,7 +677,15 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     #     s'auto-contredisait (« asiatique … 3 voies »).
     # PUREMENT AFFICHAGE : le `sel` STOCKÉ ne change pas, donc `code_from_pick`/le règlement restent intacts.
     # None-safe.
-    if ("handicap" in low or re.search(r"\bhand\.?\b", low)) and not _periode:
+    # HANDICAP « NU » (fix 2026-09-10, user « pourquoi un s'appelle handicap et pas l'autre ») : Claude
+    # phrase parfois « <équipe> handicap +1.5 » (avec le mot) et parfois « <équipe> +2.5 » (sans) — MÊME
+    # marché (code HCAP), 2 libellés. On uniformise en reconnaissant AUSSI le MOTIF : une ligne signée en
+    # demi-point SANS unité de total (buts/points/set/jeux/corners/cartons/tirs) = handicap de match. Les
+    # totaux (« +2.5 buts »), +0.5→DC et les périodes sont déjà traités/exclus plus haut.
+    _bare_hcap = bool(re.search(r"[+\-−–]\s?\d+[.,]5\b", low)
+                      and not re.search(r"\bbuts?\b|\bpoints?\b|\bpts?\b|\bsets?\b|\bjeux\b|"
+                                        r"\bcorners?\b|\bcartons?\b|\btirs?\b", low))
+    if ("handicap" in low or re.search(r"\bhand\.?\b", low) or _bare_hcap) and not _periode:
         # HANDICAP EUROPÉEN à SCORE DE RÉFÉRENCE « (X-Y) » (« 3-Way Handicap (3-0) <équipe> ») : le « -Y »
         # que capturerait _mh est un MORCEAU du score, pas une ligne (audit 2026-07-23 : rendait « Handicap
         # 3 voies 3 ) Nouvelle Zélande -0 » = une autre issue). Non normalisable proprement -> TEL QUEL.
