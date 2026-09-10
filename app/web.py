@@ -346,7 +346,7 @@ CSS = """
        /* MODÈLE DE SCROLL = CRYPTONAUTS (user 2026-08-22) : le BODY scrolle normalement (plus de coquille
           `height:100dvh;overflow:hidden` + scroll interne `.wrap`, qui calait mal en PWA iOS -> zone morte
           sous la barre). La barre est `position:fixed;bottom:0` et le body RÉSERVE sa hauteur via padding-bas. */
-       min-height:100dvh;overscroll-behavior-y:none;
+       min-height:100svh;overscroll-behavior-y:none;   /* svh STATIQUE (2026-09-10) : dvh recalculait à chaque frame pendant l'animation de la barre Safari = jank navigateur. Écart couvert par le fond fixe 100vh. */
        padding-bottom:calc(62px + env(safe-area-inset-bottom, 0px));
        font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
@@ -440,11 +440,15 @@ CSS = """
        (plus de zone morte), son `padding-bas = 6px + safe-area` peint la zone home-indicator iPhone. */
     .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;
             padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+            /* COUCHE GPU (2026-09-10, jank scroll navigateur) : quand la barre Safari redimensionne le viewport
+               au scroll, cette barre fixe + son ombre 28px se re-peignaient à chaque frame. translateZ la met
+               sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. Absent en PWA. */
+            transform:translateZ(0);will-change:transform;
             box-shadow:0 -8px 28px rgba(0,0,0,.45)}
     /* Le body scrolle -> `.wrap` doit remplir AU MOINS un écran (moins la barre) pour que la chaîne flex:1
        ci-dessous ait de la hauteur à répartir. Sans ça (jour léger), les catégories se tassent en haut et le
        « 18+ » colle au dernier pari au lieu de descendre près de la barre (user 2026-08-22). */
-    .wrap{min-height:calc(100dvh - 62px - env(safe-area-inset-bottom, 0px))}
+    .wrap{min-height:calc(100svh - 62px - env(safe-area-inset-bottom, 0px))}   /* svh statique (cf. body) */
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
