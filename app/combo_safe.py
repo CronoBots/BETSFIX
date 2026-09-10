@@ -473,7 +473,7 @@ def settle_pending() -> int:
     règlement sur un match pas fini). Une jambe SANS score fiable reste EN ATTENTE (pas de void prématuré) ;
     void seulement si le score est trouvé mais le code irrésolvable, ou après 3 j sur un match fini muet."""
     from datetime import datetime, timezone
-    from app import analyses as _an, flashscore, livescore
+    from app import analyses as _an, flashscore, livescore, apifootball as _AF
     from app.settle_analyst import settle_pick, code_from_pick
     d = _load()
     changed = False
@@ -505,8 +505,9 @@ def settle_pending() -> int:
             if score is None and leg_done:             # 2) repli Flashscore/LiveScore (match fini seulement)
                 q = {"home": leg.get("home", ""), "away": leg.get("away", ""),
                      "start": leg.get("start"), "sofa_id": ""}
-                try:
-                    score = flashscore.final_score("foot", q) or livescore.final_score("foot", q)
+                try:                                   # API-Football PRIMAIRE (sans scraping), repli scraping
+                    score = _AF.final_score("foot", q) or flashscore.final_score("foot", q) or \
+                        livescore.final_score("foot", q)
                 except Exception:
                     score = None
             if not score:

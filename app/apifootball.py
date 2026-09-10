@@ -362,6 +362,64 @@ def live_score(cl: httpx.Client, fixture_id: int) -> dict | None:
             "elapsed": ms["elapsed"], "status": ms["status"], "finished": ms["finished"]}
 
 
+def final_score(sport: str, d: dict, allow_live: bool = False, cl: httpx.Client | None = None) -> dict | None:
+    """Score FINAL d'un match via API-Football — **drop-in de `flashscore.final_score`** (même signature +
+    même forme de retour) pour RÉGLER SANS SCRAPING. FOOT uniquement (BETSFIX 100 % foot ; autre sport ou
+    non-configuré -> None -> repli scraping conservé). Résolution nom+KO (seuil 0.6, anti-homonyme).
+    `home`/`away` = TEMPS RÉGLEMENTAIRE (`score.fulltime`, = règlement des marchés 90 min, même si le match
+    est allé en prolongation) ; `periods` = {1: mi-temps, 2: 2e MT}. None si non résolu / PAS terminé (on ne
+    règle JAMAIS sur un score partiel), SAUF `allow_live=True` (règlement LIVE d'un OVER irréversible, cf.
+    combo_daily) -> score partiel du match EN COURS avec `live=True`. Statuts non-joués (PST/CANC/ABD/WO) ->
+    None (le rare walkover reste géré par le repli flashscore)."""
+    if sport != "foot" or not configured():
+        return None
+    home, away, start = d.get("home", ""), d.get("away", ""), d.get("start")
+    own = cl is None
+    try:
+        cl = cl or _client()
+        f = resolve_fixture(cl, home, away, start or "", min_score=0.6)
+        if not f:
+            return None
+        ms = match_state(cl, f["id"])
+    except Exception:
+        return None
+    finally:
+        if own and cl is not None:
+            try:
+                cl.close()
+            except Exception:
+                pass
+    if not ms:
+        return None
+
+    def _i(x):
+        try:
+            return int(x)
+        except (TypeError, ValueError):
+            return None
+    reg, goals, ht = ms.get("reg") or {}, ms.get("goals") or {}, ms.get("halftime") or {}
+    if ms.get("finished"):
+        rh, ra = _i(reg.get("home")), _i(reg.get("away"))
+        if rh is None or ra is None:                 # repli goals si fulltime absent (rare)
+            rh, ra = _i(goals.get("home")), _i(goals.get("away"))
+        if rh is None or ra is None:
+            return None
+        periods = {}
+        hh, ha = _i(ht.get("home")), _i(ht.get("away"))
+        if hh is not None and ha is not None:
+            periods[1] = (hh, ha)
+            periods[2] = (rh - hh, ra - ha)          # 2e MT = final réglementaire − mi-temps
+        return {"home": rh, "away": ra, "sets_home": None, "sets_away": None,
+                "label": f"{rh}-{ra}", "live": False, "src": "apifootball", "periods": periods}
+    if allow_live and ms.get("in_play"):             # OVER live irréversible uniquement
+        gh, ga = _i(goals.get("home")), _i(goals.get("away"))
+        if gh is None or ga is None:
+            return None
+        return {"home": gh, "away": ga, "sets_home": None, "sets_away": None,
+                "label": f"{gh}-{ga} (live)", "live": True, "src": "apifootball", "periods": {}}
+    return None
+
+
 _LIVE_ALL_CACHE: dict = {}      # -> (expire_ts, [matchs live]) : 1 appel /fixtures?live=all partagé
 _LIVE_ALL_TTL = 12
 # Statut API-Football -> période façon Unibet matchClock (drop-in pour web.live_fields/live_clock).

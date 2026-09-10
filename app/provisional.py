@@ -238,7 +238,7 @@ def settle_pending() -> int:
     """Règle les provisoires en attente dont le match est terminé, via Flashscore (couverture universelle,
     repli LiveScore) + `settle_pick`. Score PARTIEL -> on n'écrit RIEN (jamais de règlement sur du live).
     Renvoie le nombre nouvellement réglé. Sûr à rejouer (idempotent : ne retouche pas un déjà réglé)."""
-    from app import analyses, flashscore, livescore
+    from app import analyses, flashscore, livescore, apifootball as _AF
     if not analyses.PROVISOIRES_ON:               # provisoires retirés (user 2026-08-11) -> plus de règlement
         return 0
     from app.settle_analyst import settle_pick
@@ -297,8 +297,9 @@ def settle_pending() -> int:
         except Exception:
             score = None
         if score is None:
-            try:
-                score = flashscore.final_score(sport, q) or livescore.final_score(sport, q)
+            try:                                   # API-Football PRIMAIRE (foot, sans scraping), repli scraping
+                score = _AF.final_score(sport, q) or flashscore.final_score(sport, q) or \
+                    livescore.final_score(sport, q)
             except Exception:
                 score = None
         # Repli SPORTRADAR (GISMO) : score DÉTAILLÉ par set/quart-temps/mi-temps (jeux tennis, points

@@ -638,15 +638,23 @@ def _live_over_settle(leg: dict) -> tuple | None:
     if not _live_over_won_eligible(code):
         return None
     home, away, start = leg.get("home", ""), leg.get("away", ""), leg.get("start")
+    _q = {"home": home, "away": away, "start": start}
     scores: list[dict] = []
-    try:                                                 # Source 1 — Flashscore (score partiel, LIVE autorisé)
+    try:                                                 # Source 1 — API-Football (live, sans scraping)
+        from app import apifootball as _AF
+        af = _AF.final_score(sport, _q, allow_live=True)
+        if af and af.get("home") is not None and af.get("away") is not None:
+            scores.append({"home": af["home"], "away": af["away"]})
+    except Exception:
+        pass
+    try:                                                 # Source 2 — Flashscore (score partiel, LIVE autorisé)
         from app import flashscore
-        fs = flashscore.final_score(sport, {"home": home, "away": away, "start": start}, allow_live=True)
+        fs = flashscore.final_score(sport, _q, allow_live=True)
         if fs and fs.get("home") is not None and fs.get("away") is not None:
             scores.append({"home": fs["home"], "away": fs["away"]})
     except Exception:
         pass
-    try:                                                 # Source 2 — LiveScore (champs live)
+    try:                                                 # Source 3 — LiveScore (champs live)
         from app import match_select as _ms
         lf = _ms.livescore_live_fields(sport, home, away, start)
         _sc = str(lf.get("score") or "")
@@ -671,7 +679,7 @@ def settle_pending(sport: str = "foot", variant: str = "") -> int:
     LiveScore + `settle_pick`), puis tranche le combiné : lost si ≥1 jambe perdue ; won si ≥1 gagnée
     (push/void retirés) ; void si toutes push/void. Idempotent. Renvoie le nb de combinés tranchés.
     `variant` (ex. « cote2 ») -> règle le 2ᵉ combiné du jour dans son fichier dédié."""
-    from app import flashscore, livescore, analyses as _an
+    from app import flashscore, livescore, analyses as _an, apifootball as _AF
     from app.settle_analyst import settle_pick
     d = _load(sport, variant)
     # RÉCHAUFFE le cache Unibet (heure fraîche + score live) AVANT la borne void : le règlement tourne souvent
@@ -779,8 +787,9 @@ def settle_pending(sport: str = "foot", variant: str = "") -> int:
             # attente (info-seule, aucune urgence : la passe suivante / le scan 09h la règlera pour de vrai).
             _leg_done = _an.likely_finished({"start": leg.get("start"), "sport": leg.get("sport")})
             if score is None and _leg_done:
-                try:
-                    score = flashscore.final_score(leg.get("sport"), q) or \
+                try:                                     # API-Football PRIMAIRE (sans scraping), repli scraping
+                    score = _AF.final_score(leg.get("sport"), q) or \
+                        flashscore.final_score(leg.get("sport"), q) or \
                         livescore.final_score(leg.get("sport"), q)
                 except Exception:
                     score = None
