@@ -50,7 +50,7 @@ from app import notify as _notify  # noqa: E402  (gel des pronos déjà publiés
 from app import sources  # noqa: E402
 from app import unibet  # noqa: E402
 from app import value  # noqa: E402
-from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important  # noqa: E402
+from app.match_select import UNIBET_B, UNIBET_PARAMS, fetch_important, is_elite_comp  # noqa: E402
 
 # Combinés même-match pré-construits Unibet (prepackcoupon), par event_id : VRAIE cote corrélée.
 # Rempli dans build_dossier, relu dans _parse_combo pour re-pricer le combiné de l'analyste.
@@ -1268,7 +1268,7 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         top = None
         for _attempt in range(3):                 # getaddrinfo = hoquet fréquent (cf. CLAUDE.md) -> on retente
             try:
-                top = await fetch_important(sport, _pool_n, client, within_hours=args.hours, always=_is_big_match)
+                top = await fetch_important(sport, _pool_n, client, within_hours=args.hours, always=is_elite_comp)
                 break
             except Exception as e:
                 top = None
@@ -1297,17 +1297,25 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
         # ouvertes -> le boost favori-net les traite comme le jour au lieu de les écraser faute de cote à
         # 10h. Les 2 slates FUSIONNENT via la préservation same-day plus bas (le soir reconduit le jour du
         # matin). Sans bande (--programme seul) -> ancien comportement (jour entier, split pour le timing).
+        # SLATE = top-N par importance + PACK ÉLITE FORCÉ (UCL/EL/Conference/Copa/Euro : jamais cappé — meilleure
+        # couverture data/sharp). L'union n'élargit QUE le vivier : analyse (≥2 sources) et sélecteurs mécaniques
+        # inchangés (un match élite équilibré = abstention, pas un pari douteux). Cf. match_select.is_elite_comp.
+        def _with_elite(sel, pool):
+            seen = {m.get("id") for m in sel}
+            extra = [m for m in pool if m.get("id") not in seen and is_elite_comp(m.get("comp") or "")]
+            return sel + extra, len(extra)
         if args.ko_from is not None and args.ko_to is not None:
             _inband = [m for m in top if _in_ko_band(m.get("start", ""), args.ko_from, args.ko_to)]
-            top = _inband[:_top]
+            top, _nelite = _with_elite(_inband[:_top], _inband[_top:])
             _lbl = "NUIT" if args.ko_from == _SLATE_BOUNDARY_H else "JOUR"
-            print(f"[foot] programme SLATE {_lbl} ({args.ko_from}h→{args.ko_to}h) : {len(top)} match(s) (adaptatif).")
+            print(f"[foot] programme SLATE {_lbl} ({args.ko_from}h→{args.ko_to}h) : {len(top)} match(s) "
+                  f"(top-{_top} + {_nelite} élite).")
         else:
-            _glob = top[:_top]
+            _glob, _nelite = _with_elite(top[:_top], top[_top:])
             _day = [m for m in _glob if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)]
             _night = [m for m in _glob if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)]
             top = _day + _night
-            print(f"[foot] programme TOP-{_top} adaptatif : {len(_day)} JOUR + {len(_night)} NUIT.")
+            print(f"[foot] programme TOP-{_top} adaptatif + {_nelite} élite : {len(_day)} JOUR + {len(_night)} NUIT.")
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
@@ -3980,8 +3988,8 @@ async def main():
     async with httpx.AsyncClient(timeout=20) as client:
         for sport in sports:
             try:
-                # gros tournois (Coupe du Monde…) : inclus EN PLUS du top N s'ils sont dans la fenêtre.
-                always = _is_big_match if sport == "foot" else None
+                # PACK ÉLITE (UCL/EL/Conference/Copa/Euro/CdM) : inclus EN PLUS du top N s'il est dans la fenêtre.
+                always = is_elite_comp if sport == "foot" else None
                 # --match / --from-programme : pool TRÈS LARGE pour ne rater AUCUN match du programme (le
                 # fetch réseau est indépendant de N -> gratuit). Indispensable avec le quota PAR SLATE : un
                 # match de nuit du programme peut être classé bas en importance -> il doit rester joignable

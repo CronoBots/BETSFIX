@@ -89,6 +89,14 @@ _BIG_TOURNEY_KW = ("world cup", "coupe du monde", "champions league", "ligue des
                    "conference league", "copa america", "copa libertadores", "sudamericana", "euro ")
 
 
+def is_elite_comp(comp: str) -> bool:
+    """PACK ÉLITE = gros tournoi international (UCL/Europa/Conference/Copa Libertadores/Sudamericana/Copa
+    America/Euro/Coupe du Monde, cf. `_BIG_TOURNEY_KW`). Ces compétitions ont la MEILLEURE couverture données
+    (API-Football) et le marché le PLUS SHARP → on les force TOUJOURS dans le slate (jamais cappées par le
+    top-N). Le mécanisme d'analyse et les sélecteurs mécaniques restent INCHANGÉS : on n'élargit QUE le vivier."""
+    return any(k in (comp or "").lower() for k in _BIG_TOURNEY_KW)
+
+
 def _is_covered_comp(comp: str) -> bool:
     """La ligue est-elle ancrée par le sharp / bien enrichie ? Proxy CHEAP (0 réseau) : mappée par The Odds
     API (`_sport_key_for`, ~68 grandes ligues) OU gros tournoi international. Repli prudent : import KO -> False
@@ -99,8 +107,7 @@ def _is_covered_comp(comp: str) -> bool:
             return True
     except Exception:
         pass
-    c = (comp or "").lower()
-    return any(k in c for k in _BIG_TOURNEY_KW)
+    return is_elite_comp(comp)
 
 
 def rank_important(events: list, top_n: int = 10, within_hours: int | None = None,
