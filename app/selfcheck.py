@@ -1150,6 +1150,48 @@ def _check_played_bet_sharp_anchor(rows) -> dict:
             "items": bad + conflict}
 
 
+def _check_final_mechanical_bet_revealed(rows) -> dict:
+    """« CELA NE DOIT PLUS ARRIVER » (user 2026-09-10, Östersunds) : un pari mécanique VALIDE
+    (`confidence_bet`/`value_bet`, `abstained`≠True) dont la VAGUE KO−1h est PASSÉE (KO ≤ maintenant+45min)
+    DOIT être PUBLIÉ + révélé (`prematch_done` + `published_bet` + `retained_bet` non None). Sinon = pari
+    rattrapé/figé mais NON publié -> Option B le MASQUE (« je n'ai pas la 2e confiance »). Non réglé
+    uniquement (forward). 100 % lecture seule."""
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+    bad, n = [], 0
+    for _s, d in rows:
+        if d.get("sport") != "foot" or d.get("roi_void"):
+            continue
+        if analyses.is_settled(d) or d.get("abstained"):
+            continue
+        mb = d.get("confidence_bet") or d.get("value_bet")
+        if not (isinstance(mb, dict) and mb.get("code")):
+            continue
+        try:
+            ko = _dt.datetime.fromisoformat((d.get("start") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ko > now + _dt.timedelta(minutes=45):
+            continue                                       # vague pas encore passée -> Option B légitime
+        n += 1
+        mid = str(d.get("id") or "")
+        revealed = analyses.retained_bet("foot", mid) is not None
+        published = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+        if not (revealed and published):
+            bad.append(f"{d.get('home','?')}–{d.get('away','?')} : pari mécanique « {mb.get('sel')} » "
+                       f"(KO passé/imminent) NON publié [prematch_done={d.get('prematch_done')}, "
+                       f"published={'oui' if published else 'non'}, révélé={'oui' if revealed else 'non'}] "
+                       f"-> masqué par Option B.")
+    return {"key": "final_mechanical_bet_revealed",
+            "level": "error" if bad else "ok",
+            "title": "Pari mécanique final (vague passée) publié et révélé",
+            "detail": (f"{len(bad)}/{n} pari(s) mécanique(s) dont la vague est passée restent NON publiés "
+                       f"(masqués par Option B) — régression rattrapage à corriger."
+                       if bad else
+                       f"0 — les {n} pari(s) mécanique(s) dont la vague KO−1h est passée sont bien publiés+révélés."),
+            "items": bad}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -1184,6 +1226,7 @@ def run(persist: bool = False) -> dict:
         _check_upcoming_display_coherence(rows),
         _check_omap_coverage(rows),
         _check_played_bet_sharp_anchor(rows),
+        _check_final_mechanical_bet_revealed(rows),
         _check_stats_snapshot_drift(),
         _check_montante_active(),
     ]

@@ -4362,6 +4362,16 @@ async def main():
                                         _ab_side["published_bet"] = {"sel": _mb.get("sel"), "cote": _mb.get("cote"),
                                                                      "prob": _mb.get("prob"),
                                                                      "ts": datetime.now(timezone.utc).isoformat()}
+                                        # ANALYSE DÉDIÉE du pari rattrapé (fix 2026-09-10, screenshot user « analyse pas
+                                        # top ») : sans played_why, l'affichage retombait sur les sections d'ABSTENTION
+                                        # du matin (« on s'abstient de miser ») — CONTRADICTOIRE avec le pari publié
+                                        # (cas Östersunds 1X). On génère le « Pourquoi ce pari » sur les faits DÉJÀ écrits.
+                                        try:
+                                            _wtxt = _mech_bet_why(analysis, _mb, m.get("home", ""), m.get("away", ""))
+                                            if _wtxt:
+                                                _ab_side["played_why"] = {"sel": _mb.get("sel"), "text": _wtxt}
+                                        except Exception:
+                                            pass
                                     print(f"  🛡️ PARI MÉCANIQUE RATTRAPÉ à l'abstention (omap frais) : "
                                           f"{m.get('name', '?')} -> {_mb.get('sel')} @{_mb.get('cote')} "
                                           f"(conf {_mb.get('prob')}) — {'PUBLIÉ' if args.refresh_early else 'restauré'}.")
@@ -4371,8 +4381,10 @@ async def main():
                                 json.dump(_ab_side, open(side_p, "w", encoding="utf-8"), ensure_ascii=False)
                             except OSError:
                                 pass
-                            if not _prov:               # pas de provisoire -> pas d'analyse à consulter -> .md inutile
-                                try:
+                            # .md conservé si un pari a été RATTRAPÉ+PUBLIÉ (published_bet posé) : le pli
+                            # « Pourquoi ce pari » (played_why) et les faits doivent rester consultables.
+                            if not _prov and not isinstance(_ab_side.get("published_bet"), dict):
+                                try:                    # pas de provisoire ni de pari publié -> .md inutile
                                     os.remove(path)
                                 except OSError:
                                     pass
