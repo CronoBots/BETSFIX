@@ -180,15 +180,9 @@ async def get(url: str, params=None, headers=None):
     rr = await _rapid_get(url, params)
     if rr is not None and rr.status_code == 200:
         return rr
-    # 3) proxy curl_cffi (uniquement si direct bloqué ET RapidAPI ne rattrape pas)
-    pr = await _via_proxy(url, params, headers)
-    if pr is not None and pr.status_code == 200:
-        return pr
-    # 4) rien n'a abouti -> meilleure réponse dispo (le 403 direct), ou on lève
+    # (proxy résidentiel iProyal RETIRÉ 2026-09-10 : SofaScore = direct curl_cffi + RapidAPI seuls)
     if r is not None:
         return r
     if rr is not None:
         return rr
-    if pr is not None:
-        return pr
-    raise RuntimeError("SofaScore injoignable (direct, RapidAPI et proxy tous en échec)")
+    raise RuntimeError("SofaScore injoignable (direct + RapidAPI en échec)")

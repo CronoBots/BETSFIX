@@ -41,21 +41,11 @@ async def _p_fotmob(c):
 
 
 async def _p_pinnacle(c):
-    """Pinnacle via la cascade réelle (direct gratuit -> repli proxy résidentiel si Cloudflare bloque l'IP).
-    Le detail dit la voie active -> on voit si on consomme les Go du proxy (blocage IP en cours) ou non."""
-    from app import pinnacle, proxy_usage
-    data = await asyncio.to_thread(pinnacle._get, "sports")
-    n = len(data) if isinstance(data, list) else 0
-    if data:
-        via = "proxy" if pinnacle._direct_blocked() else "direct"
-        u = proxy_usage.stats()                            # conso iProyal (facturé au Go, forfait 2 Go)
-        usage = (f" · iProyal ≈ {u['used_mb']} Mo / {u['cap_gb']} Go ({u['pct']}% · {u['remaining_gb']} Go restants)"
-                 if via == "proxy" else "")
-        return (True, f"{n} sports (via {via}){usage}")
-    # KO : direct 403 (IP bloquée Cloudflare) ET proxy en échec -> on affiche la CAUSE actionnable du proxy
-    # (ex. « 402 — crédit épuisé ») au lieu d'un « KO » opaque, pour savoir s'il faut recharger le proxy.
-    reason = getattr(pinnacle, "_last_proxy_status", "") or "direct + proxy"
-    return (False, f"KO — {reason}")
+    """Ancre SHARP « Pinnacle » = servie par API-Football (user 2026-09-10 : iProyal RETIRÉ, plus de proxy
+    résidentiel ni catalogue 40 Mo). La santé réelle de l'ancre est portée par la sonde API-Football."""
+    from app import apifootball as _AF
+    return (True, "délégué à API-Football (sans proxy)") if _AF.configured() \
+        else (False, "API-Football non configuré")
 
 
 async def _p_theoddsapi(c):
