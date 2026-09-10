@@ -4322,12 +4322,22 @@ _SPA_JS = (
     # le refresh remplace le panneau et refermerait le pli -> l'utilisateur perdait sa lecture (user 2026-08-20).
     # (Les zones repliables sont `.zone-col`, PAS `.cleg-fold` -> elles ne bloquent pas le refresh.)
     "if(p.querySelector('.cleg-fold[open]'))return;"
+    # ANTI-JANK (user 2026-09-10) : NE PAS re-rendre pendant un scroll -> le remplacement innerHTML du panneau
+    # (re-layout de toutes les cartes) bloquait le thread principal en plein défilement = pause/reprise saccadée.
+    # On saute le cycle si l'utilisateur a scrollé/touché/molette dans les 1,5 s -> refresh dès qu'il fait une pause.
+    "if(window._bfxAct&&Date.now()-window._bfxAct<1500)return;"
     "var u=p.getAttribute('data-src');"
     "fetch(u+(u.indexOf('?')<0?'?':'&')+'frag=1',{headers:{'X-Frag':'1'}})"
     ".then(function(r){return r.text();}).then(function(h){"
     "var y=window.scrollY;"
     "p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
+    # traceur d'activité (scroll/touch/molette) partagé -> le refresh 45 s l'observe pour ne pas saccader.
+    "window._bfxAct=0;function _bfxA(){window._bfxAct=Date.now();}"
+    "window.addEventListener('scroll',_bfxA,{passive:true,capture:true});"
+    "document.addEventListener('scroll',_bfxA,{passive:true,capture:true});"
+    "window.addEventListener('touchmove',_bfxA,{passive:true});"
+    "window.addEventListener('wheel',_bfxA,{passive:true});"
     "setInterval(fresh,45000);"
     # iOS PWA : au 1er paint, le viewport/safe-area n'est pas encore stable -> la barre fixe (bottom:0) se cale
     # trop haut avec une bande morte dessous, jusqu'au 1er changement d'onglet (qui force un reflow). On force CE
