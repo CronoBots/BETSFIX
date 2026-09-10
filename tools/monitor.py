@@ -85,6 +85,32 @@ def panel_deployed():
             for t, v in tiers.items()]
 
 
+# ----------------------------------------------------------------- Panel A2 : pack ÉLITE vs domestique
+def panel_elite():
+    """ROI des paris joués (Confiance+Value) SPLIT pack ÉLITE (UCL/EL/Conference/Copa/Euro/CdM) vs
+    DOMESTIQUE — mesure l'apport de l'inclusion FORCÉE du pack élite au slate (change 2026-09-10). Dérivé
+    du champ `comp` du sidecar (aucun flag persisté). FORWARD = passé par la vague live (`prematch_done`)."""
+    from app.match_select import is_elite_comp
+    grp = {"élite": {"hist": [], "fwd": []}, "domestique": {"hist": [], "fwd": []}}
+    _mids = A._montante_mids() if A.MONTANTE_ROI_ON else frozenset()
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        sb = d.get("stat_bet")
+        if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
+            continue
+        if d.get("roi_void") or str(d.get("id")) in _mids or sb.get("kind") not in ("confidence", "value"):
+            continue
+        g = "élite" if is_elite_comp(d.get("comp") or "") else "domestique"
+        rec = (sb["result"], sb.get("cote") or 0)
+        grp[g]["hist"].append(rec)
+        if d.get("prematch_done"):                        # FORWARD = réellement passé par la vague live
+            grp[g]["fwd"].append(rec)
+    return [{"grp": g, "hist": _metrics(v["hist"]), "fwd": _metrics(v["fwd"])} for g, v in grp.items()]
+
+
 # --------------------------------------------------------------------------- Panel B : maturité / promotion
 _MARKETS_B = ["Double chance", "Handicap", "Total Under", "Total Over", "Total équipe",
               "Vainqueur", "Tirs cadrés", "Cartons", "Corners"]
@@ -155,6 +181,13 @@ def render_text():
         print("  %-9s | HIST : n=%-3s %-5s%% ROI %+6s%% cote %-4s | FORWARD : %s"
               % (r["tier"].upper(), hh.get("n"), hh.get("winrate"), hh.get("roi"), hh.get("avg_cote"), _f))
         print("            attendu backtest : %s" % r["attente"])
+    print("\n[A2] PACK ÉLITE vs DOMESTIQUE (apport de l'inclusion forcée UCL/EL/Conference/Copa/Euro)")
+    for r in panel_elite():
+        hh, ff = r["hist"], r["fwd"]
+        _f = ("aucun encore" if not ff.get("n")
+              else "n=%s %s%% ROI %+s%% cote %s" % (ff.get("n"), ff.get("winrate"), ff.get("roi"), ff.get("avg_cote")))
+        print("  %-11s | HIST : n=%-3s %-5s%% ROI %+6s%% cote %-4s | FORWARD : %s"
+              % (r["grp"].upper(), hh.get("n"), hh.get("winrate"), hh.get("roi"), hh.get("avg_cote"), _f))
     ds = B.load_dataset()
     print("\n[B] MATURITÉ / PROMOTION par marché (curaté = 1 meilleur pari/match)")
     print("  %-14s | %-28s | %-28s" % ("MARCHÉ", "sous règles CONFIANCE", "sous règles VALUE"))
@@ -182,7 +215,7 @@ def render_html(path):
 def build_html() -> str:
     """HTML autonome du tableau de bord (string) — sert au fichier ET à la route /monitor de l'app."""
     ds = B.load_dataset()
-    dep, promo, calib = panel_deployed(), panel_promotion(ds), panel_calibration()
+    dep, elite, promo, calib = panel_deployed(), panel_elite(), panel_promotion(ds), panel_calibration()
     h = ['<h1>📊 Monitoring BETSFIX</h1>',
          '<p class="sub">Lecture seule · confiance/value déployées, maturité des marchés, calibration brute.</p>']
     # A
@@ -199,6 +232,19 @@ def build_html() -> str:
         h.append(f'<tr><td><b>{r["tier"].upper()}</b></td>'
                  f'<td>{hh.get("n","–")}</td><td>{hh.get("winrate","–")}%</td><td>{_pill(hh.get("roi",0),3,0)}</td>'
                  f'{_fw}<td class="muted">{r["attente"]}</td></tr>')
+    h.append('</table>')
+    # A2 — pack élite vs domestique
+    h.append('<h2>🌍 Pack élite vs domestique</h2>'
+             '<p class="sub">Apport de l\'inclusion FORCÉE du pack élite (UCL/EL/Conference/Copa/Euro) au slate. '
+             'Si l\'élite FORWARD est ≥ domestique, l\'élargissement est validé. Dérivé du champ <code>comp</code>.</p>'
+             '<table><tr><th>Groupe</th><th colspan=3>Historique (backfill)</th><th colspan=3>Forward réel</th></tr>'
+             '<tr><th></th><th>n</th><th>réuss</th><th>ROI</th><th>n</th><th>réuss</th><th>ROI</th></tr>')
+    for r in elite:
+        hh, ff = r["hist"], r["fwd"]
+        _fw = ('<td colspan=3 class="muted">aucun encore</td>' if not ff.get("n")
+               else f'<td>{ff.get("n")}</td><td>{ff.get("winrate")}%</td><td>{_pill(ff.get("roi",0),3,0)}</td>')
+        h.append(f'<tr><td><b>{r["grp"].upper()}</b></td>'
+                 f'<td>{hh.get("n","–")}</td><td>{hh.get("winrate","–")}%</td><td>{_pill(hh.get("roi",0),3,0)}</td>{_fw}</tr>')
     h.append('</table>')
     # B
     h.append('<h2>🌱 Maturité / promotion par marché</h2>'
