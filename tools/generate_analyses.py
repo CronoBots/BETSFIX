@@ -4076,6 +4076,35 @@ async def main():
                               and _analyzed_too_early(path, m.get("start"), args.hours))
                     if _prior and _generated_today(_prior.get("generated")) and not _reana:
                         from app import analyses as _an_lock
+                        # PUBLICATION des paris FIGÉS non encore publiés (fix 2026-09-10, Slavia-Lens) : un match
+                        # analysé plus tôt (matin/soir) dont le pari mécanique est FIGÉ (confidence_bet/value_bet)
+                        # mais PAS publié — typiquement un rattrapage anti-abstention survenu HORS vague (scan soir)
+                        # — DOIT être publié à SA vague KO-1h même si on ne le re-scanne pas. Sinon la vague le SAUTE,
+                        # Option B le masque à vie ET retained_bet=None le classe à tort « abstained ». FORWARD only
+                        # (match non commencé), non abstenu. Cf. garde-fou selfcheck final_mechanical_bet_revealed.
+                        _mbp = _prior.get("confidence_bet") or _prior.get("value_bet")
+                        if (args.refresh_early and isinstance(_mbp, dict) and _mbp.get("sel")
+                                and not _prior.get("abstained")
+                                and not isinstance(_prior.get("published_bet"), dict)):
+                            _prior["prematch_done"] = True
+                            _prior["published_bet"] = {"sel": _mbp.get("sel"), "cote": _mbp.get("cote"),
+                                                       "prob": _mbp.get("prob"),
+                                                       "ts": datetime.now(timezone.utc).isoformat()}
+                            try:                        # analyse dédiée (« Pourquoi ce pari ») si absente
+                                _pw0 = _prior.get("played_why") or {}
+                                if _pw0.get("sel") != _mbp.get("sel") and os.path.exists(path):
+                                    _wtxt = _mech_bet_why(open(path, encoding="utf-8").read(), _mbp,
+                                                          m.get("home", ""), m.get("away", ""))
+                                    if _wtxt:
+                                        _prior["played_why"] = {"sel": _mbp.get("sel"), "text": _wtxt}
+                            except Exception:
+                                pass
+                            try:
+                                json.dump(_prior, open(_prior_p, "w", encoding="utf-8"), ensure_ascii=False)
+                            except OSError:
+                                pass
+                            print(f"  ↳ {m['name']} : pari FIGÉ publié à la vague (non re-scané) -> "
+                                  f"{_mbp.get('sel')} @{_mbp.get('cote')}.")
                         _has_bet = bool((_prior.get("combo") or {}).get("legs")
                                         or _an_lock.retained_bet(sport, str(fid)))
                         print(f"  · {m['name']} : déjà analysé aujourd'hui (gelé) -> pas de re-scan.")
