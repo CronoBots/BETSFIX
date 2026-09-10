@@ -690,7 +690,7 @@ CSS = """
        color:var(--muted);margin-top:2px}
   /* Deux courbes d'équité ÉTIQUETÉES (Simples / Combinés) empilées dans l'onglet sport */
   .spf-charts{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .spf-cv{background:var(--card-grad);border:1px solid var(--border);border-radius:12px;
+  .spf-cv{background:transparent;border:1px solid var(--border);border-radius:12px;
        padding:8px 10px 6px}   /* MÊME fond que les jambes de combiné (.cleg) — demande user 2026-07-24 */
   .spf-cv-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
   .spf-cv-t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff}   /* titre graphe : BLANC, un rien plus grand (demande user 2026-07-24) */
@@ -907,7 +907,7 @@ CSS = """
   /* Contour ENTIER coloré par l'état (demande user 2026-07-27 : tout le cadre = couleur du bord gauche) —
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
-       background:var(--card-grad);   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
+       background:transparent;   /* FOND TRANSPARENT (user 2026-09-10) : le fond de page transparaît, comme sous le graphe ROI */
        border:1px solid var(--st-soon)}
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
@@ -2447,7 +2447,7 @@ CSS = """
   /* JAMBE = CARTE DE SIMPLE (demande user 2026-07-14) : chaque jambe encadrée exactement comme une carte
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
-  .cleg{background:var(--card-grad);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
+  .cleg{background:transparent;border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
        border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
      dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
@@ -4715,11 +4715,15 @@ _DAYCAL_JS = (
     "if(on&&!on.classList.contains('today')){show=true;}"
     "else if(td&&tr){var a=td.getBoundingClientRect(),t=tr.getBoundingClientRect();"
     "if(a.right<=t.left+2||a.left>=t.right-2){show=true;}}"
-    "g.classList.toggle('show',show);}"
+    # ANTI-FLASH (user 2026-09-10) : ne JAMAIS afficher le bouton tant que le scroll initial ne s'est pas calé
+    # sur aujourd'hui (`_dcReady`). Sinon, à l'ouverture de l'onglet Programme, updGoto tournait AVANT ctr() ->
+    # cellule AUJ. transitoirement hors-vue -> bouton affiché puis caché = flash. On l'autorise après stabilisation.
+    "g.classList.toggle('show',show&&window._dcReady===true);}"
     "function onScroll(){updMo();updGoto();}"
     "function bind(){var tr=document.querySelector('#daycal .daycal-track');"
     "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',onScroll,{passive:true});}}"
-    "function sync(){ctr();bind();updMo();updGoto();}"
+    "function sync(){window._dcReady=false;ctr();bind();updMo();updGoto();"
+    "setTimeout(function(){window._dcReady=true;updGoto();},420);}"
     # EXPOSÉ GLOBALEMENT (user 2026-08-19) : le SPA rappelle `_daycalSync` à chaque affichage/chargement du
     # panneau Programme -> le calendrier se REPLACE À DROITE (aujourd'hui) même après un swap d'onglet ou un
     # rechargement de panneau (sinon il se ré-affichait tout à gauche « sans raison »). rAF -> après layout.
