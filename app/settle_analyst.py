@@ -1677,12 +1677,12 @@ async def _settle_analyses_impl() -> int:
                     return r
                 if c.startswith("FIRSTTO") and sofa and len(sofa) <= 8:
                     return await _settle_firstto(sofa, c)   # premier à X points -> incidents SofaScore
-                if c.startswith("SCOREASSIST"):             # « joueur marque ou passe déc. » -> events FotMob
+                if c.startswith("SCOREASSIST"):             # « joueur marque ou passe déc. » -> /fixtures/players
                     _, _, who = c.partition("|")
                     if not who:
                         return None
-                    from app import sources as _src
-                    return await _src.player_scored_or_assisted(d, who)
+                    from app import apifootball as _af
+                    return await asyncio.to_thread(_af.player_scored_or_assisted, d, who)
                 if c.startswith("FIRSTGOAL"):               # premier but du match -> events API-Football
                     from app import apifootball as _af
                     fg = await asyncio.to_thread(_af.first_goal_side, d)
@@ -1706,7 +1706,7 @@ async def _settle_analyses_impl() -> int:
                     if val is None:
                         return None                         # indispo OU joueur ambigu -> retente (jamais faux)
                     return "push" if val == line else ("won" if ((val > line) == (hp[2] == "OVER")) else "lost")
-                if c.startswith("PLAYERFB"):                # prop joueur foot (Opta) -> FotMob playerStats
+                if c.startswith("PLAYERFB"):                # prop joueur foot (Opta) -> /fixtures/players
                     head, _, who = c.partition("|")
                     hp = head.split()
                     if len(hp) < 4 or not who:
@@ -1715,12 +1715,12 @@ async def _settle_analyses_impl() -> int:
                         line = float(hp[3])
                     except ValueError:
                         return None
-                    from app import sources as _src
-                    val = await _src.foot_player_stat(d, who, hp[1])
+                    from app import apifootball as _af
+                    val = await asyncio.to_thread(_af.player_match_stat, d, who, hp[1])
                     if val is None:
                         return None                         # indispo OU joueur ambigu -> retente (jamais faux)
                     return "push" if val == line else ("won" if ((val > line) == (hp[2] == "OVER")) else "lost")
-                if c.startswith("GKSAVES"):                 # arrêts du gardien d'une ÉQUIPE (FotMob)
+                if c.startswith("GKSAVES"):                 # arrêts du gardien d'une ÉQUIPE -> /fixtures/players
                     gp = c.split()
                     if len(gp) < 4:
                         return None
@@ -1728,8 +1728,8 @@ async def _settle_analyses_impl() -> int:
                         line = float(gp[3])
                     except ValueError:
                         return None
-                    from app import sources as _src
-                    val = await _src.foot_player_stat(d, "", "SAVES", side=gp[1])
+                    from app import apifootball as _af
+                    val = await asyncio.to_thread(_af.player_match_stat, d, "", "SAVES", side=gp[1])
                     if val is None:
                         return None
                     return "push" if val == line else ("won" if ((val > line) == (gp[2] == "OVER")) else "lost")

@@ -199,8 +199,16 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
     return None
 
 
+_ODDS_CACHE: dict = {}      # fixture_id -> (expire_ts, raw_odds) : évite le double `/odds?fixture=`
+_ODDS_TTL = 60              # (sharp_anchor ET unibet_omap tapent le même fixture dans la même passe)
+
+
 def raw_odds(cl: httpx.Client, fixture_id: int) -> dict:
-    """{bookmaker_id: {bet_id: {value_label: cote(float)}}} pour un fixture."""
+    """{bookmaker_id: {bet_id: {value_label: cote(float)}}} pour un fixture. Caché ~60 s : sharp_anchor et
+    unibet_omap lisent le MÊME fixture dans la même passe de scan -> 1 seul appel `/odds` au lieu de 2."""
+    hit = _ODDS_CACHE.get(fixture_id)
+    if hit and hit[0] > time.time():
+        return hit[1]
     out: dict = {}
     for r in _get(cl, "/odds", fixture=fixture_id).get("response", []):
         for bk in r.get("bookmakers", []):
@@ -208,6 +216,7 @@ def raw_odds(cl: httpx.Client, fixture_id: int) -> dict:
             for b in bk.get("bets", []):
                 out.setdefault(bkid, {})[int(b["id"])] = {
                     v["value"]: float(v["odd"]) for v in b.get("values", []) if v.get("odd")}
+    _ODDS_CACHE[fixture_id] = (time.time() + _ODDS_TTL, out)
     return out
 
 
@@ -660,6 +669,106 @@ def first_scorer(d: dict, cl: httpx.Client | None = None) -> str | None:
     if goals is None:
         return None
     return goals[0]["player"] if goals else ""
+
+
+# --- STATS JOUEUR PAR MATCH (`/fixtures/players`) — drop-in de sources.foot_player_stat / player_scored_or_assisted
+#     (remplace le scraping FotMob playerStats pour régler PLAYERFB / GKSAVES / SCOREASSIST). Marchés jamais joués
+#     (bannis combinés, hors Confiance/Value) -> confort de règlement, zéro impact ROI ; un scraper de moins pour le VPS.
+_PLAYER_STAT_PATH = {           # stat analyste -> (catégorie, clé) dans statistics[0] d'API-Football
+    "SAVES": ("goals", "saves"), "ASSISTS": ("goals", "assists"),
+    "SOT": ("shots", "on"), "SHOTS": ("shots", "total"),
+    "TACKLES": ("tackles", "total"), "FOULS": ("fouls", "committed"),
+    "PASSES": ("passes", "total"),
+}
+
+
+def _fixture_players(d: dict, cl: httpx.Client | None = None) -> list | None:
+    """[(side, nom, stats0)] de tous les joueurs d'un match via `/fixtures/players`. None si non résolu /
+    indispo (le règlement re-tentera) ; stats0 = le bloc `statistics[0]` (shots/goals/passes/tackles/...)."""
+    if not configured():
+        return None
+    home, away, start = d.get("home", ""), d.get("away", ""), d.get("start")
+    if not (home and away):
+        return None
+    own = cl is None
+    try:
+        cl = cl or _client()
+        f = resolve_fixture(cl, home, away, start or "", min_score=0.6)
+        if not f:
+            return None
+        resp = _get(cl, "/fixtures/players", fixture=f["id"]).get("response") or []
+    except Exception:
+        return None
+    finally:
+        if own and cl is not None:
+            try:
+                cl.close()
+            except Exception:
+                pass
+    th, ta = f.get("home_id"), f.get("away_id")
+    out = []
+    for block in resp:
+        tid = (block.get("team") or {}).get("id")
+        side = "HOME" if tid == th else "AWAY" if tid == ta else None
+        for p in (block.get("players") or []):
+            nm = (p.get("player") or {}).get("name") or ""
+            st = ((p.get("statistics") or [{}])[0]) or {}
+            out.append((side, nm, st))
+    return out or None
+
+
+def player_match_stat(d: dict, player_query: str, stat: str, side: str | None = None,
+                      cl: httpx.Client | None = None):
+    """Stat OPTA d'un JOUEUR de foot via `/fixtures/players`. `side` (HOME/AWAY) SANS nom -> agrège l'équipe
+    (ex. arrêts du gardien). Nom STRICT sinon (un seul joueur -> valeur ; ambigu/introuvable -> None)."""
+    want = _PLAYER_STAT_PATH.get(stat)
+    players = _fixture_players(d, cl)
+    if not want or players is None:
+        return None
+    from app.sources import _tok as _tk
+    qtok = _tk(player_query) if player_query else set()
+
+    def _val(st):
+        v = (st.get(want[0]) or {}).get(want[1])
+        return v if isinstance(v, (int, float)) else None
+
+    found = []
+    for sd, nm, st in players:
+        if qtok:
+            if not (qtok <= _tk(nm)):
+                continue
+        elif side:
+            if sd != side:
+                continue
+        else:
+            continue
+        v = _val(st)
+        if v is not None:
+            found.append(v)
+    if not found:
+        return None
+    if qtok:
+        return found[0] if len(found) == 1 else None     # nom STRICT : un seul joueur
+    return sum(found)                                     # agrégation équipe (gardien/total)
+
+
+def player_scored_or_assisted(d: dict, player_query: str, cl: httpx.Client | None = None) -> str | None:
+    """« <joueur> marque OU passe décisive » via `/fixtures/players` (goals.total / goals.assists). 'won' si
+    le joueur a marqué ou passé, 'lost' sinon (n'a pas / n'a pas joué), None si indispo -> re-tente."""
+    players = _fixture_players(d, cl)
+    if players is None:
+        return None
+    from app.sources import _tok as _tk
+    qtok = _tk(player_query) if player_query else set()
+    if not qtok:
+        return None
+    for sd, nm, st in players:
+        if qtok <= _tk(nm):
+            g = st.get("goals") or {}
+            got, ast = g.get("total") or 0, g.get("assists") or 0
+            if (isinstance(got, (int, float)) and got >= 1) or (isinstance(ast, (int, float)) and ast >= 1):
+                return "won"
+    return "lost"
 
 
 # --- ENRICHISSEMENT (remplace FotMob / Flashscore / Sportradar) — fixture-scopé, marche sur tous les plans ---
