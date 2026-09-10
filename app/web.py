@@ -316,7 +316,11 @@ CSS = """
      `background-attachment:scroll` (défaut) -> ancrés à la HAUTEUR DE PAGE (différente par onglet) -> le halo
      bas-droite « at 100% 104% » tombait à un endroit différent selon l'onglet = fonds tous différents.
      `attachment:fixed` étant ignoré par iOS Safari, on peint les halos dans un pseudo `position:fixed`. */
-  html::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  /* HAUTEUR CONSTANTE 100vh (user 2026-09-10, jank scroll NAVIGATEUR uniquement) : en `inset:0` ce fond
+     plein écran se REDIMENSIONNAIT à chaque frame quand la barre d'outils Safari s'anime au scroll ->
+     re-peinture du gradient = saccade (absente en PWA, pas de barre). `100vh` = grand viewport CONSTANT
+     (ne suit pas la barre) -> plus de resize, plus de re-paint. Débordement bas invisible (z-index:-1). */
+  html::before{content:"";position:fixed;top:0;left:0;right:0;height:100vh;z-index:-1;pointer-events:none;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
                   radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%)}
   /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
