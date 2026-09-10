@@ -183,6 +183,42 @@ async def _reaudit_scores(max_days: int = 5) -> list:
     return corrected
 
 
+def _flag_defacto_abstentions(max_days: int = 4) -> int:
+    """COHÉRENCE ABSTENTIONS (user 2026-09-10) : marque `abstained=True` les matchs foot RÉGLÉS qui n'ont NI
+    pari mécanique (`stat_bet`) NI jambe de combiné -> un pick brut de Claude non retenu par les sélecteurs =
+    abstention de facto. Sans ça, ces matchs restaient `bets` (pick brut) SANS `stat_bet` ni flag `abstained`
+    (incohérence : 80 sidecars backfillés). ⚠️ Appelé APRÈS le règlement des combinés (jambes connues) pour ne
+    JAMAIS flagger une jambe. ZÉRO impact ROI/affichage (pas de stat_bet -> aucune carte). Idempotent, borné."""
+    import glob
+    from app import combo_daily as _cdm
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_days)).date().isoformat()
+    legs = set()
+    for _variant in ("", "soir", "cote2"):
+        try:
+            for _day, _cb in (_cdm._load("foot", _variant) or {}).items():
+                for _lg in (_cb.get("legs") or []):
+                    legs.add(str(_lg.get("mid")))
+        except Exception:
+            pass
+    n = 0
+    for f in glob.glob(os.path.join(analyses.DIR, "**", "foot_*.json"), recursive=True):
+        try:
+            d = json.load(open(f, encoding="utf-8"))
+        except Exception:
+            continue
+        if (d.get("start") or "")[:10] < cutoff:
+            continue
+        mid = str(d.get("id"))
+        has_res = any(b.get("result") in ("won", "lost", "push") for b in (d.get("bets") or []))
+        if has_res and not analyses.stat_bet(d) and not d.get("abstained") and mid not in legs:
+            d["abstained"] = True
+            tmp = f + ".tmp"
+            json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+            os.replace(tmp, f)
+            n += 1
+    return n
+
+
 async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
     # ⚠️ INVARIANT (user 2026-08-18) : le RÈGLEMENT (étape 1) doit tourner QUOI QU'IL ARRIVE. Les filets
     # AMONT (0 / 0-bis) sont donc chacun isolés dans un try/except : une exception imprévue y est LOGGÉE
@@ -233,6 +269,16 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
             await asyncio.to_thread(_cdr.notify_combos, "foot")
         except Exception as exc:
             print(f"  (Telegram combinés ignoré : {exc})")
+        # COHÉRENCE ABSTENTIONS (user 2026-09-10) : après le règlement (combinés inclus -> jambes connues), on
+        # flag `abstained` les matchs réglés sans pari mécanique ni jambe (pick brut Claude non retenu). ZÉRO
+        # impact ROI/affichage, idempotent, borné aux jours récents (le passé est backfillé).
+        if not dry:
+            try:
+                _nab = await asyncio.to_thread(_flag_defacto_abstentions)
+                if _nab:
+                    print(f"  · {_nab} abstention(s) de facto flaggée(s) (cohérence, hors ROI).")
+            except Exception as exc:
+                print(f"  (flag abstentions de facto ignoré : {exc})")
         # FILET D'AUDIT RÈGLEMENT via API-Football (user 2026-09-09) : après le règlement, compare chaque score
         # réglé RÉCENT au score AUTORITATIF d'API-Football (`/fixtures?date` = 1 appel/jour, dédup `af_audited`).
         # ABSTENTION -> corrige l'affichage (0 ROI) ; PARI JOUÉ / JAMBE COMBINÉ -> ALERTE PRIVÉE owner (ROI en jeu,
