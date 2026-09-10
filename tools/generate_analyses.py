@@ -4352,9 +4352,19 @@ async def main():
                                 if _cp2.apply_to_sidecar(_ab_side) or _vp2.apply_to_sidecar(_ab_side):
                                     _ab_side["abstained"] = False
                                     _mb = _ab_side.get("confidence_bet") or _ab_side.get("value_bet") or {}
+                                    # PUBLICATION du rattrapage (fix 2026-09-10, « je n'ai pas la 2e confiance ») :
+                                    # dans la VAGUE (--refresh-early) la décision est FINALE -> on pose prematch_done
+                                    # + on GÈLE le published_bet, comme tout pari re-vérifié. SANS ça, le bet rattrapé
+                                    # restait confidence_bet-only -> Option B le MASQUAIT (retained_bet None = invisible)
+                                    # alors qu'il était compté en stats. Cas vécu Östersunds 2026-09-10. FORWARD only.
+                                    if args.refresh_early and _mb.get("sel") and not isinstance(_ab_side.get("published_bet"), dict):
+                                        _ab_side["prematch_done"] = True
+                                        _ab_side["published_bet"] = {"sel": _mb.get("sel"), "cote": _mb.get("cote"),
+                                                                     "prob": _mb.get("prob"),
+                                                                     "ts": datetime.now(timezone.utc).isoformat()}
                                     print(f"  🛡️ PARI MÉCANIQUE RATTRAPÉ à l'abstention (omap frais) : "
                                           f"{m.get('name', '?')} -> {_mb.get('sel')} @{_mb.get('cote')} "
-                                          f"(conf {_mb.get('prob')}) — n'était PAS affiché, corrigé.")
+                                          f"(conf {_mb.get('prob')}) — {'PUBLIÉ' if args.refresh_early else 'restauré'}.")
                             except Exception as _rce:
                                 print(f"    (rattrapage pari mécanique ignoré : {_rce})")
                             try:
