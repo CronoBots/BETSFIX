@@ -1436,18 +1436,10 @@ async def _settle_analyses_impl() -> int:
                         if (sport, day) not in sched_cache:
                             sched_cache[(sport, day)] = await _schedule_scores(sport, day)
                         score, _ = _find_score(sched_cache[(sport, day)], d)
-                if not score:                       # repli n°2 : sources GRATUITES (ESPN/FotMob) —
-                    # SofaScore bloqué ne doit plus laisser des paris « en attente » indéfiniment.
-                    # Couvre foot (FotMob), tennis ATP/WTA et basket NBA/WNBA (ESPN) ; les marchés
-                    # stats (cartons/corners/HOLD1/FIRSTTO) restent pour SofaScore.
-                    try:
-                        from app import sources
-                        score = await sources.final_score(sport, d)
-                        if score:
-                            log.info("règlement via %s : %s_%s %s", score.get("src", "alt"),
-                                     sport, d.get("id"), score.get("label"))
-                    except Exception:
-                        score = None
+                # repli FotMob (`sources.final_score`) RETIRÉ du règlement (user 2026-09-10) : FotMob a produit
+                # des scores CORROMPUS (périodes vides -> Liverpool 2-2 au lieu de 2-1, Lille 0-0 au lieu de 2-3).
+                # API-Football (primaire) + SofaScore + LiveScore + Flashscore suffisent. FotMob GARDE ses autres
+                # rôles (blessés/météo/logos), juste plus le scoring. cf. audit apifootball_score_audit.
                 if not score:                       # repli n°3 : LiveScore (JSON propre, 3 sports,
                     # indépendant de SofaScore ; score détaillé mi-temps/quart-temps/sets/tie-breaks).
                     try:
@@ -1631,23 +1623,10 @@ async def _settle_analyses_impl() -> int:
                     score = {**score, "periods": lsc["periods"]}
                     if score.get("sets_home") is None and lsc.get("sets_home") is not None:
                         score["sets_home"], score["sets_away"] = lsc["sets_home"], lsc["sets_away"]
-            if need_periods and not score.get("periods"):
-                # Repli SPORTRADAR (GISMO, gratuit) : `match_info.periods` fournit les jeux par set
-                # (tennis), les points par quart-temps (basket) et les mi-temps (foot) là où LiveScore/
-                # Flashscore échouent -> rend enfin réglables jeux/tie-breaks/sets & quart-temps.
-                try:
-                    from app import sportradar as _sr
-                    import httpx as _httpx
-                    async with _httpx.AsyncClient() as _src_c:
-                        srs = await _sr.final_score(_src_c, sport, d)
-                    if srs and srs.get("periods"):
-                        score = {**score, "periods": srs["periods"]}
-                        if score.get("sets_home") is None and srs.get("sets_home") is not None:
-                            score["sets_home"], score["sets_away"] = srs["sets_home"], srs["sets_away"]
-                        log.info("périodes via sportradar : %s_%s %s",
-                                 sport, d.get("id"), srs.get("label"))
-                except Exception:
-                    pass
+            # Repli SPORTRADAR (périodes) RETIRÉ du règlement (user 2026-09-10) : Sportradar a FABRIQUÉ des
+            # résultats sur des matchs de championnat sud-américains (faux tirs au but 8-9 -> combiné Avaí
+            # faussement gagné). Les périodes viennent d'API-Football (primaire, mi-temps) / LiveScore / Flashscore.
+            # Sportradar GARDE son rôle « séries de pari » (_cool_conf), juste plus le scoring.
 
             # ⚠️ PROLONGATION (demande user 2026-07-12, erreur grave Argentine-Suisse 3-1 réglé « won »
             # alors que le TEMPS RÉGLEMENTAIRE était 1-1) : un match à élimination directe allé aux
@@ -1657,25 +1636,32 @@ async def _settle_analyses_impl() -> int:
             # (fin 90 min) de `ot` (final). Pour le FOOT, on consulte Sportradar : s'il signale une
             # prolongation, on ÉCRASE home/away + winner + périodes par le RÉGLEMENTAIRE (vérité 90 min).
             if sport == "foot" and score and score.get("src") != "apifootball":   # API-Foot donne déjà le reg
+                # PROLONGATION -> régler les marchés 90 min au TEMPS RÉGLEMENTAIRE (bug grave Argentine-Suisse
+                # 3-1 réglé « won » alors que le reg était 1-1). Source = API-Football (`score.fulltime` séparé
+                # de `goals`). Sportradar RETIRÉ du règlement (user 2026-09-10 : il FABRIQUAIT des prolongations/
+                # tirs au but sur des matchs de championnat -> Avaí 8-9). Best-effort : si API-Football ne résout
+                # pas (cas très rare, sinon il aurait réglé en primaire), le score du repli reste tel quel.
                 try:
-                    from app import sportradar as _sr2
-                    import httpx as _httpx2
-                    async with _httpx2.AsyncClient() as _c2:
-                        _reg = await _sr2.final_score(_c2, sport, d)
-                    if _reg and _reg.get("after_extra") and _reg.get("home") is not None:
-                        _fh, _fa = _reg.get("final_home"), _reg.get("final_away")
-                        score = {**score, "home": _reg["home"], "away": _reg["away"],
-                                 "winner": _reg.get("winner"),
-                                 "periods": _reg.get("periods") or score.get("periods"),
-                                 "after_extra": True, "reg_home": _reg["home"], "reg_away": _reg["away"],
-                                 "reg_periods": _reg.get("periods"),
-                                 "final_home": _fh, "final_away": _fa, "src": "sportradar(reg)",
-                                 # AFFICHAGE : on montre le score FINAL réel avec le marqueur (a.p.) ; le
-                                 # RÈGLEMENT (home/away/périodes ci-dessus) reste sur le temps réglementaire.
-                                 "label": (f"{_fh}-{_fa} (a.p.)" if _fh is not None else _reg.get("label"))}
-                        log.info("règlement TEMPS RÉGLEMENTAIRE (prolongation détectée) via sportradar : "
-                                 "%s_%s reg=%s-%s (final %s-%s)", sport, d.get("id"),
-                                 _reg.get("home"), _reg.get("away"), _fh, _fa)
+                    from app import apifootball as _AF
+                    if _AF.configured():
+                        with _AF._client() as _afc:
+                            _f = _AF.resolve_fixture(_afc, d.get("home", ""), d.get("away", ""),
+                                                     d.get("start") or "", min_score=0.6)
+                            _ms = _AF.match_state(_afc, _f["id"]) if _f else None
+                        if _ms and _ms.get("finished"):
+                            _rg, _gl = _ms.get("reg") or {}, _ms.get("goals") or {}
+                            _rh, _ra = _rg.get("home"), _rg.get("away")
+                            _fh, _fa = _gl.get("home"), _gl.get("away")
+                            # prolongation détectée = score FINAL (goals, incl. prolong.) != TEMPS RÉGLEMENTAIRE
+                            if _rh is not None and _ra is not None and (_fh, _fa) != (_rh, _ra):
+                                _win = "home" if _rh > _ra else ("away" if _ra > _rh else "draw")
+                                score = {**score, "home": _rh, "away": _ra, "winner": _win,
+                                         "after_extra": True, "reg_home": _rh, "reg_away": _ra,
+                                         "final_home": _fh, "final_away": _fa, "src": "apifootball(reg)",
+                                         # AFFICHAGE : score FINAL réel + « (a.p.) » ; RÈGLEMENT sur home/away = reg.
+                                         "label": f"{_fh}-{_fa} (a.p.)"}
+                                log.info("règlement TEMPS RÉGLEMENTAIRE (prolongation) via API-Football : "
+                                         "%s_%s reg=%s-%s (final %s-%s)", sport, d.get("id"), _rh, _ra, _fh, _fa)
                 except Exception:
                     pass
 

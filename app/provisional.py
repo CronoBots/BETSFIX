@@ -302,32 +302,9 @@ def settle_pending() -> int:
                     livescore.final_score(sport, q)
             except Exception:
                 score = None
-        # Repli SPORTRADAR (GISMO) : score DÉTAILLÉ par set/quart-temps/mi-temps (jeux tennis, points
-        # basket) que Flashscore/LiveScore ne donnent souvent pas -> rend réglables TOTGAMES/SETGAMES/
-        # tie-breaks/mi-temps (bug 2026-07-12 : provisoire tennis « Total de jeux » resté en attente car
-        # settle_pending n'interrogeait QUE Flashscore/LiveScore, sans les périodes Sportradar). Aligne le
-        # chemin provisoire sur la chaîne de règlement principale (qui a déjà ce repli).
-        if not score or not score.get("periods"):
-            try:
-                import asyncio
-                import httpx
-                from app import sportradar
-
-                async def _sr_score():
-                    async with httpx.AsyncClient(timeout=20) as _c:
-                        return await sportradar.final_score(_c, sport, q)
-                srs = asyncio.run(_sr_score())
-                if srs and (srs.get("periods") or srs.get("label")):
-                    if not score:
-                        score = srs
-                    else:                          # complète les périodes manquantes, garde le reste
-                        score = {**score, "periods": srs.get("periods") or score.get("periods"),
-                                 "sets_home": score.get("sets_home") if score.get("sets_home") is not None
-                                 else srs.get("sets_home"),
-                                 "sets_away": score.get("sets_away") if score.get("sets_away") is not None
-                                 else srs.get("sets_away")}
-            except Exception:
-                pass
+        # Repli SPORTRADAR RETIRÉ du règlement (user 2026-09-10, comme settle_analyst/combo_daily) : Sportradar
+        # fabriquait des scores/prolongations sur des matchs de championnat. API-Football (primaire) + Flashscore
+        # + LiveScore couvrent le règlement. (Provisoires de toute façon retirés, PROVISOIRES_ON=False.)
         if not score:
             # VOID « ultime recours » (aligné settle_analyses / void_exhausted_shadows) : match fini DEPUIS
             # LONGTEMPS mais AUCUN score nulle part = reporté/annulé/donnée morte -> on clôt en `void` (neutre,

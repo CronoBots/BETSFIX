@@ -793,23 +793,9 @@ def settle_pending(sport: str = "foot", variant: str = "") -> int:
                         livescore.final_score(leg.get("sport"), q)
                 except Exception:
                     score = None
-            if _leg_done and (not score or not score.get("periods")):
-                # Repli SPORTRADAR (GISMO) : score final + périodes détaillées que Flashscore/LiveScore
-                # ne donnent pas toujours (et matching de nom brésilien corrigé côté sportradar). Aligne le
-                # règlement du combiné du jour sur les autres chemins de règlement.
-                try:
-                    import asyncio
-                    import httpx
-                    from app import sportradar
-
-                    async def _sr_score():
-                        async with httpx.AsyncClient(timeout=20) as _c:
-                            return await sportradar.final_score(_c, leg.get("sport"), q)
-                    srs = asyncio.run(_sr_score())
-                    if srs and (srs.get("periods") or srs.get("label")):
-                        score = srs if not score else {**score, "periods": srs.get("periods") or score.get("periods")}
-                except Exception:
-                    pass
+            # Repli SPORTRADAR RETIRÉ du règlement (user 2026-09-10) : Sportradar FABRIQUAIT des scores/tirs au
+            # but sur des matchs de championnat sud-américains (Avaí 8-9 -> jambe faussement gagnée). Le score +
+            # périodes viennent d'API-Football (primaire) / Flashscore / LiveScore. Sportradar garde les séries.
             if not score:
                 continue                              # pas de score final fiable -> on retente (borné plus bas)
             # CODE RE-DÉRIVÉ du LIBELLÉ (jamais le code STOCKÉ, qui peut être périmé/faux — cf. mémoire
