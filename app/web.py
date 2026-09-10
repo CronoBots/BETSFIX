@@ -2398,7 +2398,7 @@ CSS = """
   /* Combiné : bordure BLANCHE (3 côtés) comme les autres paris — le bord GAUCHE reste coloré par l'état
      (mc-r-*, doré par défaut). Demande user 2026-07-25 (« les combinés sont toujours en vert »). */
   .row.mc.mc-tg-gold{
-       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
+       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 24px rgba(34,184,255,.42),0 12px 32px rgba(0,0,0,.5)}   /* HALO cyan (user 2026-09-10) : cohérent avec cartes simples + cadres stats (avant : glow blanc) */
   .row.mc.mc-tg-gold.mc-r-won{border-color:var(--st-won)}
   .row.mc.mc-tg-gold.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-tg-gold.mc-r-push{border-color:var(--st-void)}
@@ -2449,7 +2449,8 @@ CSS = """
      de pari simple — en-tête SPORT • match, le pari en gras, l'explication en clair (gloss ↳), la COTE à
      droite, bord gauche coloré par état + badge. Idem en live (badge 🟢 + tableau de score). */
   .cleg{background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);border:1px solid var(--st-soon);position:relative;overflow:hidden;   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
-       border-radius:12px;padding:11px 12px 10px}   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
+       border-radius:12px;padding:11px 12px 10px;
+       box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO cyan = même que les cartes/cadres stats (user 2026-09-10) */
   /* FILIGRANE logo (user 2026-09-06) sur CHAQUE jambe de combiné / carte-jambe : pour les combinés le logo vit
      dans le cadre des JAMBES (pas sur le cadre global doré, cf. .mc-tg-gold::before neutralisé). */
   /* Filigrane CENTRÉ verticalement dans le cadre REPLIÉ (user 2026-09-06) : `top:0;bottom:0` couvre toute la
