@@ -2256,9 +2256,9 @@ CSS = """
   /* TOUTES les cartes de pari : bordure BLANCHE + bord GAUCHE coloré selon le RÉSULTAT (demande user
      2026-07-25). Par défaut (à venir / en attente) = doré ; gagné = vert ; perdu = rouge ; live = doré ;
      remboursé/annulé = gris. L'état est posé via la classe `mc-r-*` (helper `_card_state_cls`). */
-  .row.mc.mc-tg{background:#12212f;
+  .row.mc.mc-tg{background:transparent;   /* TRANSPARENT (user 2026-09-10) : les jambes montrent la PAGE (comme les cartes simples), plus le teal #12212f */
        border:1px solid var(--st-soon);   /* bord gauche UNIFORME (user 2026-08-17 : plus de 3px à gauche) */
-       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 26px rgba(255,255,255,.18),0 12px 32px rgba(0,0,0,.5)}
+       box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 24px rgba(34,184,255,.42),0 12px 32px rgba(0,0,0,.5)}   /* halo cyan cohérent */
   .row.mc.mc-tg.mc-r-won{border-color:var(--st-won)}
   .row.mc.mc-tg.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-tg.mc-r-push{border-color:var(--st-void)}
