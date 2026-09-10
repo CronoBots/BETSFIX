@@ -82,54 +82,7 @@ def test_bb_team_rows_par_jetons():
 
 
 # ------------------------------------------------------------------ règlement de secours
-def test_fm_score_oriente_et_filtre_les_non_finis():
-    m = {"status": {"finished": True},
-         "home": {"name": "South Korea", "score": 2}, "away": {"name": "Czechia", "score": 1}}
-    sc = sources._fm_score_from_match(m, "Corée du Sud", "Tchéquie")
-    assert sc and sc["home"] == 2 and sc["away"] == 1 and sc["label"] == "2-1"
-    # sidecar inversé par rapport à FotMob -> scores retournés
-    sc = sources._fm_score_from_match(m, "Tchéquie", "Corée du Sud")
-    assert sc and sc["home"] == 1 and sc["away"] == 2
-    # pas fini -> None ; mauvaises équipes -> None
-    assert sources._fm_score_from_match({**m, "status": {}}, "Corée du Sud", "Tchéquie") is None
-    assert sources._fm_score_from_match(m, "Mexique", "Canada") is None
-
-
-def test_bb_score_from_event_quarts_et_orientation():
-    ev = {"competitions": [{
-        "status": {"type": {"name": "STATUS_FINAL"}},
-        "competitors": [
-            {"team": {"displayName": "Indiana Fever"}, "score": "114",
-             "linescores": [{"value": 30}, {"value": 25}, {"value": 28}, {"value": 21}, {"value": 10}]},
-            {"team": {"displayName": "Chicago Sky"}, "score": "106",
-             "linescores": [{"value": 28}, {"value": 27}, {"value": 26}, {"value": 15}, {"value": 10}]},
-        ]}]}
-    sc = sources._bb_score_from_event(ev, "Indiana Fever (F)", "Chicago Sky (F)")
-    assert sc and sc["home"] == 114 and sc["away"] == 106
-    assert sc["periods"][1] == (30, 28) and len(sc["periods"]) == 5   # 4 QT + prolongation
-    # match pas fini -> None
-    ev2 = {"competitions": [{"status": {"type": {"name": "STATUS_IN_PROGRESS"}},
-                             "competitors": ev["competitions"][0]["competitors"]}]}
-    assert sources._bb_score_from_event(ev2, "Indiana Fever (F)", "Chicago Sky (F)") is None
-
-
-def test_tennis_score_from_comp_sets_et_jeux():
-    cps = [
-        {"athlete": {"displayName": "Tatjana Maria"},
-         "linescores": [{"value": 6}, {"value": 3}]},
-        {"athlete": {"displayName": "Maria Sakkari"},
-         "linescores": [{"value": 3}, {"value": 6}]},
-    ]
-    # Maria gagne... non : 6-3 / 3-6 -> 1 set partout = pas de vainqueur lisible -> None
-    assert sources._tennis_score_from_comp(cps, "Tatjana Maria", "Maria Sakkari") is None
-    cps[0]["linescores"].append({"value": 6})
-    cps[1]["linescores"].append({"value": 2})
-    sc = sources._tennis_score_from_comp(cps, "Tatjana Maria", "Maria Sakkari")
-    assert sc and sc["sets_home"] == 2 and sc["sets_away"] == 1
-    assert sc["label"] == "2-1 (sets)" and sc["periods"][3] == (6, 2)
-    # orientation inversée (le sidecar a Sakkari en home)
-    sc = sources._tennis_score_from_comp(cps, "Maria Sakkari", "Tatjana Maria")
-    assert sc and sc["sets_home"] == 1 and sc["sets_away"] == 2
+# (tests des parsers de score FotMob/ESPN/tennis RETIRÉS 2026-09-10 : scoring migré sur API-Football)
 
 
 def test_parse_bets_ignore_les_notes_sans_cote_ni_proba():

@@ -464,83 +464,8 @@ async def match_stats(client, sport: str, home: str, away: str, start: str) -> d
         return None
 
 
-async def final_score(client, sport: str, match: dict) -> dict | None:
-    """Score final DÉTAILLÉ par PÉRIODES via GISMO `match_info` — comble le trou que LiveScore/
-    Flashscore laissent souvent (jeux par set tennis, points par quart-temps basket, mi-temps foot).
-
-    Renvoie le format attendu par `settle_analyst.settle_pick` :
-      {home, away, sets_home, sets_away, periods:{n:(h,a)}, winner, label, src} — ou None.
-    - **tennis** : `periods[n]` = (jeux domicile, jeux extérieur) du set n ; `sets_home/away` = sets gagnés.
-    - **basket** : `periods[n]` = (points, points) du quart-temps n ; `home/away` = score final.
-    - **foot**   : `periods[1]`/`periods[2]` = score de chaque mi-temps.
-    Tolérant : toute panne réseau / match non fini -> None (ne casse jamais un règlement).
-    """
-    try:
-        mid = await _resolve(client, sport, match.get("home", ""), match.get("away", ""),
-                             match.get("start", ""))
-        if not mid:
-            return None
-        m = await _info(client, mid)
-        if not m:
-            return None
-        res = m.get("result") or {}
-        praw = m.get("periods") or {}
-        _short = str((m.get("status") or {}).get("shortName", "")).upper()
-        # « TERMINÉ » RÉEL : période full-time (`ft`) présente OU statut fini (FIN / après prol. / pénalties /
-        # abandon / forfait / abandon tennis). NE JAMAIS se fier au seul `winner` -> une équipe qui MÈNE EN
-        # DIRECT a déjà un `winner` provisoire (bug grave vécu : Atlético-GO réglé en pleine 2e mi-temps).
-        # cf. mémoire settle-never-on-live-score.
-        finished = ("ft" in praw) or _short in ("FIN", "AET", "AP", "APR", "PEN", "AAB", "AWO", "WO", "RET")
-        if not finished:
-            return None                       # match encore en cours -> pas de score final
-        periods: dict[int, tuple] = {}
-        for k, v in praw.items():
-            mo = re.match(r"p(\d+)$", str(k))  # p1, p2, … (ignore 'ft', 'ap', 'pen'…)
-            if not mo or not isinstance(v, dict):
-                continue
-            h, a = v.get("home"), v.get("away")
-            if h is None or a is None:
-                continue
-            periods[int(mo.group(1))] = (h, a)
-
-        def _pt(key):
-            v = praw.get(key)
-            return (v.get("home"), v.get("away")) if isinstance(v, dict) \
-                and v.get("home") is not None and v.get("away") is not None else None
-
-        rh, ra = res.get("home"), res.get("away")   # score FINAL (prolongation incluse si AP)
-        if sport == "foot":
-            # ⚠️ TEMPS RÉGLEMENTAIRE vs PROLONGATION : les marchés standards (1X2, over/under, mi-temps,
-            # REGTIME…) se règlent sur les 90 MIN, JAMAIS sur la prolongation. GISMO donne `ft` (fin du temps
-            # réglementaire) et `ot` (fin de la prolongation). Si le match est allé aux prolongations, on
-            # RÈGLE sur `ft` (le score final `res` = ot serait faux pour tout marché 90 min). Périodes
-            # réglementaires : 1re MT = p1, 2e MT = ft − p1 (exclut les buts de prolongation).
-            _ft, _ot, _p1 = _pt("ft"), _pt("ot"), _pt("p1") or periods.get(1)
-            _short = str((m.get("status") or {}).get("shortName", "")).upper()
-            after_extra = _ot is not None or _short in ("AP", "APR", "AET", "PEN", "PENALTIES")
-            reg = _ft or ((rh, ra) if not after_extra else None)   # score réglementaire (90 min)
-            if reg is not None:
-                rh, ra = reg                                       # home/away = RÉGLEMENTAIRE
-                if _p1 is not None:                                # périodes réglementaires (excl. prolongation)
-                    periods = {1: _p1, 2: (reg[0] - _p1[0], reg[1] - _p1[1])}
-            out = {"periods": periods, "src": "sportradar",
-                   "after_extra": after_extra, "final_home": res.get("home"), "final_away": res.get("away"),
-                   "winner": ("home" if rh > ra else ("away" if ra > rh else "draw")) if rh is not None else None,
-                   "home": rh, "away": ra, "sets_home": None, "sets_away": None,
-                   "label": f"{rh}-{ra}" if rh is not None else None}
-            return out
-        out = {"periods": periods, "winner": res.get("winner"),
-               "src": "sportradar", "label": f"{rh}-{ra}" if rh is not None else None}
-        if sport == "tennis":
-            # `retired` -> le règlement accepte un score de sets INCOMPLET (1-0) UNIQUEMENT sur abandon/forfait
-            # (RET/WO), pas sur un match suspendu (garde tennis suspendu, cf. settle_analyst 2026-08-03).
-            out.update({"home": None, "away": None, "sets_home": rh, "sets_away": ra,
-                        "retired": _short in ("RET", "WO", "AWO", "AAB")})
-        else:                                  # basket : score en points
-            out.update({"home": rh, "away": ra, "sets_home": None, "sets_away": None})
-        return out
-    except Exception:
-        return None
+# `final_score` RETIRÉ 2026-09-10 : Sportradar plus utilisé pour le RÈGLEMENT (fabriquait des scores/
+# prolongations sur des matchs de championnat). Sportradar garde `block`/`facts` (séries de pari -> _cool_conf).
 
 
 async def gismo(client, endpoint: str, ident) -> dict | list | None:
