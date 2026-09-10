@@ -762,29 +762,12 @@ def enrich_facts(cl: httpx.Client, home: str, away: str, ko_iso: str) -> tuple[l
             facts.append("H2H (5 derniers) : " + " · ".join(x["score"] for x in hh) + " (API-Football)")
             cov["h2h"] = True
 
-    pr = predictions(cl, fid)
-    if pr:
-        # Le % BRUT API-Football est souvent DÉGÉNÉRÉ (0/50/50, somme ≠ 100 — cf. Napoli-Arsenal, et le value
-        # screener « probas Poisson plates/fausses »). On ne l'injecte QUE s'il est SAIN (home>0 & somme ~100),
-        # sinon on tromperait Claude. Le `advice` (lisible) et les buts attendus restent utiles quand présents.
-        def _pi(x):
-            try:
-                return int(str(x).replace("%", "").strip())
-            except (ValueError, TypeError):
-                return None
-        pc = pr.get("percent") or {}
-        ph, pd, pa = _pi(pc.get("home")), _pi(pc.get("draw")), _pi(pc.get("away"))
-        bits = []
-        if ph and pd and pa and 90 <= ph + pd + pa <= 110:   # les 3 > 0 (0% = sortie dégénérée -> on jette)
-            bits.append(f"{home} {ph}% / nul {pd}% / {away} {pa}%")
-        # (champ `goals` d'API-Football = ligne over/under cryptique « -1.5 », PAS un xG -> non injecté,
-        #  l'`advice` porte déjà l'info buts si pertinente.)
-        if pr.get("advice"):
-            bits.append(f"conseil « {pr['advice']} »")
-        if bits:
-            facts.append("Prédiction API-Football (modèle maison, INDICATIF — pas l'ancre sharp) : "
-                         + " · ".join(bits))
-            cov["predictions"] = True
+    # PRÉDICTION `/predictions` NON INJECTÉE dans le dossier Claude (décision user 2026-09-10) : c'est un
+    # MODÈLE MAISON FAIBLE d'API-Football (win% relatif au championnat) qui DÉGÉNÈRE sur tout match
+    # inter-championnat (0%/50/50 en Ligue des Champions — axes forme/att/def/poisson tous à 0% faute de table
+    # commune) et n'apporte RIEN que Claude n'ait déjà en plus fiable (forme/xG/H2H/classement/blessés BRUTS,
+    # dont il tire son PROPRE jugement = la moat). L'injecter = risque d'ANCRAGE sur du bruit (value screener :
+    # « Poisson = bruit »). La fonction predictions() reste dispo pour le shadow/analyse, juste pas dans les faits.
 
     if lid and season:
         rk = {r["team_id"]: r for r in standings(cl, lid, season)}
