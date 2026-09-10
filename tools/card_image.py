@@ -537,50 +537,7 @@ _CSS_MIN = """
 
 # THÈMES fond+contour de la carte d'annonce (user 2026-09-08). Chaque thème = (bordure, dégradé de fond,
 # lueur interne, couleur du filet sous la ligue). Choisi via d["_theme"] ; défaut « gold ».
-_MIN_THEMES = {
-    "gold":    ("#f6c54a", "radial-gradient(135% 155% at 50% -25%, #17222f 0%, #0e131c 52%, #090d14 100%)",
-                "rgba(246,197,74,.05)", "#f6c54a"),
-    "cyan":    ("#2ea6df", "radial-gradient(135% 155% at 50% -25%, #142838 0%, #0c141d 54%, #080d13 100%)",
-                "rgba(46,166,223,.08)", "#33b7ef"),
-    "noir":    ("rgba(246,197,74,.55)", "radial-gradient(140% 150% at 50% -20%, #12161d 0%, #0a0d13 55%, #05070b 100%)",
-                "rgba(246,197,74,.035)", "rgba(246,197,74,.75)"),
-}
-
-
-def _minimal_card_html(d: dict) -> str:
-    """Carte MINIMALE d'annonce façon « Prochains lives » mais thème « 100% pro » (user 2026-09-08) : ligue
-    centrée + filet + logos des 2 équipes + heure de coup d'envoi au centre + signature discrète. PAS de
-    pari/barre/verdict/filigrane (le pari/cote/tier vivent dans la LÉGENDE texte sous l'image). FOND + CONTOUR
-    pilotés par le thème `d["_theme"]` (gold/cyan/noir). Réutilise `_team_logo_html`."""
-    def e(x):
-        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    home, away = str(d.get("home") or ""), str(d.get("away") or "")
-    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
-    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
-    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
-    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
-    _bd, _bg, _glow, _rule = _MIN_THEMES.get(str(d.get("_theme") or "gold"), _MIN_THEMES["gold"])
-    _cstyle = (f'border-color:{_bd};background:{_bg};'
-               f'box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 100px {_glow}')
-    _mid = (f'<span class="mko">Coup d\'envoi</span><span class="mtime">{e(_hh)}</span>'
-            if _hh else '<span class="mvs">VS</span>')
-    # BLOC PARI À JOUER (user 2026-09-08 : sur la carte) = le PARI SEUL (la cote + 🎯 sont dans la LÉGENDE).
-    _bet = ""
-    if d.get("show_pari") and d.get("pick"):
-        _bet = f'<div class="mbet"><div class="mpari">{e(_strip_dc_paren(d.get("pick")))}</div></div>'
-    inner = (
-        f'<div class="mlg">{e(_lg)}</div>'
-        f'<div class="mrule" style="background:linear-gradient(90deg,transparent,{_rule},transparent)"></div>'
-        f'<div class="mrow">'
-        f'<div class="mtm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="mtn">{e(home)}</span></div>'
-        f'<div class="mmid">{_mid}</div>'
-        f'<div class="mtm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="mtn">{e(away)}</span></div>'
-        f'</div>'
-        f'{_bet}'
-        f'<div class="mbrand">BETSFIX</div>')
-    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}{_CSS_MIN}</style></head>"
-            f'<body><div class="card scard mcard" style="{_cstyle}">{inner}</div></body></html>')
-
+# (_MIN_THEMES + _minimal_card_html RETIRÉS 2026-09-10 : carte minimale = dead code jamais déclenché)
 
 def _combo_card_html(d: dict) -> str:
     """Carte COMBINÉ (user 2026-08-18) : signature « COMBINÉ », puis CHAQUE jambe rendue EXACTEMENT comme une
@@ -641,9 +598,7 @@ def _combo_card_html(d: dict) -> str:
 
 def _card_html(d: dict) -> str:
     if d.get("type") == "simple":                       # PARI SIMPLE
-        if d.get("minimal"):                            # ANNONCE : carte MINIMALE « Prochains lives » (user 2026-09-08)
-            return _minimal_card_html(d)
-        return _simple_card_html(d)                     # (repli) design SITE complet (user 2026-08-17)
+        return _simple_card_html(d)                     # design SITE complet (user 2026-08-17)
     if d.get("type") == "result" and d.get("simple") and not d.get("combo"):   # RÉSULTAT simple : design site
         return _result_simple_card_html(d)
     # COMBINÉ nouveau design (jambes = dicts) : prono OU résultat -> carte site dédiée (user 2026-08-18).
