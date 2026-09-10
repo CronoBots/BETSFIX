@@ -908,7 +908,8 @@ CSS = """
      bordure UNIFORME 1px (user 2026-08-17 : plus de bord gauche épais), TOUS les côtés à la même teinte. */
   .row.mc{padding:0;margin:7px 0;overflow:hidden;position:relative;
        background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);   /* GLOW halo comme le graphe ROI (user 2026-09-10) : lumière cyan douce, cohérente quelle que soit la position de scroll */
-       border:1px solid var(--st-soon)}
+       border:1px solid var(--st-soon);
+       box-shadow:0 0 26px rgba(34,184,255,.20),var(--shadow-sm)}   /* HALO AUTOUR = MÊME que les cadres stats .sx-hero (user 2026-09-10) */
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
   .row.mc::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
