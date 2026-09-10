@@ -947,7 +947,7 @@ CSS = """
        color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
   /* BOUTON « HAUT DE PAGE » (user 2026-09-06) : coin bas-DROITE, au-dessus de la nav, style du site (dégradé
      accent). Apparaît après un peu de scroll. */
-  #bfx-totop{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:60;
+  #bfx-totop{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:90;
        width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);
        background:rgba(26,34,50,.5);color:#cfe0f5;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
        font-size:20px;font-weight:800;line-height:1;display:none;align-items:center;justify-content:center;
@@ -4644,28 +4644,35 @@ _BELL_JS = (
 _TOTOP_HTML = '<button id="bfx-totop" type="button" aria-label="Haut de page">↑</button>'
 _TOTOP_JS = (
     "(function(){"
-    # ROBUSTE (user 2026-09-07 : « ne fonctionne toujours pas ») : on ne DEVINE plus quel élément défile —
-    # selon la plateforme c'est le document (mobile PWA : body min-height:100dvh, #panels sans overflow-y) OU
-    # un conteneur (#panels/panel actif sur desktop). On agit donc sur TOUS les candidats à chaque frame.
-    "function els(){var a=[document.scrollingElement||document.documentElement,document.body,"
-    "document.getElementById('panels'),document.querySelector('#panels .panel.on')];"
-    "var o=[],i;for(i=0;i<a.length;i++){if(a[i]&&o.indexOf(a[i])<0)o.push(a[i]);}return o;}"
-    "function cur(){var y=window.scrollY||window.pageYOffset||0,l=els(),i;"
-    "for(i=0;i<l.length;i++){if(l[i].scrollTop>y)y=l[i].scrollTop;}return y;}"
-    # window.scrollTo({behavior:'smooth'}) est SILENCIEUSEMENT ignoré en PWA iOS standalone -> rAF manuel.
-    "function setAll(y){try{window.scrollTo(0,y);}catch(e){}var l=els(),i;"
-    "for(i=0;i<l.length;i++){try{l[i].scrollTop=y;}catch(e){}}}"
-    "function toTop(){var start=cur();if(start<=0){setAll(0);return;}"
+    # user « ne fonctionne TOUJOURS pas » (3e report) : le vrai problème n'était PAS le scroll (si le bouton
+    # s'affiche, la position EST détectée) mais le CLIC. En PWA iOS standalone, le clic sur un bouton
+    # position:fixed peut ne pas remonter, ET un handler bulle sur document peut être avalé par un listener
+    # CAPTURE déclaré avant (ex. box preview). FIX : handler en CAPTURE + touchend (le clic ne peut plus être
+    # ni raté ni avalé) + RESET bulletproof = on scanne au clic TOUS les éléments réellement défilés (peu
+    # importe le conteneur selon la plateforme) au lieu de deviner une liste fixe.
+    "function wy(){return window.scrollY||window.pageYOffset||0;}"
+    "function scrolled(){var o=[],i,el,all=document.getElementsByTagName('*');"
+    "var d=document.scrollingElement||document.documentElement;"
+    "if(wy()>0)o.push(window);if(d&&d.scrollTop>0)o.push(d);"
+    "if(document.body&&document.body.scrollTop>0&&o.indexOf(document.body)<0)o.push(document.body);"
+    "for(i=0;i<all.length;i++){el=all[i];if(el.scrollTop>0&&o.indexOf(el)<0)o.push(el);}return o;}"
+    "function setY(el,y){if(el===window){try{window.scrollTo(0,y);}catch(e){}}else{try{el.scrollTop=y;}catch(e){}}}"
+    "function maxY(l){var y=0,i,v;for(i=0;i<l.length;i++){v=(l[i]===window)?wy():(l[i].scrollTop||0);if(v>y)y=v;}return y;}"
+    # window.scrollTo({behavior:'smooth'}) est SILENCIEUSEMENT ignoré en PWA iOS -> rAF manuel sur les cibles.
+    "function toTop(){var t=scrolled();if(!t.length)return;var start=maxY(t);if(start<=0)return;"
     "var t0=null,dur=Math.min(600,Math.max(220,start*0.6));"
-    "function step(ts){if(t0===null)t0=ts;var p=Math.min(1,(ts-t0)/dur);"
-    "var e=1-Math.pow(1-p,3);setAll(Math.round(start*(1-e)));"
-    "if(p<1)requestAnimationFrame(step);else setAll(0);}requestAnimationFrame(step);}"
-    # Handler DÉLÉGUÉ (survit aux remplacements SPA du bouton) + visibilité en CAPTURE (le scroll d'un
-    # conteneur enfant ne BULLE pas -> un listener non-capture sur window le raterait).
-    "document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#bfx-totop');"
-    "if(!b)return;e.preventDefault();toTop();});"
-    "function upd(){var b=document.getElementById('bfx-totop');if(b)b.classList.toggle('show',cur()>300);}"
+    "function step(ts){if(t0===null)t0=ts;var p=Math.min(1,(ts-t0)/dur),e=1-Math.pow(1-p,3),y=Math.round(start*(1-e)),i;"
+    "for(i=0;i<t.length;i++)setY(t[i],y);if(p<1)requestAnimationFrame(step);else for(i=0;i<t.length;i++)setY(t[i],0);}"
+    "requestAnimationFrame(step);}"
+    "function onTap(e){var b=e.target&&e.target.closest&&e.target.closest('#bfx-totop');if(!b)return;e.preventDefault();toTop();}"
+    "document.addEventListener('click',onTap,true);"      # CAPTURE : rien ne peut l'avaler
+    "document.addEventListener('touchend',onTap,true);"   # PWA iOS : le tap sur bouton fixe
+    # visibilité : candidats CHEAP (pas de scan complet à chaque scroll)
+    "function cy(){var y=wy(),c=[document.scrollingElement,document.body,document.getElementById('panels'),"
+    "document.querySelector('#panels .panel.on')],i;for(i=0;i<c.length;i++){if(c[i]&&c[i].scrollTop>y)y=c[i].scrollTop;}return y;}"
+    "function upd(){var b=document.getElementById('bfx-totop');if(b)b.classList.toggle('show',cy()>300);}"
     "window.addEventListener('scroll',upd,{passive:true,capture:true});"
+    "document.addEventListener('scroll',upd,{passive:true,capture:true});"
     "if(document.readyState!=='loading')upd();else document.addEventListener('DOMContentLoaded',upd);})();"
 )
 
