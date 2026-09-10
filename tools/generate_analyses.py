@@ -1619,65 +1619,18 @@ async def _resolve_sofa_search(sport: str, match: dict, day: str, mh: set, ma: s
     return best[1] if best else None
 
 
-async def _tennis_extras(client: httpx.AsyncClient, sofa_id: str, home: str, away: str):
-    """Données SofaScore TENNIS pour le dossier : classement ATP/WTA + écart, surface (et son poids),
-    H2H, votes. (La forme via /events/last est bloquée 403 -> on s'appuie sur le web pour ça.)"""
-    from app import sofa_http
-    base = "https://api.sofascore.com/api/v1"
-    try:
-        r = await sofa_http.get(f"{base}/event/{sofa_id}")
-        ev = (r.json() or {}).get("event") or {} if r.status_code == 200 else {}
-    except Exception:
-        ev = {}
-    ht, at = ev.get("homeTeam") or {}, ev.get("awayTeam") or {}
-    rh, ra = ht.get("ranking"), at.get("ranking")
-    surface = ev.get("groundType") or (ev.get("tournament") or {}).get("groundType")
-    tour = (ev.get("tournament") or {}).get("name")
-    # CIRCUIT (WTA/ATP) : catégorie du tournoi si explicite, sinon GENRE des joueurs (M->ATP, F->WTA).
-    cat = (((ev.get("tournament") or {}).get("category") or {}).get("name") or "").upper()
-    g = (ht.get("gender") or at.get("gender") or "").upper()
-    circuit = ("WTA" if "WTA" in cat else "ATP" if "ATP" in cat
-               else "WTA" if g == "F" else "ATP" if g == "M" else "")
-    await asyncio.sleep(SOFA_GAP)
-    hw = aw = None
-    try:
-        h = await sofa_http.get(f"{base}/event/{sofa_id}/h2h")
-        td = (h.json() or {}).get("teamDuel") or {} if h.status_code == 200 else {}
-        hw, aw = td.get("homeWins"), td.get("awayWins")
-    except Exception:
-        pass
-    votes = await _fetch_votes(client, "tennis", sofa_id)
-    facts, sx = [], {}
-    if circuit:
-        sx["circuit"] = circuit
-    if rh or ra:
-        facts.append(f"Classement officiel : {home} #{rh or '?'} vs {away} #{ra or '?'}")
-    if surface:
-        facts.append(f"Surface : {surface} (le bilan SUR cette surface prime — vérifie-le sur le web)")
-    if tour:
-        facts.append(f"Tournoi : {tour}")
-    if hw is not None and aw is not None and (hw or aw):
-        facts.append(f"H2H (confrontations directes) : {home} {hw}-{aw} {away}")
-        sx["h2h"] = {"home_wins": hw, "away_wins": aw, "draws": 0}
-    if votes and votes[0] is not None:
-        facts.append(f"Sentiment (votes communauté, appoint) : {home} {votes[0]}% / {away} {votes[1]}%")
-    txt = ("\n\nDONNÉES SPORTRADAR TENNIS (factuel — base à croiser avec ta recherche web "
-           "forme/surface) :\n- " + "\n- ".join(facts)) if facts else ""
-    return txt, sx
+# (_tennis_extras SofaScore TENNIS RETIRÉ 2026-09-11 : BETSFIX 100 % foot)
 
 
 async def _sofa_extras(client: httpx.AsyncClient, sport: str, sofa_id: str | None,
                        home: str, away: str) -> str:
     """Séries SofaScore + H2H + votes, récupérés via l'API locale (best-effort, "" si indispo).
 
-    Réutilise les endpoints existants (/foot|/basket/match/{id}/{streaks,h2h,votes}) qui passent
-    déjà par curl_cffi anti-403 + repli RapidAPI. Tennis : classement + surface + H2H + votes via
-    SofaScore direct (cf. `_tennis_extras`). Renvoie (texte_dossier, meta_structurée)."""
+    Réutilise les endpoints existants (/foot/match/{id}/{streaks,h2h,votes}) qui passent déjà par
+    curl_cffi anti-403 + repli RapidAPI. Renvoie (texte_dossier, meta_structurée)."""
     if not sofa_id:
         return "", {}
-    if sport == "tennis":
-        return await _tennis_extras(client, sofa_id, home, away)
-    if sport not in ("foot", "basket"):
+    if sport != "foot":
         return "", {}
 
     async def _get(ep: str):
