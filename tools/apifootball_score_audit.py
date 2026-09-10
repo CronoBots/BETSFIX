@@ -56,9 +56,12 @@ def main() -> int:
 
     leg_mids = _combo_leg_mids()
 
-    # 1) matchs foot réglés avec score, groupés par date
+    # 1) matchs foot avec un SCORE d'affichage enregistré, groupés par date. On audite TOUT score affiché
+    # (pari joué, jambe combiné, ET abstention) — PAS `is_settled` (qui exige un pari joué -> excluait les
+    # ABSTENTIONS, dont l'affichage peut pourtant être corrompu : Liverpool-Atlético 2-2 FotMob vs 2-1 réel).
+    # Glob RÉCURSIF (`**`) : certains sidecars vivent en sous-dossier -> le glob plat en ratait ~14.
     by_day = collections.defaultdict(list)
-    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+    for p in glob.glob(os.path.join(A.DIR, "**", "foot_*.json"), recursive=True):
         try:
             d = json.load(open(p, encoding="utf-8"))
         except Exception:
@@ -67,7 +70,7 @@ def main() -> int:
         if not day or day < args.frm:
             continue
         r = d.get("result") or {}
-        if A.is_settled(d) and r.get("score"):
+        if r.get("score") and "-" in str(r.get("score")):
             by_day[day].append((p, d))
 
     total = sum(len(v) for v in by_day.values())
@@ -117,6 +120,21 @@ def main() -> int:
                                           "label": af, "src": "apifootball(audit)"}
                     tmp = p + ".tmp"; json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False); os.replace(tmp, p)
                     fixed += 1
+                    # SYNC PROVISOIRE (legacy, hors-ROI) : un match d'abstention peut porter un provisoire RÉGLÉ
+                    # figé sur l'ANCIEN score -> le garde-fou `provisional_score_collision` casse si on ne le
+                    # réaligne pas. On resync le score + re-règle le résultat (settle_pick) pour rester cohérent.
+                    try:
+                        from app import provisional as _PV
+                        from app.settle_analyst import settle_pick as _sp
+                        _pvd = _PV.load(); _pv = _pvd.get(mid)
+                        if isinstance(_pv, dict) and _pv.get("score") and str(_pv["score"]) != af:
+                            _pv["score"] = af
+                            _newr = _sp(_pv.get("code", ""), {"home": h, "away": a2})
+                            if _newr in ("won", "lost", "push"):
+                                _pv["result"] = _newr
+                            _PV._save(_pvd)
+                    except Exception:
+                        pass
 
     print(f"\nAudité {n} · non résolus API-Foot {miss} · ÉCARTS {diff}" + (f" · corrigés (abstentions) {fixed}" if args.fix else ""))
     if diffs:
