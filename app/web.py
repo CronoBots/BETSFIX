@@ -321,6 +321,11 @@ CSS = """
      re-peinture du gradient = saccade (absente en PWA, pas de barre). `100vh` = grand viewport CONSTANT
      (ne suit pas la barre) -> plus de resize, plus de re-paint. Débordement bas invisible (z-index:-1). */
   html::before{content:"";position:fixed;top:0;left:0;right:0;height:100vh;z-index:-1;pointer-events:none;
+       /* COUCHE GPU (user 2026-09-11, jank scroll NAVIGATEUR restant) : sans hint de composition, Safari iOS
+          RE-RASTERISE ce dégradé plein écran à chaque frame de scroll (l'animation de la barre d'URL déclenche
+          des repeints du fixe) = saccade, absente en PWA (pas de barre). `translateZ(0)` + `backface-visibility`
+          le promeut en couche compositée persistante : peint UNE fois, gardé figé sur le GPU au scroll. */
+       transform:translateZ(0);backface-visibility:hidden;will-change:transform;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
                   radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%)}
   /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
