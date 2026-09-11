@@ -197,6 +197,10 @@ mécaniques** backtestés :
 - **Montante = RÉACTIVÉE AUTO** (2026-09-01, refonte) — `app/montante.py`. Sélection MÉCANIQUE = moteur
   Confiance borné : `pick_confidence_day` pioche dans le vivier fantômes complet (familles Vainqueur/DC/Total
   équipe), **VRAIE cote Unibet (omap) bornée 1.25-1.55**, confiance ≥80, le + sûr ; **PASS si rien** (survie).
+  ⚠️ **CONSTRUITE À LA VAGUE depuis le 2026-09-11** (combinés stoppés → plus d'analyse complète du matin) :
+  `generate_analyses._build_montante_from_wave` est appelé à CHAQUE vague KO-1h (`--refresh-early`), pioche
+  parmi les matchs analysés ENCORE À VENIR ; idempotent (`can_record_day` = 1 palier/jour) → la 1re vague qui
+  trouve un pari sûr le pose. Avant, elle était bâtie dans la passe combo du matin/soir (décrochée depuis).
   Capital **composé** (arrondi centime/palier), amorcé à la série réelle du user (**42,53 € / 7-0**, relancée
   23/08). Auto-réglée (`settle_pending`, marché propre). **HORS overall/hero** (`MONTANTE_ROI_ON=False` : unité
   composée ≠ ROI mise-plate → sa propre carte). **Publiée sur le site**, mais **Telegram OFF** (`TG_COMBO_MONTANTE=
@@ -236,6 +240,15 @@ est exclue du vivier combiné. Mémoire `omap-unibet-cote-capture` (RÉSOLU).
   mobile : produits déployés, maturité des marchés, calibration brute, et vue
   **FORWARD réel vs Historique (backfill)** (`537171b`/`4a2ecf1`/`9783807`).
 ## Combinés du jour + du soir (MAJ 2026-08-31 — refonte complète)
+> ⛔ **COMBINÉS STOPPÉS « pour le moment » (user 2026-09-11)** — kill-switch `combo_daily.COMBO_ENABLED=False`.
+> `_build_combo_montante_from_analysis` est court-circuité (ne bâtit plus de combiné). Les combinés DÉJÀ
+> publiés/réglés restent **affichés + comptés** (forward-only, on ne retire pas le passé). **Conséquence VOULUE :
+> plus d'analyse complète matin/soir** (elle n'existait QUE pour le combiné) → **une seule analyse par match à
+> sa vague KO-1h** → fin de la DOUBLE analyse + des « premières abstentions » (fantômes `pre_refresh`). La
+> **montante est décrochée** et se construit à la vague (voir sa ligne). **Réactiver** = `COMBO_ENABLED=True`
+> + rétablir la passe `--daily-combo` dans `scan_daily.ps1` **et** `scan_evening.ps1`. Le reste ci-dessous
+> décrit le mécanisme conservé (dormant), réactivable tel quel. Mémoire `combos-stopped-single-wave-analysis`.
+
 DEUX combinés/jour : variant `""` = **Combiné du jour** (scan matin, slate jour) · `"soir"` = **Combiné du
 soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses._build_combo_montante_from_analysis`.
 - **Vivier MULTI-MARCHÉS** (`_harvest_combo_legs`) : la sélection sûre la plus probable de CHAQUE match
@@ -266,17 +279,21 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - Mémoires : `two-combos-jour-soir`, `session-2026-08-31-omap-combos-telegram`, `telegram-foot-simple-only`.
 
 ## Timeline quotidienne (heure Europe/Brussels)
-- **~10h — scan JOUR** (`deploy/scan_daily.ps1` → `generate_analyses --ko-from 6 --ko-to 21`) : sélection
-  slate jour + **vérif/pré-chauffe des LOGOS** + analyse **cachée** (Option B) + **combiné du jour** + planif des vagues.
-- **~19h — scan NUIT** (`deploy/scan_evening.ps1` → `--ko-from 21 --ko-to 6`) : sélection slate nuit +
-  fusion + **vérif/pré-chauffe des LOGOS** + analyse + **combiné du soir** + replanif des vagues.
+> ⚠️ **MAJ 2026-09-11 (combinés stoppés)** : le matin/soir ne font **PLUS l'analyse complète** du slate (elle
+> n'existait que pour le combiné). Ils **SÉLECTIONNENT** seulement (+ logos + planif/replanif des vagues).
+> **Toute l'analyse + la publication + la montante se font à la vague KO-1h** — une seule fois par match.
+- **~10h — scan JOUR** (`deploy/scan_daily.ps1`) : **SÉLECTION seule** du slate jour (`--programme`) +
+  **vérif/pré-chauffe des LOGOS** + **planif des vagues**. ~~analyse cachée + combiné du jour~~ (retirés).
+- **~19h — scan NUIT** (`deploy/scan_evening.ps1`) : **SÉLECTION seule** du slate nuit (`--programme`) +
+  fusion + **vérif/pré-chauffe des LOGOS** + **replanif des vagues**. ~~analyse + combiné du soir~~ (retirés).
 - **LOGOS** (`tools/logo_check.py --quiet --alert`, 2026-09-02) : résout le blason des 2 équipes de chaque
   match du programme → **pré-chauffe `crest_cache.json`** (logo prêt à la publication), **vérifie l'URL en 200**,
   **auto-répare** via les fixtures FotMob du jour (ancrage sur l'adversaire reconnu + KO — indispensable quand
   les libellés n'ont aucun token commun : « Saint-Trond » ↔ « St.Truiden »), **alerte privée** si un logo manque.
-- **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : re-analyse chaque match ~1h avant SON
-  coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats combinés par jambe).
-  Cap **7+7** (jour+nuit). Mémoire `daily-construction-methodology` (flux de référence + invariants anti-bug).
+- **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : **analyse (UNE seule fois)** chaque match
+  ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), **construit la montante** (`_build_montante_from_wave`,
+  idempotent), puis reconcile (règlement + résultats combinés par jambe). Cap **7+7** (jour+nuit). Mémoire
+  `daily-construction-methodology` (flux de référence + invariants anti-bug).
 
 ## Autres sous-systèmes
 - **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API

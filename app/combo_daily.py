@@ -18,6 +18,15 @@ import os
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
 
+# KILL-SWITCH combinés (user 2026-09-11) : combinés STOPPÉS « pour le moment ». Conséquence VOULUE : le scan
+# du matin/soir n'a PLUS besoin d'analyser tout le slate (l'analyse complète n'existait QUE pour bâtir le
+# combiné) -> chaque match est analysé UNE SEULE FOIS à sa vague KO-1h -> fin de la DOUBLE analyse et des
+# « premières abstentions » (fantômes pre_refresh). La construction du combiné (generate_analyses.
+# _build_combo_montante_from_analysis) est court-circuitée quand False. La MONTANTE est décrochée et se
+# construit à la vague. Les combinés DÉJÀ publiés/réglés restent affichés + comptés (forward-only). Réactiver
+# = repasser True ICI + rétablir la passe --daily-combo dans deploy/scan_daily.ps1 et scan_evening.ps1.
+COMBO_ENABLED = False
+
 MIN_ODDS = 1.90           # cote minimale du combiné (demande user 2026-07-22 : « > 1,9 » — révisé depuis
 #                           le 1,95 du 2026-07-17, pour un peu plus de marge face au plancher de proba)
 MAX_LEGS = 5             # borne haute (au-delà, taux de réussite trop faible)

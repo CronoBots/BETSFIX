@@ -1056,6 +1056,48 @@ def _owner_alert_once(key: str, text: str) -> None:
             pass
 
 
+async def _build_montante_from_wave(day: str, client, exclude_mids=None) -> None:
+    """Palier MONTANTE du jour, DÉCROCHÉ du combiné (user 2026-09-11) : appelé À LA VAGUE (KO-1h) depuis les
+    matchs foot analysés ENCORE À VENIR (moteur Confiance borné, VRAIE cote Unibet [1.25,1.55], confiance≥80).
+    Plus besoin de l'analyse complète du matin (elle n'existait que pour le combiné). Idempotent : `can_record_day`
+    n'autorise QU'UN palier/jour -> la 1re vague qui trouve un pari sûr le pose, les suivantes passent. Best-effort,
+    ne casse JAMAIS la vague. Anti-chevauchement combiné conservé (souvent vide : combinés stoppés)."""
+    try:
+        from app import montante as _mtn, combo_daily as _cdaily
+        if not _mtn.is_active():
+            return
+        _mtn.settle_pending()
+        if not _mtn.can_record_day(day):
+            return
+        _excl = {str(x) for x in (exclude_mids or set())}
+        _combo_today = _cdaily.today(day) or {}
+        _excl |= {str(l.get("mid")) for l in (_combo_today.get("legs") or []) if l.get("mid")}
+        _mpick = _mtn.pick_confidence_day(day, exclude_mids=_excl)
+        if not _mpick:
+            print("  🪜 Montante : PASS — aucun pari sûr (confiance≥80) à vraie cote Unibet [1.25,1.55] à ce stade.")
+            return
+        # « pourquoi » factuel (comme le build mécanique) — best-effort.
+        try:
+            _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
+                    "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
+            _mfacts = await sources.extras(client, "foot", _mlm)
+            if _mfacts and _mfacts.strip():
+                _mwrap = {"legs": [dict(_mpick)], "synth": ""}
+                _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
+                _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
+                if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
+                    _mpick["why"] = _mwhy
+        except Exception as _mae:
+            print(f"    (enrichissement factuel montante ignoré : {_mae})")
+        if _mtn.record_day(day, pick=_mpick):
+            print(f"  🪜 Montante (vague) : {_mpick['match']} — {_mpick['sel']} @{_mpick['cote']} "
+                  f"({round((_mpick.get('prob') or 0) * 100)}%)")
+        else:
+            print("  🪜 Montante : record refusé (déjà posé / en attente).")
+    except Exception as _mce:
+        print(f"  (montante à la vague ignorée : {_mce})")
+
+
 async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko_to=None, variant: str = "") -> None:
     """FIN de la passe ANALYSE BATCH d'un slate : construit le COMBINÉ (du jour OU du soir) depuis les PARIS
     ANALYSÉS (Confiance/Value) du slate, + la montante. DEUX combinés/jour (user 2026-08-30) : `variant=""` +
@@ -1064,6 +1106,12 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
     ce jour pour CE variant). HORS ROI. Site-only. Tout try/except : un échec logue, ne casse JAMAIS le scan."""
     from app import combo_daily as _cdaily
     from app import combo_safe as _csafe
+    # KILL-SWITCH combinés (user 2026-09-11) : stoppés -> on ne bâtit PLUS de combiné, seulement la montante
+    # (décrochée). Cette passe n'est de toute façon plus câblée dans les scans (analyse complète matin/soir
+    # retirée) ; garde défensive si `--daily-combo` est lancé à la main. Réactiver = combo_daily.COMBO_ENABLED=True.
+    if not _cdaily.COMBO_ENABLED:
+        await _build_montante_from_wave(day, client)
+        return
     _clabel = "Combiné du soir" if variant == "soir" else "Combiné du jour"
     harvest = _harvest_analyzed_bets(day, ko_from, ko_to)
     print(f"  🧮 {_clabel} depuis l'analyse : {len(harvest)} pari(s) retenu(s) récolté(s) pour {day}.")
@@ -1145,41 +1193,11 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
     except Exception:
         pass
 
-    # ── MONTANTE : LE pari le PLUS SÛR du jour ────────────────────────────────────────────────────
-    try:
-        from app import montante as _mtn, combo_daily as _cd_mt
-        if _mtn.is_active():
-            _mtn.settle_pending()
-            if _mtn.can_record_day(day):
-                # ANTI-CHEVAUCHEMENT : la montante ne reprend PAS un match déjà pris par le combiné du jour.
-                _combo_today = _cdaily.today(day) or {}
-                _combo_mids = {str(l.get("mid")) for l in (_combo_today.get("legs") or []) if l.get("mid")}
-                # SÉLECTION = MOTEUR CONFIANCE BORNÉ (user 2026-09-01) : le pari le plus SÛR du jour depuis le
-                # vivier fantômes complet, familles sûres, VRAIE cote Unibet [1.25,1.55], hors matchs du combiné.
-                _mpick = _mtn.pick_confidence_day(day, exclude_mids=_combo_mids)
-                if _mpick:
-                    # « pourquoi » factuel (comme le build mécanique) — best-effort.
-                    try:
-                        _mlm = {"id": _mpick.get("mid"), "name": _mpick.get("match"), "home": _mpick.get("home"),
-                                "away": _mpick.get("away"), "comp": _mpick.get("comp"), "start": _mpick.get("start")}
-                        _mfacts = await sources.extras(client, "foot", _mlm)
-                        if _mfacts and _mfacts.strip():
-                            _mwrap = {"legs": [dict(_mpick)], "synth": ""}
-                            _analyze_combo_legs(_mwrap, facts_by_mid={str(_mpick.get("mid")): _mfacts})
-                            _mwhy = (_mwrap.get("legs") or [{}])[0].get("why")
-                            if _mwhy and not str(_mwhy).startswith("Pinnacle (référence sharp)"):
-                                _mpick["why"] = _mwhy
-                    except Exception as _mae:
-                        print(f"    (enrichissement factuel montante ignoré : {_mae})")
-                    if _mtn.record_day(day, pick=_mpick):
-                        print(f"  🪜 Montante (analyse) : {_mpick['match']} — {_mpick['sel']} @{_mpick['cote']} "
-                              f"({round((_mpick.get('prob') or 0) * 100)}%)")
-                    else:
-                        print("  🪜 Montante : record refusé (déjà posé / en attente).")
-                else:
-                    print("  🪜 Montante : PASS — aucun pari sûr (confiance≥80) à vraie cote Unibet [1.25,1.55] aujourd'hui.")
-    except Exception as _mce:
-        print(f"  (montante depuis l'analyse ignorée : {_mce})")
+    # ── MONTANTE : LE pari le PLUS SÛR du jour (décrochée du combiné, user 2026-09-11) ────────────
+    # Anti-chevauchement : la montante ne reprend PAS un match déjà pris par le combiné de ce jour.
+    _combo_today = _cdaily.today(day) or {}
+    _combo_mids = {str(l.get("mid")) for l in (_combo_today.get("legs") or []) if l.get("mid")}
+    await _build_montante_from_wave(day, client, exclude_mids=_combo_mids)
 
     # ── PARI DE CONFIANCE (profil 93% du backtest 2026-08-29) ─────────────────────────────────────
     # Sélecteur MÉCANIQUE (app.confidence_pick) : par match foot À VENIR du jour, le favori DC/Handicap le
@@ -4655,6 +4673,14 @@ async def main():
         import datetime as _dt
         from app import combo_daily as _cdaily
         _day = _cdaily.day_key()          # clé-jour UNIQUE (jour sportif local 06h→06h, source combo_daily)
+        # MONTANTE À LA VAGUE (user 2026-09-11) : combinés stoppés -> plus d'analyse complète du matin. La
+        # montante se construit désormais à CHAQUE vague KO-1h (--refresh-early), depuis les matchs analysés
+        # ENCORE À VENIR. Idempotent (can_record_day : 1 palier/jour). Best-effort, isolé de la suite.
+        if args.refresh_early and not args.match:
+            try:
+                await _build_montante_from_wave(_day, client)
+            except Exception as _mwexc:
+                print(f"  (montante vague ignorée : {_mwexc})")
         # COMBINÉ + MONTANTE DEPUIS LES PARIS ANALYSÉS (user 2026-08-24, OPTION B) — à la fin de la passe qui porte
         # `--daily-combo` : le SCAN DU SOIR (~18h). À ce moment TOUT le slate (matchs du jour analysés le matin +
         # matchs de nuit analysés à l'instant) est prêt ; `_harvest_analyzed_bets` ne prend que les paris ENCORE À

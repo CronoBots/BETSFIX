@@ -34,45 +34,33 @@ function Log($m) {
 $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match 'generate_analyses' }
 
-# SLATE NUIT : coup d'envoi 21h→06h (heure belge). SÉLECTION en mode WAVE-FIRST : SAUTÉE (user 2026-08-11) ->
-# le sweep analyse chaque match de nuit ~1h avant SON coup d'envoi. Sans le drapeau -> comportement normal.
-if (Test-Path $flag) {
-    Log 'SCAN SOIR : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
-} else {
-    # 1) SÉLECTION du slate NUIT (adaptatif, cotes de nuit ouvertes) -> fusionné dans day_programme.json.
-    # TOUJOURS exécutée (safe même si une vague tourne : écrit le programme, aucune carte, aucun sidecar).
-    Log 'SCAN SOIR : SÉLECTION du SLATE NUIT (coup d''envoi 21h-6h, cotes fraîches) -> fusion au programme'
-    & $py 'tools\generate_analyses.py' --sport foot --top 7 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
-        Add-BfxStream $log
-    Log ("SCAN SOIR PROGRAMME NUIT DONE (exit {0})" -f $LASTEXITCODE)
-    # 1b) REPLANIFIE les vagues KO-1 h (user 2026-08-30) : les matchs de NUIT ne sont AJOUTÉS au programme
-    # qu'ICI (le matin n'écrit que le jour) -> sans ça, ils n'auraient JAMAIS leur vague de publication à
-    # KO-1 h (schedule_reana ne tourne sinon qu'à 10h, avant que la nuit existe). Set-ScheduledTask REMPLACE
-    # tous les déclencheurs de « BETSFIX Scan Wave » -> repose les matchs encore à venir (jour tardif + nuit),
-    # zéro accumulation, zéro doublon. Les vagues de jour déjà passées sont ignorées (at <= now). TOUJOURS.
-    # LOGOS DES ÉQUIPES (user 2026-09-02) : même contrôle qu'au matin, appliqué au programme APRÈS fusion
-    # du slate NUIT -> les clubs sud-américains / d'Europe tardive (souvent absents de la recherche FotMob
-    # par nom) sont résolus via les fixtures du jour et mis en cache AVANT leur vague de publication.
-    Log 'LOGOS : vérification/pré-chauffe des blasons (programme JOUR + NUIT fusionnés)'
-    & $py 'tools\logo_check.py' --quiet --alert 2>&1 | Add-BfxStream $log
-    Log ("LOGOS DONE (exit {0})" -f $LASTEXITCODE)
+# SLATE NUIT : coup d'envoi 21h→06h (heure belge). PLUS D'ANALYSE COMPLÈTE le soir (user 2026-09-11) : elle
+# n'existait QUE pour bâtir le COMBINÉ DU SOIR. Combinés STOPPÉS (combo_daily.COMBO_ENABLED=False) -> le soir
+# ne fait QUE : (1) SÉLECTIONNER le slate nuit (fusion au programme), (2) pré-chauffer les logos, (3) REPLANIFIER
+# les vagues KO-1 h (indispensable : les matchs de nuit n'existent au programme qu'ICI). Chaque match de nuit est
+# analysé UNE SEULE FOIS à sa vague, qui publie + construit la montante. Réactiver le combiné du soir = COMBO_ENABLED
+# =True + rétablir une passe « --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 » après la replanif.
+# 1) SÉLECTION du slate NUIT (adaptatif, cotes de nuit ouvertes) -> fusionné dans day_programme.json.
+# TOUJOURS exécutée (safe même si une vague tourne : écrit le programme, aucune carte, aucun sidecar).
+Log 'SCAN SOIR : SÉLECTION du SLATE NUIT (coup d''envoi 21h-6h, cotes fraîches) -> fusion au programme'
+& $py 'tools\generate_analyses.py' --sport foot --top 7 --hours 24 --programme --no-notify --ko-from 21 --ko-to 6 2>&1 |
+    Add-BfxStream $log
+Log ("SCAN SOIR PROGRAMME NUIT DONE (exit {0})" -f $LASTEXITCODE)
+# 1b) REPLANIFIE les vagues KO-1 h (user 2026-08-30) : les matchs de NUIT ne sont AJOUTÉS au programme
+# qu'ICI (le matin n'écrit que le jour) -> sans ça, ils n'auraient JAMAIS leur vague de publication à
+# KO-1 h (schedule_reana ne tourne sinon qu'à 10h, avant que la nuit existe). Set-ScheduledTask REMPLACE
+# tous les déclencheurs de « BETSFIX Scan Wave » -> repose les matchs encore à venir (jour tardif + nuit),
+# zéro accumulation, zéro doublon. Les vagues de jour déjà passées sont ignorées (at <= now). TOUJOURS.
+# LOGOS DES ÉQUIPES (user 2026-09-02) : même contrôle qu'au matin, appliqué au programme APRÈS fusion
+# du slate NUIT -> les clubs sud-américains / d'Europe tardive (souvent absents de la recherche FotMob
+# par nom) sont résolus via les fixtures du jour et mis en cache AVANT leur vague de publication.
+Log 'LOGOS : vérification/pré-chauffe des blasons (programme JOUR + NUIT fusionnés)'
+& $py 'tools\logo_check.py' --quiet --alert 2>&1 | Add-BfxStream $log
+Log ("LOGOS DONE (exit {0})" -f $LASTEXITCODE)
 
-    Log 'SCAN SOIR : REPLANIFICATION des vagues KO-1 h (inclut désormais le slate NUIT)'
-    & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
-    Log ("SCAN SOIR REANA SCHED DONE (exit {0})" -f $LASTEXITCODE)
-    # 2) ANALYSE du slate NUIT SANS publier (Option B) + combiné/montante — SEULEMENT si aucun scan concurrent
-    # (deux passes d'analyse = races/doublons). On RE-VÉRIFIE ici (la vague de 19h a pu finir pendant la sélection).
-    $running2 = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match 'generate_analyses' }
-    if ($running2) {
-        Log ("SCAN SOIR : analyse nuit DIFFÉRÉE (scan concurrent PID {0}) -> chaque match de nuit sera analysé à sa vague KO-1h. Sélection + replanification FAITES." -f ($running2.ProcessId -join ','))
-    } else {
-        Log 'SCAN SOIR : SLATE NUIT analysé SANS publier + construction combiné/montante du jour (soir+nuit)'
-        & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 12 --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 2>&1 |
-            Add-BfxStream $log
-        Log ("SCAN SOIR DONE (exit {0})" -f $LASTEXITCODE)
-    }
-}
+Log 'SCAN SOIR : REPLANIFICATION des vagues KO-1 h (inclut désormais le slate NUIT)'
+& 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
+Log ("SCAN SOIR REANA SCHED DONE (exit {0})" -f $LASTEXITCODE)
 
 # RÉCONCILIATION : règle ce qui est réglable (poste les résultats des matchs de l'après-midi/soirée finis),
 # re-poste les pronos imminents manqués. Silencieux (pas de bilan — le bilan reste 1×/jour le matin).

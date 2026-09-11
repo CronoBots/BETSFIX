@@ -58,21 +58,13 @@ Log ("LOGOS DONE (exit {0})" -f $LASTEXITCODE)
 
 Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 & 'C:\Users\vince\BETSFIX\deploy\schedule_reana.ps1' 2>&1 | Add-BfxStream $log
-# SCAN MATIN (analyse du slate JOUR en batch) : SAUTÉ en mode WAVE-FIRST (user 2026-08-11). Le matin ne fait
-# alors que SÉLECTIONNER (programme ci-dessus) ; chaque match est analysé ~1h avant SON coup d'envoi par le
-# sweep (deploy\scan_sweep.ps1, données/cotes fraîches). Sans le drapeau -> comportement batch inchangé.
-if (Test-Path $flag) {
-    Log 'SCAN MATIN : SAUTÉ (mode WAVE-FIRST) -> analyse par le sweep ~1h avant chaque coup d''envoi'
-} else {
-    # OPTION B (user 2026-08-23) : le matin ANALYSE tout le slate JOUR mais NE PUBLIE PAS (--no-notify). Chaque
-    # pari est publié ~1 h avant SON coup d'envoi par la vague (scan_wave.ps1 --refresh-early), après re-analyse
-    # sur données fraîches (compos/blessures/cotes) -> re-post si changé, abstention s'il ne valide plus. C'est
-    # la mécanique de la période gagnante, sans les flips visibles (rien n'est posté avant d'être vérifié).
-    Log 'SCAN MATIN : SLATE JOUR analysé SANS publier (--no-notify) -> publication à la vague KO - 1 h'
-    & $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --from-programme --force --no-notify --daily-combo --ko-from 6 --ko-to 21 2>&1 |
-        Add-BfxStream $log
-    Log ("SCAN MATIN DONE (exit {0})" -f $LASTEXITCODE)
-}
+# SCAN MATIN : PLUS D'ANALYSE COMPLÈTE (user 2026-09-11). L'analyse batch du matin n'existait QUE pour bâtir
+# le COMBINÉ DU JOUR. Combinés STOPPÉS (combo_daily.COMBO_ENABLED=False) -> le matin ne fait QUE SÉLECTIONNER
+# (programme ci-dessus). Chaque match est analysé UNE SEULE FOIS à sa vague KO-1 h (scan_wave.ps1 --refresh-early),
+# qui publie sur données fraîches ET construit la montante. Fin de la DOUBLE analyse (matin + vague) et des
+# « premières abstentions » (fantômes pre_refresh). Réactiver les combinés = COMBO_ENABLED=True + rétablir ici
+# une passe « --from-programme --force --no-notify --daily-combo --ko-from 6 --ko-to 21 ».
+Log 'SCAN MATIN : SÉLECTION SEULE (combinés stoppés) -> analyse + publication + montante à la vague KO - 1 h'
 
 # RÉCONCILIATION : après le scan, on règle tout ce qui est réglable (poste les résultats),
 # on re-poste les pronos imminents dont l'envoi a été manqué, et on envoie un BILAN Telegram
