@@ -2627,8 +2627,19 @@ CSS = """
   .mcx-lab{grid-column:2;font-size:10.5px;color:#8fa2b8;font-weight:600;white-space:nowrap}
   .mcx-bar{grid-column:1 / 4;grid-row:2;display:flex;height:5px;border-radius:3px;overflow:hidden;
        background:rgba(255,255,255,.05);gap:2px}
-  .mcx-bh{background:#34d27b;border-radius:3px 0 0 3px}          /* domicile = vert (comme le badge Live) */
-  .mcx-ba{background:#33b7ef;border-radius:0 3px 3px 0}          /* extérieur = bleu */
+  .mcx-bh{background:var(--hc,#34d27b);border-radius:3px 0 0 3px} /* domicile = couleur d'équipe (repli vert) */
+  .mcx-ba{background:var(--ac,#33b7ef);border-radius:0 3px 3px 0} /* extérieur = couleur d'équipe (repli bleu) */
+  /* APERÇU LIVE ouvert d'office (user 2026-09-11) : plus de <details>/bouton — bloc simple avec en-tête discret */
+  .mcx-live{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.06)}
+  .mcx-hd{font-size:11.5px;font-weight:800;color:#c4d2e2;letter-spacing:.2px;margin-bottom:2px}
+  /* BARRE « QUI DOMINE LE MATCH » (user 2026-09-11) : indice agrégé, 2 côtés aux couleurs d'équipe */
+  .mcx-dom{margin:2px 0 12px}
+  .mcx-dom-lab{font-size:12px;font-weight:700;color:#e6eefb;text-align:center;margin-bottom:5px}
+  .mcx-dom-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,.05);
+       gap:2px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+  .mcx-dom-h{border-radius:5px 0 0 5px;min-width:4px;transition:width .5s ease}
+  .mcx-dom-a{border-radius:0 5px 5px 0;min-width:4px;transition:width .5s ease}
+  .mcx-dom-tm{display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;margin-top:4px}
   .mcx-tl{margin-top:11px;padding-top:9px;border-top:1px solid rgba(255,255,255,.06);
        display:flex;flex-direction:column;gap:6px}
   .mcx-ev{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#c4d2e2}
@@ -4210,12 +4221,22 @@ _CARDS_JS = (
     "x.innerHTML=h;if(window._twCount)window._twCount(x);})"
     ".catch(function(){a.removeAttribute('data-l');x.innerHTML='<div class=dim>Analyse indisponible.</div>';});}"
     "window._mcInit=function(root){var o=(root||document).querySelectorAll('.row.mc.mc-open'),i;"
-    "for(i=0;i<o.length;i++)_mcLoad(o[i]);};"
+    "for(i=0;i<o.length;i++)_mcLoad(o[i]);"
+    "var mx=(root||document).querySelectorAll('.mcx[data-mcx-auto]');"          # aperçu live ouvert d'office
+    "for(i=0;i<mx.length;i++){var bx=mx[i];if(!bx._auto){bx._auto=1;_mcxLoadPlain(bx);}}};"
     # LIVE MATCH CENTER : à l'ouverture du pli « 📊 Aperçu du match » (.mcx-fold), on charge les stats live
     # (lazy -> 0 fetch au rendu de page) puis on RAFRAÎCHIT toutes les 30 s tant que le pli reste ouvert
     # (poll silencieux, pas de flash « Chargement »). Le container garde son texte initial jusqu'à la 1re réponse.
     "function _mcxLoad(box,d){fetch(box.getAttribute('data-mcx')).then(function(r){return r.text();})"
     ".then(function(h){if(d.open)box.innerHTML=h;}).catch(function(){});}"
+    # APERÇU LIVE OUVERT D'OFFICE (user 2026-09-11) : les blocs `.mcx[data-mcx-auto]` (plus de <details>, plus
+    # de bouton) sont chargés dès qu'ils apparaissent (via _mcInit, appelé après chaque swap SPA) puis
+    # rafraîchis toutes les 30 s par un intervalle GLOBAL (querySelectorAll ne voit que les blocs ATTACHÉS ->
+    # zéro fuite d'intervalle sur les cartes retirées d'un swap).
+    "function _mcxLoadPlain(box){fetch(box.getAttribute('data-mcx')).then(function(r){return r.text();})"
+    ".then(function(h){box.innerHTML=h;}).catch(function(){});}"
+    "if(!window._mcxIv){window._mcxIv=setInterval(function(){var l=document.querySelectorAll('.mcx[data-mcx-auto]');"
+    "for(var i=0;i<l.length;i++)_mcxLoadPlain(l[i]);},30000);}"
     "document.addEventListener('toggle',function(e){var d=e.target;"
     "if(!d||!d.classList||!d.classList.contains('mcx-fold'))return;"
     "var box=d.querySelector('.mcx');if(!box)return;"
@@ -6489,8 +6510,73 @@ def _mc_stats(mid: str):
     return stats
 
 
+def _hsl_hex(hue: float, s: float, l: float) -> str:
+    """HSL -> #rrggbb. `hue` en degrés (0-360), `s`/`l` en 0-1."""
+    import colorsys
+    r, g, b = colorsys.hls_to_rgb((hue % 360) / 360.0, l, s)
+    return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def _team_hue(name: str) -> int:
+    """Teinte STABLE (0-360) dérivée du nom d'équipe par hash déterministe (md5 -> pas de sel par process,
+    contrairement à hash())."""
+    import hashlib
+    n = (name or "").strip().lower()
+    if not n:
+        return 210
+    return int(hashlib.md5(n.encode("utf-8")).hexdigest(), 16) % 360
+
+
+def _team_colors_pair(home: str, away: str) -> tuple[str, str]:
+    """Couleur par équipe (domicile, extérieur), STABLE et DISTINCTE, calée sur le thème SOMBRE du site :
+    saturation/luminosité maîtrisées (vif mais pas néon, lisible sur fond foncé — pas de dépendance externe,
+    pas d'appel réseau ni d'analyse de logo). Garantit un CONTRASTE de teinte entre les 2 équipes (si trop
+    proches, on décale l'extérieur de ~150°). Utilisée par les barres de stats + la barre de domination."""
+    hh, ah = _team_hue(home), _team_hue(away)
+    d = abs(hh - ah) % 360
+    if min(d, 360 - d) < 40:                      # teintes trop proches -> équipes indiscernables
+        ah = (ah + 150) % 360
+    return _hsl_hex(hh, 0.66, 0.58), _hsl_hex(ah, 0.66, 0.56)
+
+
+def _mcx_domination_bar(sh: dict, sa: dict, home: str, away: str, hc: str, ac: str, has_xg: bool) -> str:
+    """Barre unique « QUI DOMINE LE MATCH » (user 2026-09-11) : agrège TOUTES les stats de pression live en un
+    seul indice de domination (part domicile pondérée), rendue en barre 2 côtés (couleur domicile / extérieur)
+    + label « <équipe> domine · N% ». '' si aucune donnée exploitable."""
+    metrics = [("possession", 1.0), ("shots_total", 1.0), ("shots_on", 1.6),
+               ("shots_inbox", 1.1), ("corners", 0.7)]
+    if has_xg:
+        metrics.append(("xg", 2.0))               # xG = signal fort de domination quand dispo
+    num = den = 0.0
+    for key, w in metrics:
+        hv = sh.get(key) if isinstance(sh.get(key), (int, float)) else None
+        av = sa.get(key) if isinstance(sa.get(key), (int, float)) else None
+        if hv is None and av is None:
+            continue
+        tot = (hv or 0) + (av or 0)
+        if tot <= 0:
+            continue
+        num += w * ((hv or 0) / tot)
+        den += w
+    if den <= 0:
+        return ""                                  # pas de stat -> pas de barre (le message d'indispo suffit)
+    hf = max(4.0, min(96.0, num / den * 100))      # % domination DOMICILE, borné pour rester lisible
+    if hf >= 55:
+        lab = f'<b style="color:{hc}">{html.escape(home or "Domicile")}</b> domine · {round(hf)}%'
+    elif hf <= 45:
+        lab = f'<b style="color:{ac}">{html.escape(away or "Extérieur")}</b> domine · {round(100 - hf)}%'
+    else:
+        lab = 'Match équilibré'
+    return (f'<div class="mcx-dom">'
+            f'<div class="mcx-dom-lab">{lab}</div>'
+            f'<div class="mcx-dom-bar"><i class="mcx-dom-h" style="width:{hf:.0f}%;background:{hc}"></i>'
+            f'<i class="mcx-dom-a" style="width:{100 - hf:.0f}%;background:{ac}"></i></div>'
+            f'<div class="mcx-dom-tm"><span style="color:{hc}">{html.escape(home or "")}</span>'
+            f'<span style="color:{ac}">{html.escape(away or "")}</span></div></div>')
+
+
 def _mcx_bar(h, a, label: str, pct: bool = False) -> str:
-    """Une ligne de stat à BARRE APPARIÉE (vert domicile / bleu extérieur, façon SofaScore). '' si les 2 None."""
+    """Une ligne de stat à BARRE APPARIÉE (couleurs d'équipe via --hc/--ac, façon SofaScore). '' si les 2 None."""
     hv = h if isinstance(h, (int, float)) else None
     av = a if isinstance(a, (int, float)) else None
     if hv is None and av is None:
@@ -6515,6 +6601,11 @@ def _render_match_center(stats: dict | None) -> str:
         return '<div class="mcx-na">Stats live indisponibles pour ce match.</div>'
     sh = (stats.get("stats") or {}).get("home") or {}
     sa = (stats.get("stats") or {}).get("away") or {}
+    _tm = stats.get("teams") or {}
+    _home = (_tm.get("home") or {}).get("name") or ""
+    _away = (_tm.get("away") or {}).get("name") or ""
+    hc, ac = _team_colors_pair(_home, _away)                       # couleurs d'équipe calées sur le thème
+    _dom = _mcx_domination_bar(sh, sa, _home, _away, hc, ac, bool(stats.get("has_xg")))
     rows = [_mcx_bar(sh.get("possession"), sa.get("possession"), "Possession", pct=True)]
     if stats.get("has_xg"):
         rows.append(_mcx_bar(sh.get("xg"), sa.get("xg"), "xG (buts attendus)"))
@@ -6558,7 +6649,9 @@ def _render_match_center(stats: dict | None) -> str:
     # xG : absent EN DIRECT (API-Football le calcule ~après le match) et jamais couvert hors grands
     # championnats -> message NEUTRE (ne pas affirmer « hors grands championnats » sur un match de C1 en cours).
     xgn = "" if stats.get("has_xg") else '<div class="mcx-foot">xG indisponible en direct (mis à jour après le match).</div>'
-    return f'<div class="mcx-body">{body}</div>{tl}{xgn}'
+    # `--hc/--ac` posés sur le conteneur -> les barres appariées (.mcx-bh/.mcx-ba) prennent les couleurs d'équipe.
+    return (f'<div class="mcx-wrap" style="--hc:{hc};--ac:{ac}">{_dom}'
+            f'<div class="mcx-body">{body}</div>{tl}{xgn}</div>')
 
 
 async def live_match_center_fragment(mid: str) -> str:
@@ -6569,15 +6662,16 @@ async def live_match_center_fragment(mid: str) -> str:
 
 
 def _live_match_center_fold(mid) -> str:
-    """Pli « 📊 Aperçu du match » (REMPLACE « Pourquoi » en live). Corps chargé en LAZY (data-mcx) à
-    l'ouverture -> aucun appel réseau au rendu de page. Même patron `.cleg-fold` que le « Pourquoi »."""
+    """« 📊 Aperçu du match » en live — VISIBLE D'OFFICE, SANS bouton de dépliage (user 2026-09-11). Plus de
+    <details>/<summary> : un simple bloc `.mcx-live` avec le placeholder `.mcx[data-mcx-auto]` chargé
+    automatiquement dès son apparition par `window._mcInit` (appelé après chaque swap SPA) puis rafraîchi
+    30 s. Classe `exp` -> un clic dans les stats ne replie pas la carte (garde du handler de carte)."""
     if not mid:
         return ""
-    return ('<details class="cleg-fold cleg-fold-bet mcx-fold"><summary class="cleg-fold-s" '
-            'onclick="event.stopPropagation()">📊 Aperçu du match'
-            '<span class="cleg-chev">▾</span></summary>'
-            f'<div class="mcx" data-mcx="/foot/match/{html.escape(str(mid))}/livecenter">'
-            '<div class="mcx-load">Chargement des stats…</div></div></details>')
+    return ('<div class="mcx-live exp">'
+            '<div class="mcx-hd">📊 Aperçu du match</div>'
+            f'<div class="mcx" data-mcx="/foot/match/{html.escape(str(mid))}/livecenter" data-mcx-auto="1">'
+            '<div class="mcx-load">Chargement des stats…</div></div></div>')
 
 
 def _load_day_programme() -> dict:
