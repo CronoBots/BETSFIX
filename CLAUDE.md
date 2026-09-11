@@ -432,6 +432,15 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   ⚠️ **Live Activities iOS / Dynamic Island = natif only** (Swift/ActivityKit) → **hors de portée en PWA**
   (pas de Mac/App Store côté user, tranché 2026-09-06) ; le push PWA = bannières sur écran verrouillé, pas
   de carte persistante. Mémoire `push-pwa-per-match-notifications`.
+- **APERÇU DU MATCH EN LIVE (« Match Center », MAJ 2026-09-11)** : sur chaque carte de match EN DIRECT,
+  `_render_match_center` (stats API-Football via `_mc_stats`) est **VISIBLE D'OFFICE, SANS bouton** (user
+  2026-09-11) : `_live_match_center_fold` rend un bloc `.mcx-live` + placeholder `.mcx[data-mcx-auto]`
+  auto-chargé par `window._mcInit` (appelé après chaque swap SPA) + refresh global 30 s (plus de
+  `<details>`/`<summary>`). **BARRE « QUI DOMINE LE MATCH »** en tête (`_mcx_domination_bar`) : agrège
+  possession/tirs/cadrés/tirs surface/corners/xG(pondéré) en un indice de domination, barre 2 côtés +
+  « \<équipe\> domine · N% ». **COULEURS PAR ÉQUIPE** (`_team_colors_pair`, hash md5 → teinte stable/distincte,
+  S/L calés sur le thème sombre) sur la barre de domination ET les barres appariées (`.mcx-bh/.mcx-ba` via
+  `--hc/--ac`, repli vert/bleu). Zéro dépendance/réseau/analyse de logo.
 
 ## ⚠️ 3 COUCHES à NE JAMAIS confondre (Affichage / Stats / Calibration) — juillet 2026
 
