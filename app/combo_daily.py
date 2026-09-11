@@ -22,8 +22,8 @@ TRACK_PATH = os.path.join(_ROOT, "data", "combo_daily_track.json")
 # du matin/soir n'a PLUS besoin d'analyser tout le slate (l'analyse complète n'existait QUE pour bâtir le
 # combiné) -> chaque match est analysé UNE SEULE FOIS à sa vague KO-1h -> fin de la DOUBLE analyse et des
 # « premières abstentions » (fantômes pre_refresh). La construction du combiné (generate_analyses.
-# _build_combo_montante_from_analysis) est court-circuitée quand False. La MONTANTE est décrochée et se
-# construit à la vague. Les combinés DÉJÀ publiés/réglés restent affichés + comptés (forward-only). Réactiver
+# _build_combo_montante_from_analysis) est court-circuitée quand False.
+# Les combinés DÉJÀ publiés/réglés restent affichés + comptés (forward-only). Réactiver
 # = repasser True ICI + rétablir la passe --daily-combo dans deploy/scan_daily.ps1 et scan_evening.ps1.
 COMBO_ENABLED = False
 

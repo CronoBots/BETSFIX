@@ -38,7 +38,7 @@ $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorActio
 # n'existait QUE pour bâtir le COMBINÉ DU SOIR. Combinés STOPPÉS (combo_daily.COMBO_ENABLED=False) -> le soir
 # ne fait QUE : (1) SÉLECTIONNER le slate nuit (fusion au programme), (2) pré-chauffer les logos, (3) REPLANIFIER
 # les vagues KO-1 h (indispensable : les matchs de nuit n'existent au programme qu'ICI). Chaque match de nuit est
-# analysé UNE SEULE FOIS à sa vague, qui publie + construit la montante. Réactiver le combiné du soir = COMBO_ENABLED
+# analysé UNE SEULE FOIS à sa vague, qui publie. Réactiver le combiné du soir = COMBO_ENABLED
 # =True + rétablir une passe « --from-programme --no-notify --daily-combo --ko-from 21 --ko-to 6 » après la replanif.
 # 1) SÉLECTION du slate NUIT (adaptatif, cotes de nuit ouvertes) -> fusionné dans day_programme.json.
 # TOUJOURS exécutée (safe même si une vague tourne : écrit le programme, aucune carte, aucun sidecar).

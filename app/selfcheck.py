@@ -766,11 +766,8 @@ def _check_settled_display_coherence(rows) -> dict:
     DE VÉRITÉ (stat_bet figé) et exige, par jour ACTIF et par tier, que : nb figés == nb cartes == record (W+L+P).
     Couvre les 2 sens (carte manquante ET record faux). 100 % lecture seule."""
     from app import web
-    # VÉRITÉ : paris SIMPLES figés (hors combiné RÉGLÉ / roi_void), groupés par (jour sportif, tier). On ne
-    # SPÉCIALISE PAS la montante : `tier_of` la route vers son propre tier « montante » quand elle est ACTIVE
-    # (donc hors confiance/value dans les 3 sources), et vers son tier RÉEL quand elle est OFF (donc affichée
-    # comme un simple partout) -> les 3 sources restent alignées sans exclusion ad hoc. Le combiné RÉGLÉ est
-    # exclu avec la MÊME condition que les fonctions d'affichage (result ∈ won/lost/void) -> pas de faux écart.
+    # VÉRITÉ : paris SIMPLES figés (hors combiné RÉGLÉ / roi_void), groupés par (jour sportif, tier). Le combiné
+    # RÉGLÉ est exclu avec la MÊME condition que les fonctions d'affichage (result ∈ won/lost/void) -> pas de faux écart.
     truth: dict = {}
     for _, d in rows:
         if d.get("sport") != "foot" or d.get("roi_void"):
@@ -975,41 +972,6 @@ def _check_stats_snapshot_drift() -> dict:
                        else "DÉRIVE de sérialisation (snapshot ≠ recalcul à données égales)." if lvl == "error"
                        else "snapshot à jour et identique au recalcul en direct (P&L + comptés + ROI)."),
             "items": items}
-
-
-def _check_montante_active() -> dict:
-    """La montante ACTIVE doit sélectionner un palier régulièrement (1 pari foot à jouer/jour). Un long
-    silence — dernier palier > 2 j ET aucun palier en attente — = elle a CESSÉ de sélectionner (régression
-    user 2026-08-02 : filtre `not d.get(bets)` qui excluait les paris stockés en `pick`, sans champ `bets`
-    structuré). Hors ROI, mais on veut le SAVOIR pour ne plus que ça passe inaperçu. Ne lève jamais."""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return {"key": "montante_active", "level": "ok", "title": "Montante — sélection quotidienne",
-                    "detail": "montante désactivée (rien à vérifier).", "items": []}
-        d = _mt.load()
-        steps = d.get("steps") or []
-        pending = any(s.get("result") is None for s in steps)
-        last = max((str(s.get("date") or "") for s in steps), default="")
-        gap = 0
-        if last:
-            try:
-                gap = (datetime.now(timezone.utc).date() - date.fromisoformat(last[:10])).days
-            except (ValueError, TypeError):
-                gap = 0
-        # Depuis la RÈGLE QUANT (2026-08-18), un PASS est LÉGITIME (« discipline > fréquence ») -> un gap est
-        # possible sans bug. On relève le seuil à > 4 j (un silence VRAIMENT long peut signaler un souci de scan).
-        stuck = (not pending) and gap > 4
-        return {"key": "montante_active", "level": "warn" if stuck else "ok",
-                "title": "Montante — sélection quotidienne",
-                "detail": (f"aucun palier depuis {gap} j (dernier {last}) alors que la montante est ACTIVE — "
-                           f"PASS répétés (règle quant) OU souci de scan/candidats ? à surveiller." if stuck else
-                           f"OK — {len(steps)} paliers, "
-                           f"{'1 en attente' if pending else 'dernier ' + (last or '—')}."),
-                "items": ([{"last": last, "gap_days": gap}] if stuck else [])}
-    except Exception as e:
-        return {"key": "montante_active", "level": "ok", "title": "Montante — sélection quotidienne",
-                "detail": f"vérif ignorée (non bloquante) : {e}", "items": []}
 
 
 def _check_upcoming_display_coherence(rows) -> dict:
@@ -1228,7 +1190,6 @@ def run(persist: bool = False) -> dict:
         _check_played_bet_sharp_anchor(rows),
         _check_final_mechanical_bet_revealed(rows),
         _check_stats_snapshot_drift(),
-        _check_montante_active(),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]

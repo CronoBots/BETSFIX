@@ -194,17 +194,10 @@ mécaniques** backtestés :
   `_carry_shadow_from_old` **pour le CALIBRAGE SEUL**). Sinon un vieux DC/handicap sûr est publié malgré une
   **abstention fraîche** (cas Cruz Azul : Confiance apparue vs fiche QC « abstention »). Seule l'analyse FRAÎCHE
   décide ; les `pre_refresh` restent dans `shadow` (calibration intacte). Mémoire `selection-excludes-pre-refresh-ghosts`.
-- **Montante = RÉACTIVÉE AUTO** (2026-09-01, refonte) — `app/montante.py`. Sélection MÉCANIQUE = moteur
-  Confiance borné : `pick_confidence_day` pioche dans le vivier fantômes complet (familles Vainqueur/DC/Total
-  équipe), **VRAIE cote Unibet (omap) bornée 1.25-1.55**, confiance ≥80, le + sûr ; **PASS si rien** (survie).
-  ⚠️ **CONSTRUITE À LA VAGUE depuis le 2026-09-11** (combinés stoppés → plus d'analyse complète du matin) :
-  `generate_analyses._build_montante_from_wave` est appelé à CHAQUE vague KO-1h (`--refresh-early`), pioche
-  parmi les matchs analysés ENCORE À VENIR ; idempotent (`can_record_day` = 1 palier/jour) → la 1re vague qui
-  trouve un pari sûr le pose. Avant, elle était bâtie dans la passe combo du matin/soir (décrochée depuis).
-  Capital **composé** (arrondi centime/palier), amorcé à la série réelle du user (**42,53 € / 7-0**, relancée
-  23/08). Auto-réglée (`settle_pending`, marché propre). **HORS overall/hero** (`MONTANTE_ROI_ON=False` : unité
-  composée ≠ ROI mise-plate → sa propre carte). **Publiée sur le site**, mais **Telegram OFF** (`TG_COMBO_MONTANTE=
-  False`, broadcast en attente du feu vert user). Mémoire `montante-reactivated-confidence-auto`.
+- **Montante = SUPPRIMÉE (user 2026-09-11)** — tout le système de mise progressive a été **retiré du produit
+  ET du code source** (module `app/montante.py` + `tools/montante.py` supprimés, affichage/stats/build/notifs
+  purgés). Données archivées `data/_montante_removed_2026-09-11/`. ⛔ Ne PAS recréer sans demande explicite.
+  Mémoire `montante-removed`.
 
 ### ⚠️ VERDICT / COTE / ANALYSE d'affichage = le pari JOUÉ, JAMAIS le pick brut (MAJ 2026-08-31)
 Depuis la refonte mécanique, le pari joué (`stat_bet`/mécanique) **DIVERGE** du pick brut de Claude
@@ -251,8 +244,8 @@ est exclue du vivier combiné. Mémoire `omap-unibet-cote-capture` (RÉSOLU).
 > → retirés de `all_ev`/overall). Les combinés déjà réglés ne sont donc **plus comptés ni affichés** (revert = les
 > 2 flags à True). **Conséquence VOULUE :
 > plus d'analyse complète matin/soir** (elle n'existait QUE pour le combiné) → **une seule analyse par match à
-> sa vague KO-1h** → fin de la DOUBLE analyse + des « premières abstentions » (fantômes `pre_refresh`). La
-> **montante est décrochée** et se construit à la vague (voir sa ligne). **Réactiver** = `COMBO_ENABLED=True`
+> sa vague KO-1h** → fin de la DOUBLE analyse + des « premières abstentions » (fantômes `pre_refresh`).
+> **Réactiver** = `COMBO_ENABLED=True`
 > + rétablir la passe `--daily-combo` dans `scan_daily.ps1` **et** `scan_evening.ps1`. Le reste ci-dessous
 > décrit le mécanisme conservé (dormant), réactivable tel quel. Mémoire `combos-stopped-single-wave-analysis`.
 
@@ -288,7 +281,7 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 ## Timeline quotidienne (heure Europe/Brussels)
 > ⚠️ **MAJ 2026-09-11 (combinés stoppés)** : le matin/soir ne font **PLUS l'analyse complète** du slate (elle
 > n'existait que pour le combiné). Ils **SÉLECTIONNENT** seulement (+ logos + planif/replanif des vagues).
-> **Toute l'analyse + la publication + la montante se font à la vague KO-1h** — une seule fois par match.
+> **Toute l'analyse + la publication se font à la vague KO-1h** — une seule fois par match.
 - **~10h — scan JOUR** (`deploy/scan_daily.ps1`) : **SÉLECTION seule** du slate jour (`--programme`) +
   **vérif/pré-chauffe des LOGOS** + **planif des vagues**. ~~analyse cachée + combiné du jour~~ (retirés).
 - **~19h — scan NUIT** (`deploy/scan_evening.ps1`) : **SÉLECTION seule** du slate nuit (`--programme`) +
@@ -298,8 +291,8 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   **auto-répare** via les fixtures FotMob du jour (ancrage sur l'adversaire reconnu + KO — indispensable quand
   les libellés n'ont aucun token commun : « Saint-Trond » ↔ « St.Truiden »), **alerte privée** si un logo manque.
 - **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : **analyse (UNE seule fois)** chaque match
-  ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), **construit la montante** (`_build_montante_from_wave`,
-  idempotent), puis reconcile (règlement + résultats combinés par jambe). Cap **10+10** (jour+nuit) + pack élite
+  ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats
+  combinés par jambe). Cap **10+10** (jour+nuit) + pack élite
   (relevé de 7+7 le 2026-09-11, permis par le retrait de la double analyse : ~2× moins de charge Claude/match →
   ~20-24 matchs/jour restent à/sous l'ancienne consommation). Mémoire `daily-construction-methodology`
   (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
@@ -358,7 +351,7 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     plein-largeur « GAGNÉ/PERDU » sous les stats** (`cleg-resbadge`, retiré pour won/lost ; **conservé** pour
     REMBOURSÉ/ANNULÉ push/void qui n'ont pas de badge coin). Sur `.row.mc` (`_sport_row`) le score passe au
     centre + « Terminé » (plus de chip score haut-droite) ; sur `.cleg.cleg-res-live` (`_leg_card` live_layout,
-    = cartes résultat + montante) idem. Les **combinés** (`_combo_gold_card`) gardent leur bandeau `mc-combo-res`
+    = cartes résultat) idem. Les **combinés** (`_combo_gold_card`) gardent leur bandeau `mc-combo-res`
     (layout à part : dots par jambe). ⚠️ NE PAS confondre « cadre » (bordure, gardée) et « bandeau » (retiré).
     **Sous le pari (fiche RÉSULTAT réglée) = Confiance + Cote SEULS** : la légende « marché % · edge · value »
     est RETIRÉE (métrique de value d'avant-match, inutile une fois réglé) via `hide_context=True`
@@ -366,7 +359,7 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     règlement (à venir/live) : légende inchangée.
   - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes, **opacité .05** (discret, validé user),
     **taille UNIFIÉE 135px** (`.row.mc::before` ET `.cleg::before` ; avant 150 vs 120 = tailles différentes).
-    `.row.mc::before` + **`.cleg::before`** (jambes/cartes-résultat/montante). Pour les **combinés**, le logo vit
+    `.row.mc::before` + **`.cleg::before`** (jambes/cartes-résultat). Pour les **combinés**, le logo vit
     dans le **cadre des JAMBES**, PAS sur le cadre global doré (`.row.mc.mc-tg-gold::before{content:none}`).
     **`.cleg::before` CENTRÉ verticalement** dans le cadre REPLIÉ (`top:0;bottom:0` + `background center 80px`,
     offset px FIXE depuis le haut = centre d'un cadre ~266px) → le logo **reste à la même place quand le pli
@@ -391,7 +384,7 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     smooth-scroll **MANUEL (rAF)** — `window.scrollTo({behavior:'smooth'})` est ignoré SANS erreur en PWA iOS.
     Mémoire `ui-halo-glow-clip-and-ios-scroll`.
 - **Telegram = CONFIANCE UNIQUEMENT** (MAJ 2026-09-08) : le canal abonnés ne reçoit QUE les paris simples de
-  tier **confiance**. La **Value** (comme le **combiné** et la **montante**, déjà OFF) reste sur le **SITE** +
+  tier **confiance**. La **Value** (comme le **combiné**, déjà OFF) reste sur le **SITE** +
   **push PWA** + **stats/ROI**, mais n'est PLUS annoncée sur Telegram. Gate unique `notify.tg_post_tier(tier)`
   (flags `TG_VALUE=False`, `TG_COMBO_MONTANTE=False`), appliqué à l'annonce (`generate_analyses`), au re-post
   (`reconcile._repost` + détection « manquée »), et au renotify manuel. Un résultat simple n'est posté QU'en

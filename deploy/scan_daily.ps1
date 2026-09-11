@@ -62,10 +62,10 @@ Log 'REANA SCHED : planification des passes de règlement (coup d''envoi - 1 h)'
 # SCAN MATIN : PLUS D'ANALYSE COMPLÈTE (user 2026-09-11). L'analyse batch du matin n'existait QUE pour bâtir
 # le COMBINÉ DU JOUR. Combinés STOPPÉS (combo_daily.COMBO_ENABLED=False) -> le matin ne fait QUE SÉLECTIONNER
 # (programme ci-dessus). Chaque match est analysé UNE SEULE FOIS à sa vague KO-1 h (scan_wave.ps1 --refresh-early),
-# qui publie sur données fraîches ET construit la montante. Fin de la DOUBLE analyse (matin + vague) et des
+# qui publie sur données fraîches. Fin de la DOUBLE analyse (matin + vague) et des
 # « premières abstentions » (fantômes pre_refresh). Réactiver les combinés = COMBO_ENABLED=True + rétablir ici
 # une passe « --from-programme --force --no-notify --daily-combo --ko-from 6 --ko-to 21 ».
-Log 'SCAN MATIN : SÉLECTION SEULE (combinés stoppés) -> analyse + publication + montante à la vague KO - 1 h'
+Log 'SCAN MATIN : SÉLECTION SEULE (combinés stoppés) -> analyse + publication à la vague KO - 1 h'
 
 # RÉCONCILIATION : après le scan, on règle tout ce qui est réglable (poste les résultats),
 # on re-poste les pronos imminents dont l'envoi a été manqué, et on envoie un BILAN Telegram

@@ -307,42 +307,6 @@ async def reconcile(dry: bool = False, no_bilan: bool = False) -> dict:
                 print(f"  · {_ncs} combiné(s) sécurité tranché(s) (suivi info-seule).")
         except Exception as exc:
             print(f"  (suivi combiné sécurité ignoré : {exc})")
-        # MONTANTE (préparée 2026-07-24) : cycle quotidien SEULEMENT si activée (data/montante_active.flag).
-        # Éteinte -> no-op instantané (la page reste en simulation). Règle l'en-cours + enregistre le pari
-        # foot du jour. Isolé (data/montante_track.json), hors ROI.
-        try:
-            from app import montante as _mt
-            if _mt.is_active():
-                from app import web as _w
-                _r = await asyncio.to_thread(_mt.run_daily, _w._sport_today().isoformat())
-                print(f"  · montante : {_r}")
-        except Exception as exc:
-            print(f"  (montante ignorée : {exc})")
-        # PUBLICATION TELEGRAM du RÉSULTAT de la MONTANTE (user 2026-08-18) : dès qu'un palier est réglé, on poste
-        # sa carte résultat EN RÉPONSE au prono (clé `montante_daily_<jour>`). Idempotent via
-        # `montante_daily_result_<jour>`. Score lu dans le sidecar du match. Limité aux 3 derniers jours.
-        try:
-            from datetime import datetime as _dtm2, timedelta as _td2
-            from app import montante as _mtr, card_data as _cddm, analyses as _anm
-            import card_image as _cim
-            _recent_m = {(_dtm2.now(timezone.utc).date() - _td2(days=k)).isoformat() for k in (0, 1, 2, 3)}
-            for _st in (_mtr.load().get("steps") or []):
-                _mday = str(_st.get("date") or "")
-                if _mday not in _recent_m or _st.get("result") not in ("won", "lost", "push", "void"):
-                    continue
-                if notify.get_prono(f"montante_daily_result_{_mday}"):
-                    continue                       # résultat déjà posté
-                _mreply = notify.get_prono(f"montante_daily_{_mday}")     # carte prono de la montante
-                if not _mreply or not notify.TG_COMBO_MONTANTE:      # montante coupée de Telegram (user 2026-08-24)
-                    continue                       # prono jamais posté -> pas de résultat ORPHELIN
-                # RÉSULTAT = réponse « ✅ / ❌ » au prono (user 2026-08-22), plus de carte résultat. ➖ = remboursé.
-                _emo = {"won": "✅", "lost": "❌"}.get(_st.get("result"), "➖")
-                _mrsent = notify.reply_sync(_emo, _mreply)
-                if _mrsent:
-                    notify.remember_prono(f"montante_daily_result_{_mday}", _mrsent, f"Montante résultat {_mday}")
-                    print(f"  · résultat montante {_mday} posté (réponse {_emo}).")
-        except Exception as exc:
-            print(f"  (résultat montante Telegram ignoré : {exc})")
 
     # 2) INVENTAIRE : parcourt les fiches, classe chaque match JOUÉ.
     stuck, upcoming, unposted = [], [], []

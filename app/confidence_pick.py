@@ -69,7 +69,7 @@ def match_candidates(d: dict, markets=None, exclude_markets=None, require_omap: 
     `markets` : familles AUTORISÉES (inclusion — défaut = MARKETS confiance DC/Handicap). Si `exclude_markets`
     est fourni, mode « tous marchés SAUF ceux-là » (value profil B utilise exclude=_BAN_MARKETS).
     `require_omap` (user 2026-09-04) : n'accepte QUE les candidats dont la cote est VÉRIFIÉE (code présent dans
-    `d["omap"]` = vraie cote Unibet), JAMAIS une cote fantôme LLM — même principe que le combiné/la montante.
+    `d["omap"]` = vraie cote Unibet), JAMAIS une cote fantôme LLM — même principe que le combiné.
     Match sans omap -> aucun candidat -> PASS (mieux que publier une cote non vérifiée). Défaut False (backtest
     historique + value inchangés : l'omap n'est fiable qu'en forward, cf. omap-unibet-cote-capture)."""
     _mk = None if exclude_markets is not None else (MARKETS if markets is None else markets)

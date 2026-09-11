@@ -61,7 +61,6 @@ def panel_deployed():
     # par la VAGUE en direct (marqueur `prematch_done`, jamais posé sur un pari backfillé). Le forward démarre
     # vide et se remplit au fil des vraies sélections -> c'est LUI qui prouve (ou non) le backtest.
     tiers = {"confidence": {"hist": [], "fwd": []}, "value": {"hist": [], "fwd": []}}
-    _mids = A._montante_mids() if A.MONTANTE_ROI_ON else frozenset()   # montante OFF -> ne rien exclure
     for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
         try:
             d = json.load(open(p, encoding="utf-8"))
@@ -70,7 +69,7 @@ def panel_deployed():
         sb = d.get("stat_bet")
         if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
             continue
-        if d.get("roi_void") or str(d.get("id")) in _mids:
+        if d.get("roi_void"):
             continue
         k = sb.get("kind")
         if k in tiers:
@@ -92,7 +91,6 @@ def panel_elite():
     du champ `comp` du sidecar (aucun flag persisté). FORWARD = passé par la vague live (`prematch_done`)."""
     from app.match_select import is_elite_comp
     grp = {"élite": {"hist": [], "fwd": []}, "domestique": {"hist": [], "fwd": []}}
-    _mids = A._montante_mids() if A.MONTANTE_ROI_ON else frozenset()
     for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
         try:
             d = json.load(open(p, encoding="utf-8"))
@@ -101,7 +99,7 @@ def panel_elite():
         sb = d.get("stat_bet")
         if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
             continue
-        if d.get("roi_void") or str(d.get("id")) in _mids or sb.get("kind") not in ("confidence", "value"):
+        if d.get("roi_void") or sb.get("kind") not in ("confidence", "value"):
             continue
         g = "élite" if is_elite_comp(d.get("comp") or "") else "domestique"
         rec = (sb["result"], sb.get("cote") or 0)

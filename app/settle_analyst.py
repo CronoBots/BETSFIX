@@ -2175,11 +2175,9 @@ async def _settle_analyses_impl() -> int:
                             # un combiné/autre garde le texte générique (Telegram = simple foot seul).
                             _vw, _ve = {"won": ("GAGNÉE", "✅"), "lost": ("PERDUE", "❌")}.get(_mk, ("REMBOURSÉE", "➖"))
                             if card.get("simple"):
-                                _rtier = str((card.get("simple") or {}).get("tier") or card.get("tier") or "confiance")
                                 # LABEL FIABLE : « VALUE » via le FLAG FIGÉ `_is_value` (le tier dynamique DÉRIVE ->
-                                # un value avait été étiqueté « CONFIANCE PERDUE », bug 2026-09-01). Montante via tier.
-                                _rlbl = ("VALUE" if card.get("_is_value")
-                                         else {"montante": "MONTANTE"}.get(_rtier, "CONFIANCE"))
+                                # un value avait été étiqueté « CONFIANCE PERDUE », bug 2026-09-01).
+                                _rlbl = ("VALUE" if card.get("_is_value") else "CONFIANCE")
                                 # COTE affichée UNIQUEMENT si GAGNÉ (user 2026-08-30) : « VALUE GAGNÉE @1.56 ✅ »
                                 # (met en valeur la cote remportée ; cote AVANT l'emoji = ✅ tampon final). Rien
                                 # sur perte/remboursé (on n'appuie pas sur le montant perdu).
@@ -2212,10 +2210,7 @@ async def _settle_analyses_impl() -> int:
                                 _rpk = str(card.get("pick") or "")
                                 _rco = card.get("cote") or (card.get("simple") or {}).get("cote")
                                 _rpktxt = f"{_rpk} @ {_rco}" if (_rpk and _rco) else _rpk
-                                _rtier = ("value" if card.get("_is_value")
-                                          else {"montante": "montante"}.get(
-                                              str((card.get("simple") or {}).get("tier")
-                                                  or card.get("tier") or "confiance"), "confiance"))
+                                _rtier = "value" if card.get("_is_value") else "confiance"
                                 log.info("push PWA résultat : %s | tier=%s is_value=%s mark=%s cote=%s",
                                          card.get("match"), _rtier, card.get("_is_value"), _mk, _rco)
                                 await asyncio.to_thread(

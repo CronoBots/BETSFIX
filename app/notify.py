@@ -26,9 +26,9 @@ import httpx
 log = logging.getLogger("betsfix.notify")
 
 # POLITIQUE TELEGRAM (user 2026-09-08) : le canal abonnés ne reçoit QUE les paris simples de tier
-# « CONFIANCE » (prono + résultat en réponse). La VALUE, le COMBINÉ du jour et la MONTANTE ne sont PLUS
+# « CONFIANCE » (prono + résultat en réponse). La VALUE et le COMBINÉ du jour ne sont PLUS
 # postés sur Telegram — ils restent visibles sur le SITE (+ push PWA + stats/ROI). Mettre les flags à True
-# pour re-publier. (Avant : Confiance + Value ; user 2026-08-24 : combiné/montante déjà coupés.)
+# pour re-publier. (Avant : Confiance + Value ; user 2026-08-24 : combiné déjà coupé.)
 TG_COMBO_MONTANTE = False
 TG_VALUE = False
 

@@ -216,7 +216,7 @@ def _page(title: str, body: str, frag: bool = False) -> str:
         return inner
     from app import web                       # import paresseux (évite tout cycle à l'import)
     # « Compte » n'est PLUS un onglet SPA (déplacé en bouton HAUT À DROITE, 2026-07-30) -> page PLEINE via
-    # web.layout : logo + bouton compte + barre du bas (Accueil·Pronos·Live·Résultats·Montante). Taper un
+    # web.layout : logo + bouton compte + barre du bas (Accueil·Pronos·Live·Résultats). Taper un
     # onglet recharge la page (comme les autres pages layout). Le fragment (frag) reste dispo si besoin.
     return web.layout(title, "compte", inner)
 

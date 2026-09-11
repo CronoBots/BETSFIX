@@ -25,10 +25,6 @@ data/combo_daily_track.json
 data/combo_daily_tennis.json
 data/combo_daily_basket.json
 
-# --- Montante (réel + flag d'activation) ---
-data/montante_track.json
-data/montante_active.flag
-
 # --- Calibration / exclusions / modèles (nourrissent l'affichage des stats) ---
 data/excluded_state.json
 data/foot_elo.json

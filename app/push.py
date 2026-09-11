@@ -357,7 +357,7 @@ def prune_match_state() -> None:
 #   {cote} = « @1.28 » (prono).  NOUVEAU PARI (user 2026-08-30) = TITRE SEUL             #
 #   « NOUVELLE <TIER> @<cote> », sans équipes ni pari (won/lost gardent {match}/{pick}). #
 # Paris SIMPLES Confiance/Value + JAMBES et COMBINÉS notifient (user 2026-09-02 :   #
-# « active les notifs pour les jambes et combinés »). Montante toujours coupée.      #
+# « active les notifs pour les jambes et combinés »).                                #
 # ───────────────────────────────────────────────────────────────────────────── #
 MSG = {
     # NOUVEAU PARI (user 2026-08-30) : TITRE SEUL « NOUVELLE <TIER> @<cote> » — NI équipes NI pari joué.
@@ -367,8 +367,8 @@ MSG = {
     "lost":  {"title": "{tier} PERDUE ❌",       "body": ""},
     "push":  {"title": "{tier} REMBOURSÉE ➖",   "body": ""},
 }
-_TIER_LABEL = {"confiance": "Confiance", "value": "Value", "montante": "Montante"}
-_TIER_LABEL_UP = {"confiance": "CONFIANCE", "value": "VALUE", "montante": "MONTANTE"}
+_TIER_LABEL = {"confiance": "Confiance", "value": "Value"}
+_TIER_LABEL_UP = {"confiance": "CONFIANCE", "value": "VALUE"}
 
 
 def _vs(match: str) -> str:

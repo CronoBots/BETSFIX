@@ -220,8 +220,7 @@ def _sharp_dc_why(outcome: str, home: str, away: str, sp: dict, prob: float, cot
 async def safe_dc_candidates(day: str, matches: list, client=None) -> tuple[list, dict]:
     """Candidats DC SÛRS du jour depuis le PROGRAMME : par match, la DC la PLUS SÛRE au marché (cote Unibet la
     plus basse en 1X/X2, ancre PINNACLE dé-viggée, filtrée sécurité-first). Renvoie `(cands, whys)`. PARTAGÉ
-    par le combiné (assemblage) ET la montante (pari sûr du jour, user 2026-08-17) -> une seule logique.
-    `matches` = liste programme [{id,sport,name,start,comp}]."""
+    par le combiné (assemblage). `matches` = liste programme [{id,sport,name,start,comp}]."""
     import httpx
     from datetime import datetime, timezone
     from app import match_select as _ms, pinnacle

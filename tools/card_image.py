@@ -208,7 +208,6 @@ _CSS_SIMPLE = """
   margin:-2px 0 40px;padding-left:.26em}
 .stag.st-confiance{color:#34d27b}
 .stag.st-value{color:#22b8ff}
-.stag.st-montante{color:#5fd0ff}
 .stag.rb-w{color:#34d27b}
 .stag.rb-l{color:#ff6b6b}
 .stag.rb-n{color:#9fb6cf}

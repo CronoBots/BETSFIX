@@ -2627,11 +2627,10 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
     # (`_recommend`), qui fuitait le PICK BRUT hors-profil (Real Sociedad « Plus de 1.5 @1.25 » ; RÉCIDIVE
     # 2026-09-05 Villarreal-Deportivo « Moins de 3.5 @1.52 » affiché en Live alors que le vrai pari mécanique
     # était « Deportivo +2.5 @1.25 » non publié -> _final False -> l'ancien garde `not _cb` laissait passer).
-    # On PRÉSERVE la montante (mids dédiés) et les combinés (leur pick vient d'ailleurs), et on ne touche pas
+    # On PRÉSERVE les combinés (leur pick vient d'ailleurs), et on ne touche pas
     # aux réglés figés (stat_bet -> couche stats/anchor). Réversible : FOOT_MECHANICAL_ONLY = False.
     if (FOOT_MECHANICAL_ONLY and sport == "foot" and not isinstance(m.get("stat_bet"), dict)
-            and not (m.get("combo") or {}).get("legs")
-            and str(match_id) not in _montante_mids()):
+            and not (m.get("combo") or {}).get("legs")):
         return None
     # ABSTENTION (panel rejeté / sans value) : le sidecar `abstained` = méta + fantômes SEULS, JAMAIS un pari
     # JOUÉ. La couche AFFICHAGE le cache déjà (`list_for` : `if d.get("abstained") and not stat_bet`). On
@@ -2661,8 +2660,8 @@ def retained_bet(sport: str, match_id, for_history: bool = False) -> dict | None
                 for b in (m.get("bets") or []) if b.get("sel")]
     if not bets:
         # GEL PUBLIÉ (demande user 2026-07-28) : une ré-analyse a VIDÉ le tableau de paris, mais le pari a été
-        # POSTÉ aux abonnés et n'est PAS réglé -> il a pu être JOUÉ (ex. palier montante « Moins de 2.5 »
-        # publié + misé). On le RESTITUE à son PRIX CONSEILLÉ au lieu de l'abandonner (sinon il retombe en
+        # POSTÉ aux abonnés et n'est PAS réglé -> il a pu être JOUÉ. On le RESTITUE à son PRIX CONSEILLÉ
+        # au lieu de l'abandonner (sinon il retombe en
         # abstention -> provisoire d'un AUTRE marché, ce qui trahit l'abonné qui a parié). Vaut pour
         # l'affichage COURANT (for_history=False) ET l'historique. Jamais sur un match à COMBINÉ.
         # ⚠️ On lit le dict FIGÉ `published_bet` DIRECTEMENT (pas la fonction published_bet(), qui rappellerait
@@ -2877,24 +2876,6 @@ def bet_tier(cprob, cote=None, market=None, sport=None) -> str:
     return "confiance"
 
 
-_MONT_MIDS_CACHE = {"sig": None, "set": frozenset()}
-
-
-def _montante_mids() -> frozenset:
-    """Set (caché) des ids de match MONTANTE -> tier FORCÉ « confiance » (le pari SÛR du jour, demande user
-    2026-08-11 : la montante est toujours considérée confiance). Rafraîchi sur le mtime du suivi montante
-    (tier_of est sur un chemin chaud -> on évite de relire le JSON à chaque appel)."""
-    try:
-        from app import montante as _mt
-        sig = os.path.getmtime(_mt.TRACK) if os.path.exists(_mt.TRACK) else 0
-        if sig != _MONT_MIDS_CACHE["sig"]:
-            _MONT_MIDS_CACHE["set"] = frozenset(_mt.montante_mids())
-            _MONT_MIDS_CACHE["sig"] = sig
-    except Exception:
-        pass
-    return _MONT_MIDS_CACHE["set"]
-
-
 def _bet_market(d, bet, sport):
     """Label de marché d'un pari, pour le tier. `bet` = stat_bet (souvent `sel` seul, pas de `code`) ou rb
     (porte `code`). None si indéterminé -> bet_tier ne déclasse PAS sur ce seul motif."""
@@ -2911,12 +2892,8 @@ def _bet_market(d, bet, sport):
 def bet_tier_for(sport, mid) -> str:
     """Tier (« confiance »/« value ») d'un match par son id. MONOTONE : on lit d'abord la confiance calibrée
     FIGÉE au règlement (`stat_bet.cprob`, immunisée à la dérive de calibration) ; repli sur le calcul live
-    (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents.
-    La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> jamais comptée dans le taux
-    Confiance (ni Value) : elle ne doit pas polluer le phare (elle a sa page/ badge dédiés)."""
+    (pari actif, ou pas encore figé). SOURCE UNIQUE -> affichage ET compteurs cohérents."""
     try:
-        if MONTANTE_ROI_ON and sport == "foot" and str(mid) in _montante_mids():
-            return "montante"    # montante OFF -> le match revient à son tier réel (cohérent avec tier_of)
         d = meta(sport, str(mid)) or {}
         # PARI DE CONFIANCE/VALUE MÉCANIQUE non encore figé (à venir) : tier direct depuis le flag posé au scan,
         # cohérent avec tier_of (sinon un pari value à venir pourrait retomber « confiance » via bet_tier).
@@ -2938,10 +2915,7 @@ def bet_tier_for(sport, mid) -> str:
 
 def tier_of(d, rb=None) -> str:
     """Tier d'une fiche (dict déjà chargé), en préférant la confiance FIGÉE (`stat_bet.cprob`, monotone) sur
-    la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul).
-    La MONTANTE est sa PROPRE catégorie « montante » (user 2026-08-12) -> hors Confiance/Value."""
-    if MONTANTE_ROI_ON and isinstance(d, dict) and str(d.get("id") or "") in _montante_mids():
-        return "montante"    # montante OFF (MONTANTE_ROI_ON=False) -> le match revient à son tier réel
+    la calibrée live `rb.cprob`. `rb` = retained_bet déjà calculé par l'appelant (évite un 2e calcul)."""
     # CONFIANCE = STRICTEMENT le profil 93% mécanique (backtest 2026-08-29) : un match porte le tier
     # « confiance » SSI il a un pari de confiance — soit `confidence_bet` (à venir), soit un `stat_bet`
     # figé marqué `kind="confidence"` (réglé). L'ancien split par `bet_tier` est SUPERSEDED : tout le reste
@@ -3306,11 +3280,6 @@ def _combo_rule_void(day: str) -> bool:
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
 COMBO_ROI_ON = False  # user 2026-09-11 : combinés STOPPÉS + MASQUÉS + HORS ROI « pour le moment » (kill-switch combo_daily.COMBO_ENABLED=False). Overall = Confiance + Value SEULS. Les combinés déjà réglés NE sont plus comptés (retirés de all_ev). Remettre True (et COMBO_ENABLED=True) = re-compter + ré-afficher. Avant : True (2026-08-31, combinés jour+soir comptés au ROI).
-MONTANTE_ROI_ON = False  # user 2026-08-29 : montante DÉSACTIVÉE (refonte de la sélection à venir) -> RIEN dans
-#                          la catégorie montante ; les matchs montante-mids reviennent à leur tier réel
-#                          (confiance/value) via tier_of. Réactiver = True + recréer data/montante_active.flag.
-#   (ancien) user 2026-08-20 (nuit) : « montante compte au ROI (période validée) » -> ses paliers AFFICHÉS
-#                          (montante.public_steps = hors période d'erreurs 09/08→20/08) entrent dans all_ev en mise plate.
 
 
 def _agg_bets(events: list) -> dict:
@@ -3496,8 +3465,6 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
     _bg = background_sports()
     conf_ev: list = []        # paris FOOT du tier CONFIANCE (haute confiance figée) -> stats par tier
     value_ev: list = []       # paris FOOT du tier VALUE (sous le seuil)
-    mont_ev: list = []        # paris MONTANTE -> catégorie à part (jamais dans Confiance/Value, user 2026-08-12)
-    _roi_mids: set = set()    # mids DÉJÀ comptés dans all_ev (foot) -> garde anti-double-compte du ROI montante
     for p in glob.glob(os.path.join(DIR, "*.json")):
         d = _meta_load(p)
         if not d:
@@ -3559,15 +3526,12 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
             by_sport.setdefault(sport, []).append(ev)  # TOUJOURS (ROI simulé par sport, tennis/basket inclus)
             if sport not in _bg:                       # headline foot : les sports arrière-plan n'y entrent pas
                 # SPLIT CONFIANCE / VALUE (user 2026-08-09) : classement par la confiance FIGÉE (tier_of ->
-                # monotone). MONTANTE = produit À PART (ladder, hors ROI simples, user 2026-08-19) -> ses picks
-                # N'ENTRENT PAS dans l'overall (sinon total ≠ Confiance+Value+Combiné). Confiance+Value comptent.
-                _t = tier_of(d, rb)   # confiance / value / montante
-                if _t != "montante":
-                    all_ev.append(ev)
-                    _roi_mids.add(str(d.get("id") or ""))   # -> garde anti-double-compte du ROI montante
-                    if is_new:
-                        since_ev.append(ev)
-                (conf_ev if _t == "confiance" else mont_ev if _t == "montante" else value_ev).append(ev)
+                # monotone). Confiance+Value comptent à l'overall.
+                _t = tier_of(d, rb)   # confiance / value
+                all_ev.append(ev)
+                if is_new:
+                    since_ev.append(ev)
+                (conf_ev if _t == "confiance" else value_ev).append(ev)
         # UN MATCH = UN PARI (user 2026-08-07) : le pari du 1er scan (`stat_bet_first`) N'EST PLUS compté
         # séparément — un même match ne doit produire QU'UNE ligne / UN résultat au ROI et à la série (avant :
         # un rescan qui changeait le pick faisait compter 2 fois le match, ex. Vitória-Athletico = 2 défaites
@@ -3598,40 +3562,9 @@ def stats_full(since_days: int | None = None, _bypass_snapshot: bool = False) ->
                                     "sel": "combiné", "sport": "combiné"}))
     except Exception:
         pass
-    # MONTANTE — PALIERS COMPTÉS AU ROI OVERALL (user 2026-08-20 nuit : « montante compte au ROI, période
-    # validée »). Comme le combiné : chaque palier AFFICHÉ (montante.public_steps = HORS période d'erreurs
-    # 09/08→20/08) entre dans all_ev en MISE PLATE 1u sur SA cote/résultat. La montante-mid reste exclue plus
-    # haut via `_t=='montante'` (aucun double-compte du pari flagship du même match). Le ladder capitalisé (page
-    # Montante) est INCHANGÉ (autre représentation). Pas de rétroactivité : `public_steps` borne au 26/07+.
-    if MONTANTE_ROI_ON:
-        try:
-            from app import montante as _mtroi
-            for _ms in _mtroi.public_steps():
-                _mr = _ms.get("result")
-                if _mr not in ("won", "lost", "push"):
-                    continue
-                if str(_ms.get("mid") or "") in _roi_mids:   # GARDE anti-double-compte : le match est DÉJÀ au ROI
-                    continue                                 # (via son pari flagship) -> ne pas le recompter en montante
-                _mdt = (_ms.get("date") or "") + "T00:00:00+00:00"
-                if cutoff is not None:
-                    try:
-                        _mdd = datetime.fromisoformat(_mdt)
-                    except ValueError:
-                        _mdd = None
-                    if _mdd is None or _mdd < cutoff:
-                        continue
-                _mco = _ms.get("cote")
-                if not isinstance(_mco, (int, float)):
-                    continue
-                all_ev.append((_mdt, _mr, _mco,
-                               {"name": _ms.get("match"), "sel": _ms.get("sel") or "montante",
-                                "sport": "montante"}))
-        except Exception:
-            pass
     out = {"overall": _agg_bets(all_ev),               # suivi principal = TOUS les paris depuis le début
            "since_change": _agg_bets(since_ev),        # nouveau système (s'enrichit au fil des scans)
-           "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev),
-                       "montante": _agg_bets(mont_ev)},   # onglets Confiance/Value + montante à part
+           "by_tier": {"confiance": _agg_bets(conf_ev), "value": _agg_bets(value_ev)},   # onglets Confiance/Value
            "by_sport": {sport: _agg_bets(evs) for sport, evs in by_sport.items()},
            # « Volume de données » (panneau transparence) : matchs analysés vs matchs réglés (1 par match),
            # + plage de coups d'envoi couverte (période de mesure -> contexte du nombre calibré).

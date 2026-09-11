@@ -1,5 +1,5 @@
 # BETSFIX — décale la tâche « BETSFIX Scan Soir » à 18h00 (user 2026-08-24).
-# But : le scan du soir analyse le slate NUIT ET (re)construit le combiné + la montante du jour (--daily-combo)
+# But : le scan du soir analyse le slate NUIT ET (re)construit le combiné du jour (--daily-combo)
 # depuis TOUT le slate encore à venir (soir + nuit). À 18h -> inclut les matchs KO >= ~19h. À LANCER EN ADMIN.
 $ErrorActionPreference = 'Stop'
 $task = 'BETSFIX Scan Soir'

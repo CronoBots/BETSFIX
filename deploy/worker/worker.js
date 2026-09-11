@@ -17,7 +17,6 @@ const PAGE_KEYS = {
   "/accueil": "accueil",
   "/stats": "stats",
   "/directs": "directs",
-  "/montante": "montante",
   "/calendrier": "calendrier",
 };
 

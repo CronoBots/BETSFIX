@@ -216,14 +216,14 @@ def build_prono_card(d: dict) -> dict | None:
 
 def announce_caption(card: dict) -> str:
     """Légende texte du message d'ANNONCE d'un prono SIMPLE (Telegram) — EN-TÊTE SEUL (user 2026-09-08) :
-    « NOUVELLE <TIER> @<cote> » (MAJ, tier figé confiance/value/montante). Le PARI À JOUER et les ÉQUIPES
+    « NOUVELLE <TIER> @<cote> » (MAJ, tier figé confiance/value). Le PARI À JOUER et les ÉQUIPES
     vivent désormais SUR l'image (carte minimale), plus dans le texte -> la légende sert surtout la
     NOTIFICATION push (écran verrouillé). '' si carte non simple. parse_mode=HTML -> on échappe la cote."""
     import html as _html
     if not isinstance(card, dict) or card.get("type") != "simple":
         return ""
     _tier = str(card.get("tier") or "confiance").lower()
-    _lbl = {"value": "value", "montante": "montante"}.get(_tier, "confiance").upper()
+    _lbl = {"value": "value"}.get(_tier, "confiance").upper()
     _co = analyses.fmt_cote(card.get("cote")) or str(card.get("cote") or "").strip()
     # COTE + 🎯 avec l'en-tête (user 2026-09-08) : « NOUVELLE CONFIANCE @1.14 🎯 ». Le pari est sur l'image.
     return f"NOUVELLE {_lbl} @{_html.escape(_co)} 🎯" if _co else f"NOUVELLE {_lbl}"
@@ -335,42 +335,3 @@ def build_combo_daily_card(combo: dict, *, result: bool = False) -> dict | None:
             "legs": legs,
             "synth": ("" if result else _clean_synth(combo.get("synth") or combo.get("why"))),
             "combo_mark": (combo.get("result") if result else None)}
-
-
-def build_montante_card(step: dict, *, result: bool = False) -> dict | None:
-    """Carte MONTANTE pour Telegram (user 2026-08-18) : MÊME carte qu'un pari simple (signature « MONTANTE »),
-    ÉPURÉE (Confiance + Cote, pas Edge/Value — comme le combiné). `step` = palier montante (montante_track).
-    `result=True` -> carte RÉSULTAT (score + Gagné/Perdu). None si vide."""
-    if not step or not step.get("sel"):
-        return None
-    from app import match_select as _ms, crest as _cr
-    home, away = str(step.get("home") or ""), str(step.get("away") or "")
-    if not (home and away) and step.get("match"):
-        home, _sep, away = str(step.get("match")).partition(" - ")
-        home, away = home.strip(), away.strip()
-    _sel = str(step.get("sel", ""))
-    _comp = str(step.get("comp") or "")
-    _pr = step.get("prob")
-    _conf = (round(_pr * 100) if isinstance(_pr, (int, float)) and _pr <= 1
-             else (round(_pr) if isinstance(_pr, (int, float)) else None))
-    _cote = step.get("cote")
-    try:
-        from app import web as _web
-        _gloss = _web._bet_gloss(_sel, "foot", home, away)
-    except Exception:
-        _gloss = ""
-    _pretty = analyses.pretty_sel(_sel, home, away)
-    common = {"emoji": "⚽", "_mid": str(step.get("mid") or ""),
-              "cat": (f"Football · {_comp}" if _comp else "Football"),
-              "match": (step.get("match") or f"{home} - {away}").replace(" - ", " — "),
-              "home": home, "away": away, "country": _ms.comp_country(_comp), "comp": _comp,
-              "home_logo": (_cr.logo_url(_cr.team_id(home)) or ""),
-              "away_logo": (_cr.logo_url(_cr.team_id(away)) or ""),
-              "tier": "montante", "conf": _conf, "edge": None, "value": None,   # ÉPURÉ : Confiance + Cote
-              "cote": analyses.fmt_cote(_cote)}
-    if result:
-        return {**common, "type": "result", "score": str(step.get("score") or ""),
-                "pick": _pretty, "gloss": _gloss,
-                "simple": {"label": _pretty, "gloss": _gloss, "tier": "montante",
-                           "cote": common["cote"], "mark": step.get("result")}}
-    return {**common, "type": "simple", "pick": _pretty, "gloss": _gloss, "why": step.get("why") or ""}

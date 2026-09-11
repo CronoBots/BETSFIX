@@ -805,7 +805,7 @@ CSS = """
   .spf-hero-roi.pos{color:#34d27b} .spf-hero-roi.neg{color:#ff6b6b} .spf-hero-roi.na{color:var(--muted)}
   /* 3 stats présentées de façon INTUITIVE & PRO (demande user 2026-07-24) : valeur nette + libellé clair
      en dessous (Réussite / Paris réglés / Cote moyenne), sans boîte. */
-  .spf-hero-kpis{display:flex;justify-content:center;gap:10px 20px;margin-top:9px;flex-wrap:wrap}   /* wrap si 4 KPIs (montante), user 2026-08-19 */
+  .spf-hero-kpis{display:flex;justify-content:center;gap:10px 20px;margin-top:9px;flex-wrap:wrap}
   .spf-hero-kpis>div{display:flex;flex-direction:column;align-items:center;line-height:1.1}
   .spf-hero-kpis .v{font-size:16px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
   .spf-hero-kpis .l{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
@@ -2733,7 +2733,7 @@ CSS = """
        display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
        background:rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
   .zone-tag{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
-  /* Sous-titre collé au titre de zone (ex. « Palier N » sous « MONTANTE ») : plus PETIT, casse normale (user 2026-08-22). */
+  /* Sous-titre collé au titre de zone : plus PETIT, casse normale (user 2026-08-22). */
   .zone-sub{margin-left:8px;font-size:11.5px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--muted);align-self:center}
   /* Badge compteur + chevron POUSSÉS À DROITE (user 2026-08-17 : « badge aligné à droite près de la flèche »). */
   .zone-right{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex:none}
@@ -2827,7 +2827,6 @@ CSS = """
   .zone-abst .zone-n{color:#9fb6cf;background:rgba(159,182,207,.12)}
   .pgm-row.pgm-conf{border-left-color:#34d27b}
   .pgm-row.pgm-val{border-left-color:var(--accent)}
-  .pgm-row.pgm-mont{border-left-color:var(--gold)}
   .pgm-row.pgm-combo{border-left-color:#a78bfa}
   .pgm-row.pgm-won{border-left-color:#34d27b}
   .pgm-row.pgm-lost{border-left-color:#ff6b6b}
@@ -2846,7 +2845,6 @@ CSS = """
   /* Types JOUÉS = chip PLEIN coloré (ressortent). Abstention / à analyser = chip DISCRET (contour tamisé). */
   .pgm-typ.t-conf{color:#08210f;background:#34d27b}
   .pgm-typ.t-val{color:var(--accent-ink);background:var(--accent)}
-  .pgm-typ.t-mont{color:var(--gold-bg);background:var(--gold)}
   .pgm-typ.t-combo{color:#1a1030;background:#a78bfa}
   .pgm-typ.t-abst{color:var(--dim);background:none;border:1px solid var(--border);font-weight:700}
   .pgm-typ.t-wait{color:var(--muted);background:none;border:1px solid var(--border);font-weight:700}
@@ -3714,143 +3712,6 @@ CSS = """
        background:linear-gradient(180deg,rgba(246,197,74,.09),rgba(246,197,74,.02))}
   .sx-today-h{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800}
   .sx-hint{font-size:9.5px;color:var(--dim);margin:1px 0 3px}
-  /* ===== Onglet MONTANTE (fonctionnalité préparée 2026-07-24) ===== */
-  .mont-intro{font-size:12.5px;color:var(--muted);text-align:center;margin:0 4px 12px;line-height:1.5}
-  .mont-hero{text-align:center;padding:18px 14px 15px;margin:2px 0 14px;border-radius:18px;
-       border:1px solid rgba(52,210,123,.5);background:linear-gradient(180deg,rgba(52,210,123,.12),rgba(52,210,123,.02));
-       box-shadow:0 0 34px rgba(52,210,123,.16),var(--shadow-sm)}
-  .mont-hero-l{font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
-  .mont-hero-cap{font-size:46px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 4px;
-       color:#34d27b;font-variant-numeric:tabular-nums}
-  .mont-hero-sub{font-size:12.5px;color:var(--muted);font-weight:600}
-  .mont-hero-sub b{color:var(--text);font-variant-numeric:tabular-nums}
-  /* HERO PREMIUM « montante en cours » (user 2026-08-09, rendu 100 % pro) : le MULTIPLICATEUR ×N est la
-     vedette (énorme, dégradé doré + halo), puis la progression 10 € -> capital sous une fine règle. */
-  .mont-hero-live{position:relative;overflow:hidden;text-align:center;padding:20px 16px 17px;
-       border:1px solid rgba(246,197,74,.42);
-       background:radial-gradient(130% 90% at 50% -10%,rgba(246,197,74,.14),transparent 62%),
-                  linear-gradient(180deg,#121a28,#0b0e14);
-       box-shadow:0 0 44px rgba(246,197,74,.15),var(--shadow-sm)}
-  .mont-hero-live .mhe{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;
-       color:var(--gold);opacity:.9}
-  .mont-hero-live .mhx{font-size:66px;font-weight:900;letter-spacing:-.04em;line-height:.94;margin-top:3px;
-       color:var(--gold);font-variant-numeric:tabular-nums}
-  @supports ((-webkit-background-clip:text) or (background-clip:text)){
-    .mont-hero-live .mhx{background:linear-gradient(176deg,#ffe79b 4%,#f6c54a 52%,#d69f2b);
-       -webkit-background-clip:text;background-clip:text;color:transparent;
-       filter:drop-shadow(0 3px 22px rgba(246,197,74,.5))}}
-  .mont-hero-live .mhx-cap{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-       color:var(--muted);margin-top:1px}
-  /* Palier atteint, en PILULE dorée juste sous le multiplicateur (user 2026-08-22). */
-  .mont-hero-live .mhx-pal{display:inline-block;margin-top:9px;font-size:11px;font-weight:800;letter-spacing:.03em;
-       color:#f6c54a;background:rgba(246,197,74,.12);border:1px solid rgba(246,197,74,.32);border-radius:999px;padding:3px 12px}
-  /* Hero PERDU : « Palier N » en ROUGE (au lieu du multiplicateur doré), courbe qui retombe (user 2026-08-22). */
-  .mont-hero-lost .mhx-lost{font-size:44px;-webkit-text-fill-color:#ff8a8a;color:#ff8a8a}
-  .mont-hero-lost .mp-now{color:#ff8a8a}
-  .mont-prog{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:15px;padding-top:14px;
-       border-top:1px solid rgba(255,255,255,.08)}
-  .mont-prog .mp-cell{display:flex;flex-direction:column;gap:3px;min-width:0}
-  .mont-prog .mp-cell b{font-size:21px;font-weight:900;line-height:1;color:var(--text);
-       font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-  .mont-prog .mp-cell b.mp-now{color:#34d27b}
-  .mont-prog .mp-cell span{font-size:8.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-       color:var(--dim)}
-  .mont-prog .mp-arrow{font-size:19px;font-weight:900;color:var(--gold);line-height:1;flex:none}
-  .mont-chip{display:inline-block;margin-top:11px;padding:3px 13px;border-radius:999px;font-size:11px;
-       font-weight:700;letter-spacing:.02em;border:1px solid rgba(52,210,123,.35);
-       background:rgba(52,210,123,.09);color:#64cd8d}
-  .mont-chip.wait{border-color:rgba(246,197,74,.4);background:rgba(246,197,74,.09);color:var(--gold)}
-  .mont-sec-h{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#cfe0f5;
-       margin:22px 2px 10px;display:flex;align-items:center;gap:9px}
-  .mont-sec-h::before{content:"";flex:none;width:15px;height:2px;border-radius:2px;
-       background:linear-gradient(90deg,var(--gold),rgba(246,197,74,.2))}   /* accent doré, ancre premium commune */
-  .mont-sec-h .tag{margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--gold);
-       border:1px solid rgba(246,197,74,.35);border-radius:999px;padding:2px 9px;text-transform:none}
-  /* Lead (micro-copy) sous un titre de section — guide le nouveau venu, ton premium */
-  .mont-lead{font-size:11.5px;color:var(--muted);line-height:1.5;margin:-5px 4px 12px 26px}
-  .mont-lead b{color:var(--text)}
-  /* Échelle des paliers (staircase) — BARRE DE PROGRESSION de fond (largeur ∝ capital/pic) : on voit la mise
-     grimper palier après palier (refonte 2026-08-09). Contenu au-dessus (z-index). */
-  .mont-ladder{display:flex;flex-direction:column;gap:7px}
-  .mont-step{position:relative;overflow:hidden;display:flex;align-items:center;gap:11px;padding:9px 12px;
-       border-radius:13px;background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
-  .mont-step > *{position:relative;z-index:1}
-  .mont-step-fill{position:absolute;z-index:0;left:0;top:0;bottom:0;border-radius:0 13px 13px 0;
-       background:linear-gradient(90deg,rgba(52,210,123,.16),rgba(52,210,123,.05));border-right:1px solid rgba(52,210,123,.22)}
-  .mont-step.lost .mont-step-fill{background:linear-gradient(90deg,rgba(255,107,107,.14),rgba(255,107,107,.04));border-right-color:rgba(255,107,107,.22)}
-  .mont-step.pending .mont-step-fill{background:linear-gradient(90deg,rgba(246,197,74,.15),rgba(246,197,74,.04));border-right-color:rgba(246,197,74,.24)}
-  .mont-step.peak .mont-step-fill{background:linear-gradient(90deg,rgba(246,197,74,.2),rgba(246,197,74,.06));border-right-color:rgba(246,197,74,.4)}
-  .mont-step.won{border-color:rgba(52,210,123,.32)} .mont-step.lost{border-color:rgba(255,107,107,.32)}
-  .mont-step.pending{border-color:rgba(246,197,74,.42)}
-  .mont-step.peak{border-color:rgba(246,197,74,.55);box-shadow:0 0 18px rgba(246,197,74,.14)}
-  .mont-step.peak .mont-step-n{background:linear-gradient(180deg,#ffe79b,#f6c54a);color:#3a2a05}
-  .mont-step.peak .mont-step-a .to{color:var(--gold)}
-  .mont-step-n{flex:none;width:26px;height:26px;border-radius:8px;display:flex;
-       align-items:center;justify-content:center;line-height:1;background:rgba(255,255,255,.05);color:var(--muted)}
-  .mont-step-n b{font-size:12px;font-weight:800}
-  .mont-step.won .mont-step-n{background:rgba(52,210,123,.15);color:#64cd8d}
-  .mont-step.lost .mont-step-n{background:rgba(255,107,107,.15);color:#ff6b6b}
-  .mont-step.pending .mont-step-n{background:rgba(246,197,74,.15);color:var(--gold)}
-  .mont-step-m{flex:1;min-width:0}
-  .mont-step-t{font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* Pari joué + COTE bien visibles : le pari s'affiche en entier, la cote en pastille bleue distincte. */
-  .mont-step-s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px}
-  .mont-step-s .sel{font-size:10.5px;color:var(--muted);line-height:1.3}
-  .mont-step-c{flex:none;font-size:11.5px;font-weight:800;color:#d6ecff;background:rgba(34,184,255,.18);
-       border:1px solid rgba(34,184,255,.42);border-radius:7px;padding:1px 8px;font-variant-numeric:tabular-nums}
-  /* Colonne droite : capital RÉSULTAT (gros) + gain du palier (compact) */
-  .mont-step-a{flex:none;text-align:right;font-variant-numeric:tabular-nums;padding-left:8px}
-  .mont-step-a .to{font-size:15px;font-weight:800;color:var(--text);display:block}
-  .mont-step.won .mont-step-a .to{color:#34d27b}
-  .mont-step-a .to .ko{color:#ff6b6b} .mont-step-a .to .wait{color:var(--gold)}
-  .mont-step-g{display:block;font-size:11.5px;font-weight:800;color:var(--muted);margin-top:1px}
-  .mont-step-g.up{color:#64cd8d} .mont-step-g.dn{color:#ff8a8a}
-  /* MISE bien visible (demande user 2026-07-25) : label discret + montant lisible. */
-  .mont-step-mise{display:block;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.02em}
-  .mont-step-mise b{color:var(--text);font-weight:800}
-  /* MONTANTE fusionnée dans Confiance (user 2026-08-08) : titre « MONTANTE • PALIER N » DANS le cadre BLEU,
-     centré, BLANC, MAJUSCULE, sans emoji, + fine ligne dessous. La carte = LA MÊME que l'onglet Montante. */
-  .mont-hdr{display:block;text-align:center;color:#fff;font-weight:900;font-size:14px;text-transform:uppercase;
-       letter-spacing:.04em;padding:10px 10px 8px;text-decoration:none;background:rgba(58,160,255,.14);
-       border-bottom:1px solid rgba(58,160,255,.42);-webkit-tap-highlight-color:transparent}   /* fine ligne sous le titre */
-  .mont-cardwrap{border:1px solid #3aa0ff;border-radius:14px;overflow:hidden;
-       box-shadow:0 0 0 1px rgba(58,160,255,.30),0 8px 26px rgba(58,160,255,.12)}
-  .mont-cardwrap > .cleg{border-color:transparent;box-shadow:none;border-radius:0}
-  /* Une fois RÉGLÉ : contour VERT (gagné) / ROUGE (perdu), comme les autres cartes résultat (user 2026-08-08). */
-  .mont-cardwrap.won{border-color:var(--st-won);box-shadow:0 0 0 1px rgba(52,210,123,.30),0 8px 26px rgba(52,210,123,.12)}
-  .mont-cardwrap.lost{border-color:var(--st-lost);box-shadow:0 0 0 1px rgba(255,107,107,.30),0 8px 26px rgba(255,107,107,.12)}
-  .mont-hdr.won{background:rgba(52,210,123,.16);border-bottom-color:rgba(52,210,123,.45)}
-  .mont-hdr.lost{background:rgba(255,107,107,.16);border-bottom-color:rgba(255,107,107,.45)}
-  /* Courbe d'aire de la trajectoire du capital (10 € -> pic), panneau chart subtil (refonte 2026-08-09) */
-  .mont-curve{margin:2px 0 12px;padding:9px 8px 3px;border-radius:14px;
-       background:linear-gradient(180deg,rgba(52,210,123,.05),transparent);border:1px solid var(--border)}
-  .mont-c{width:100%;height:auto;display:block}
-  /* Courbe DANS le hero (user 2026-08-14) : pas de boîte (bordure/fond) -> le graphe s'intègre au hero. */
-  .mont-hero-curve{margin:13px 0 0;padding:6px 0 0;background:none;border:0}
-  .mont-c-lbl{font-size:9.5px;font-weight:800;fill:var(--muted);font-variant-numeric:tabular-nums}
-  .mont-c-lbl.end{fill:#34d27b;font-size:11.5px;font-weight:900}
-  /* Palmarès : KPIs premium propres à la montante (n'affecte pas les .sx-kpi des stats). Best = or. */
-  .mont-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-  .mont-kpi{text-align:center;padding:14px 8px 12px;border-radius:15px;
-       background:linear-gradient(180deg,#0f1620,#0b0d13);border:1px solid var(--border)}
-  .mont-kpi.best{border-color:rgba(246,197,74,.42);
-       background:radial-gradient(120% 90% at 50% 0%,rgba(246,197,74,.1),transparent 65%),linear-gradient(180deg,#0f1620,#0b0d13)}
-  .mont-kpi b{display:block;font-size:20px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums;
-       letter-spacing:-.01em;line-height:1}
-  .mont-kpi.best b{color:var(--gold)}
-  .mont-kpi span{display:block;font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-       color:var(--dim);margin-top:6px;line-height:1.3}
-  /* Historique des montantes (chaînes passées) */
-  .mont-hist{display:flex;flex-direction:column;gap:8px}
-  .mont-hrow{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;
-       background:rgba(255,255,255,.03);border:1px solid var(--border)}
-  .mont-hrow-b{flex:none;width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
-       font-size:12px;background:rgba(255,107,107,.15);color:#ff6b6b}
-  .mont-hrow-m{flex:1;min-width:0;font-size:12px;color:var(--text)}
-  .mont-hrow-m span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
-  .mont-hrow-v{flex:none;font-size:13px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
-  .mont-empty{text-align:center;color:var(--muted);font-size:12px;padding:18px 12px;line-height:1.5;
-       border:1px dashed var(--border);border-radius:13px}
   /* ===== Onglet CALENDRIER (P&L par jour, demande user 2026-07-25) ===== */
   .mcal{--mt:0}
   .mcal-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 12px}
@@ -4047,9 +3908,6 @@ _LIVE_RADAR = ('<span class="nav-radar"><span class="nr-ring"></span>'
 # ACCUEIL = onglet/PANNEAU SPA à part entière (demande user 2026-07-30) : MÊME cadre + présentation que les
 # autres onglets (son panneau charge /accueil?frag=1, bascule SANS rechargement). « Compte » n'est PAS dans
 # la barre du bas -> bouton en HAUT À DROITE (_ACCT_BTN). (Gating d'onglets par abonnement : plus tard.)
-# ONGLET MONTANTE RETIRÉ de la barre (user 2026-08-19) : la montante devient un ONGLET des Résultats
-# (bilan multiplicateur + courbe capital), comme Confiance/Value/Combiné. Barre = 4 onglets. Son pari du
-# jour reste dans Pronos. `/montante` redirige vers /stats (routeur).
 # ICÔNES DE NAV = SVG, PLUS D'EMOJI (audit ui-ux-pro-max 2026-09-02, règle n°1 « No Emoji as Structural
 # Icons »). Les emoji 🏠📅📊👤 étaient dépendants de la police système, ne pouvaient PAS hériter de la
 # couleur de l'onglet — sur l'onglet ACTIF (fond dégradé bleu, `color:var(--accent-ink)`) ils restaient
@@ -4248,12 +4106,7 @@ _CARDS_JS = (
     # on (dé)plie via l'en-tête de la carte uniquement. (cf. accordéon data-exp, même garde)
     "if(_mv)return;if(e.target.closest('a,.exp'))return;"
     "var card=e.target.closest('.row.mc');"
-    # CARTE MONTANTE (`.mont-cardwrap` contenant une `.cleg`, pas une `.row.mc`) : clic dans le CORPS -> (dé)plie
-    # son « Pourquoi » comme les autres cartes (user 2026-08-10). L'en-tête `.mont-hdr` est un <a> -> intercepté
-    # plus haut (closest('a')) et géré par data-goto (bascule vers l'onglet Montante).
-    "if(!card){var mw=e.target.closest('.mont-cardwrap');"
-    "if(mw){var md=mw.querySelector('details.cleg-fold');"
-    "if(md&&!e.target.closest('summary')){e.preventDefault();md.open=!md.open;}}return;}"
+    "if(!card)return;"
     # Carte PLATE (pas de corps dépliable) : un clic N'IMPORTE OÙ dans le cadre (dé)plie le « Pourquoi »
     # (demande user 2026-07-21). Le summary garde son toggle natif (stopPropagation) -> pas de double bascule.
     "var b=card.querySelector('.mc-body');"
@@ -4370,7 +4223,7 @@ _SPA_JS = (
     "if(ni<0||ni>=tabs.length)return;go(tabs[ni],true);},{passive:true});"
     # Filtre temporel des stats : clic sur un bouton période -> recharge le panneau stats (since)
     "P.addEventListener('click',function(e){"
-    # bannière/lien interne data-goto (ex. Montante du jour sur Pronos) -> bascule d'onglet SPA
+    # bannière/lien interne data-goto -> bascule d'onglet SPA
     "var gb=e.target&&e.target.closest?e.target.closest('[data-goto]'):null;"
     "if(gb){e.preventDefault();go(gb.getAttribute('data-goto'),true);return;}"
     "var a=e.target&&e.target.closest?"
@@ -5403,7 +5256,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # sur les seuls paris du tier) -> l'historique des matchs est bien SÉPARÉ entre Confiance et Value.
     _bt = full.get("by_tier") or {}
     _pend_all = analyses.pending_roi_bets()
-    _pend_conf = [b for b in _pend_all if b.get("tier") == "confiance"]   # montante exclue (catégorie à part)
+    _pend_conf = [b for b in _pend_all if b.get("tier") == "confiance"]
     _pend_val = [b for b in _pend_all if b.get("tier") == "value"]
 
     def _tier_block(ts, pend, uid, more_lbl):
@@ -5455,34 +5308,14 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
     # n'est plus rendu (prov_html="" -> onglet ignoré) ; les abstentions nourrissent la calibration (fantômes).
     _prov_html = _prov_sport_graph("foot") if analyses.PROVISOIRES_ON else ""
-    # ONGLET MONTANTE (user 2026-08-19) : l'ex-onglet nav Montante devient un onglet des Résultats, comme
-    # Confiance/Value/Combiné, MAIS avec son graphique propre (multiplicateur + courbe de capital + échelle).
-    # Hors ROI -> pas de chip ROI. Le pari du jour reste dans Pronos. Affiché seulement si la montante est active.
-    _mont_block, _mont_chip = "", ""
-    try:
-        from app import montante as _mtn_s
-        if _mtn_s.is_active():
-            _mst = _mtn_s.state()
-            _mont_block = render_montante_bilan(_mst, _mtn_s.example())
-            # CHIP DU BOUTON MONTANTE = MULTIPLICATEUR ACTUEL ×N (user 2026-08-19), à la place du chip ROI.
-            _mbase = _mst.get("base", 10.0) or 10.0
-            _mq = (_mst.get("capital", _mbase) / _mbase) if _mbase else 1.0
-            _mont_chip = (f'<span class="sctab-roi {"pos" if _mq > 1.0001 else "neu"}">'
-                          f'×{f"{round(_mq, 1):g}".replace(".", ",")}</span>')
-    except Exception:
-        _mont_block = ""
-    _mont_cnt = 1 if _montante_palier() is not None else 0
     _foot = _sport_tabs(simples_block, combos_block, _prov_html,
                         value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
-                        montante_html=_mont_block,                                 # onglet MONTANTE (user 2026-08-19)
-                        tab_chips=({"Montante": _mont_chip} if _mont_chip else None),
                         counts=(len(_pend_conf), len(_pend_val),
-                                _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc),
-                                _mont_cnt),
+                                _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc)),
                         rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
                               _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None,
-                              # COMBINÉ COMPTÉ AU ROI (user 2026-08-19) -> chip ROI affiché ; Montante reste hors ROI.
-                              (_foot_c.get("roi") if analyses.COMBO_ROI_ON else None), None))
+                              # COMBINÉ COMPTÉ AU ROI (user 2026-08-19) -> chip ROI affiché.
+                              (_foot_c.get("roi") if analyses.COMBO_ROI_ON else None)))
     # Ligne « compté au ROI · repris dans les paris » RETIRÉE (user 2026-08-07) : elle servait à distinguer
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
@@ -5538,9 +5371,7 @@ def render_perf(perf: dict | None) -> str:
 def render_tier_compare(full: dict | None) -> str:
     """CONFIANCE vs VALUE (demande user 2026-08-13) : le rendement des types de paris à mise plate côte à côte
     — ROI, réussite, volume, cote moyenne. Répond « le phare paie-t-il vraiment mieux, et la value compense-t-elle
-    par le volume ? ». ⚠️ La MONTANTE est EXCLUE (user 2026-08-20) : c'est une échelle CAPITALISÉE (multiplicateur),
-    pas un ROI à mise plate -> elle a sa propre vue (multiplicateur/capital), jamais un chiffre de ROI. Données
-    figées (by_tier de stats_full). '' si rien de réglé."""
+    par le volume ? ». Données figées (by_tier de stats_full). '' si rien de réglé."""
     bt = (full or {}).get("by_tier") or {}
     kpis = []
     for key, lbl in (("confiance", "⭐ Confiance"), ("value", "💎 Value")):
@@ -5556,7 +5387,7 @@ def render_tier_compare(full: dict | None) -> str:
     if not kpis:
         return ""
     return ('<div class="sx-card"><div class="sx-h">Confiance vs Value'
-            '<span>rendement des paris à mise plate (montante à part)</span></div>'
+            '<span>rendement des paris à mise plate</span></div>'
             f'<div class="av-top">{"".join(kpis)}</div></div>')
 
 
@@ -5593,25 +5424,23 @@ def _roi_chip_mini(roi) -> str:
 
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
                 counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
-                value_html: str = "", montante_html: str = "", tab_chips: dict | None = None) -> str:
-    """Onglets « Confiance | Value | Provisoire | Combiné | Montante » dans un cadre sport (demande user
-    2026-07-24/25, Value 2026-08-09, Montante 2026-08-19 : l'onglet nav Montante devient un onglet des Résultats) :
+                value_html: str = "", tab_chips: dict | None = None) -> str:
+    """Onglets « Confiance | Value | Provisoire | Combiné » dans un cadre sport (demande user
+    2026-07-24/25, Value 2026-08-09) :
     UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont ignorés ;
     si un seul graphe, rendu direct ; '' si aucun. `counts`/`rois` = par onglet DANS L'ORDRE — pastille ⏳ + ROI."""
     _c = list(counts) + [0, 0, 0, 0, 0]
     _r = list(rois) + [None, None, None, None, None]
-    # ORDRE (user 2026-08-19) : Confiance › Value › Provisoire › Combiné › Montante (Montante en dernier, comme
-    # dans Pronos). Libellés au SINGULIER. counts/rois suivent le MÊME ordre. La montante n'a PAS de chip ROI
-    # (hors ROI, courbe = capital/multiplicateur).
+    # ORDRE : Confiance › Value › Provisoire › Combiné. Libellés au SINGULIER. counts/rois suivent le MÊME ordre.
     _specs = (("Confiance", simple_html), ("Value", value_html),
-              ("Provisoire", prov_html), ("Combiné", combos_html), ("Montante", montante_html))
+              ("Provisoire", prov_html), ("Combiné", combos_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
         return _tabs[0][1] if _tabs else ""
 
     def _badge(n) -> str:
         return f'<span class="sctab-n">{n}</span>' if isinstance(n, int) and n > 0 else ""
-    # CHIP DU BOUTON (user 2026-08-19) : chip custom par onglet (ex. Montante = multiplicateur ×N) sinon chip ROI.
+    # CHIP DU BOUTON : chip custom par onglet (via tab_chips) sinon chip ROI.
     _btns = "".join(f'<button class="sctab{" on" if i == 0 else ""}" data-i="{i}">'
                     f'{lbl}{(tab_chips or {}).get(lbl) or _roi_chip_mini(r)}{_badge(n)}</button>'
                     for i, (lbl, _h, n, r) in enumerate(_tabs))
@@ -7406,7 +7235,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
 def _leg_live_prob(l: dict):
     """Chance live d'UNE jambe/pari (extrait l'état live via le cache des sources). None si pas en direct ou
     non mappable. MÊME calcul que la barre live de `_leg_card` -> réutilisé pour la chance live GLOBALE du
-    combiné et de la montante (user 2026-08-08). PURE AFFICHAGE."""
+    combiné (user 2026-08-08). PURE AFFICHAGE."""
     _sp = l.get("sport") or "foot"
     _lh, _la = l.get("home") or "", l.get("away") or ""
     if not (_lh and _la) and l.get("name"):
@@ -7652,113 +7481,6 @@ def _combo_safe_tg_card(include_settled: bool = False, cb: dict | None = None) -
     return _combo_tg_card(include_settled=include_settled, cb=cb, sport="foot", title="COMBINÉ")
 
 
-def _montante_palier() -> int | None:
-    """N° du palier montante EN ATTENTE (1-based) pour le titre de zone Pronos, ou None si montante inactive /
-    aucun palier en attente. Même dérivation que `_montante_zone_card` (`palier` de l'état + 1)."""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return None
-        st = _mt.state()
-        p = st.get("pending")
-        if not p or not p.get("sel"):
-            return None
-        return int(st.get("palier") or 0) + 1
-    except Exception:
-        return None
-
-
-def _montante_today_bet():
-    """Le pari montante DU JOUR : le `pending` (non réglé) sinon le dernier step RÉGLÉ aujourd'hui (jour
-    sportif). None si montante inactive / aucun pari aujourd'hui. Sert à afficher le pari montante ET son
-    résultat une fois réglé (user 2026-08-08)."""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return None
-        p = _mt.state().get("pending")
-        if p and p.get("sel"):
-            return p
-        _today = _sport_today().isoformat()
-        # public_steps (pas load) -> un palier hors-technique masqué (ex. 20/08) ne réapparaît pas sur l'accueil.
-        _ts = [s for s in _mt.public_steps() if str(s.get("date")) == _today and s.get("sel")]
-        return _ts[-1] if _ts else None
-    except Exception:
-        return None
-
-
-def _montante_zone_card(sport: str | None) -> tuple:
-    """(titre_zone, carte) du pari MONTANTE du jour rendu COMME les autres types de paris (carte `_leg_card`
-    avec ligne verdict + pli « Pourquoi »), pour sa propre zone « Montante · Palier N » (demande user
-    2026-07-30). ('', '') si montante inactive / pas de palier en attente / vue hors foot. Purement AFFICHAGE
-    (le suivi montante reste dans app/montante.py, hors ROI)."""
-    if sport not in (None, "foot"):
-        return "", ""
-    try:
-        from app import montante as _mt
-        if not _mt.is_active():
-            return "", ""
-        st = _mt.state()
-        p = _montante_today_bet()                      # pending OU pari réglé du jour (user 2026-08-08)
-        if not (p and p.get("sel")):
-            return "", ""
-        # palier : le pending est le PROCHAIN (state+1) ; un pari RÉGLÉ du jour est celui qui vient d'avancer.
-        _settled = p.get("result") in ("won", "lost", "push", "void")
-        palier = int(st.get("palier") or 0) + (0 if _settled else 1)
-        mid = str(p.get("mid") or "")
-        d = analyses.meta("foot", mid) or {}
-        start = d.get("start")
-        _comp = d.get("comp")
-        if not (start and _comp):                      # sidecar sans heure/ligue (match pas encore analysé) ->
-            try:                                        # repli sur le PROGRAMME du jour (heure ET ligue, user 2026-08-18).
-                import json as _j
-                _pg = _j.load(open(os.path.join(analyses._ROOT, "data", "day_programme.json"), encoding="utf-8"))
-                _pm = next((m for m in _pg.get("matches", []) if str(m.get("id")) == mid), None)
-                start = start or (_pm or {}).get("start")
-                _comp = _comp or (_pm or {}).get("comp")
-            except Exception:
-                pass
-        # CONFIANCE de la montante = sa PROPRE proba CALIBRÉE (safe_dc/Pinnacle), stockée au palier (user
-        # 2026-08-18 : la carte doit être présentée COMME les autres paris -> il lui faut sa confiance). La
-        # montante n'est PAS un pari retenu du flagship (match souvent pas encore analysé) -> `retained_bet`
-        # renvoie None : on prend `p['prob']` en priorité (calibrée), repli sur la brute du pari joué si dispo.
-        prob = p.get("prob")
-        _prob_cal = prob is not None                   # p['prob'] est DÉJÀ calibrée (comme les jambes de combiné)
-        if prob is None:
-            try:
-                rb = analyses.retained_bet("foot", mid, for_history=True)
-                prob = (rb.get("cprob") or rb.get("prob")) if rb else None
-                _prob_cal = bool(rb and rb.get("cprob"))
-            except Exception:
-                prob = None
-        # TABLEAU DES SCORES comme les autres cartes résultat (user 2026-08-08) : score/périodes/pens du
-        # sidecar via result_board, une fois le pari réglé.
-        _board = (analyses.result_board(d, "foot") or {}) if p.get("result") in ("won", "lost", "push", "void") else {}
-        # ANALYSE de la montante (user 2026-08-18) : le « pourquoi » ANALYSÉ AU SCAN (stocké au palier, comme
-        # le combiné) prime -> affiché en entier dès le matin, indépendamment du pari simple (fait ~1 h avant).
-        # Repli sur l'analyse du sidecar (_prov_why_snippet) si le match a été analysé depuis (vague).
-        _mwhy = p.get("why") or _prov_why_snippet("foot", mid, maxlen=100000, played=True)
-        leg = {"sport": "foot", "home": d.get("home") or p.get("home"), "away": d.get("away") or p.get("away"),
-               "name": p.get("match"), "comp": _comp or p.get("comp"), "start": start,
-               "sel": p.get("sel"), "cote": p.get("cote"),
-               "code": p.get("code"), "result": p.get("result"), "prob": prob,
-               "score": _board.get("score"), "periods": _board.get("periods"), "pens": _board.get("pens"),
-               "why": _mwhy}
-        # live_layout=True (user 2026-08-18) : MÊME mise en page qu'un pari Confiance (ligue CENTRÉE + pays,
-        # logos + équipes + heure/score au CENTRE, pari + glose CENTRÉS dans le cadre verdict) — sinon la
-        # montante gardait le layout compact `.cleg` (pari collé à gauche, sans ligue) ≠ carte Confiance.
-        # bare=True (user 2026-08-18 « épure pour combiné et montante ») : grille ÉPURÉE Confiance + Cote (pas
-        # Edge/Value), comme les jambes du combiné -> présentation cohérente entre les 2 paris « sûrs » (DC).
-        card = _leg_card(leg, why=True, verdict=True, teams=True, why_label="Pourquoi ce pari",
-                         prob_calibrated=_prob_cal, live_layout=True, bare=True)
-        # LIGNE « mont-note » (mise rejouée · voir l'échelle) RETIRÉE sous la carte (user 2026-08-08).
-        return f"Montante · Palier {palier}", card
-    except Exception:
-        return "", ""
-
-
-
-
 def _combo_premium_block(sport: str, mid, home: str, away: str) -> str:
     """CORPS d'une carte COMBINÉ RETENU (ROI) — destiné à la coquille dorée `_combo_gold_card` (demande user
     2026-07-19 : le combiné Coupe du Monde présenté EXACTEMENT comme le combiné du jour). Contenu : le SIMPLE
@@ -7850,8 +7572,6 @@ _ZONE_ICON = {
              '<path d="M9 12l2 2 4-4"/></svg>'),
     "value": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
               'stroke-linejoin="round"><path d="M12 3L3 9l9 12 9-12-9-6z"/><path d="M3 9h18"/></svg>'),
-    "mont": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
-             'stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M16 7h5v5"/></svg>'),
     "combo": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
               'stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>'),
     "abst": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
@@ -7912,7 +7632,7 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         # et prennent la branche ci-dessus ; ici on ne rend que les zones simples.)
         # ORDRE = MÊME SENS que les cartes en dessous (user 2026-08-09), cycle de vie non-joué -> réglé :
         # À VENIR/LIVE (jaune) · EN ATTENTE (gris) · GAGNÉS (vert) · PERDUS (rouge). Le jaune (qui inclut la
-        # montante + les lives) est donc EN PREMIER, comme les matchs à venir/en cours en haut de la liste.
+        # les lives) est donc EN PREMIER, comme les matchs à venir/en cours en haut de la liste.
         if _up:                                          # à venir + live incertain (pas de résultat) : JAUNE, EN PREMIER
             chips += f'<span class="zr zru">{_up}</span>'
         if _pend:                                        # fini mais PAS ENCORE RÉGLÉ : badge GRIS
@@ -7948,11 +7668,11 @@ def _zone(kind: str, title: str, tag: str, count: int, body: str,
         t = ""
     # TITRE + tag à GAUCHE ; le BADGE compteur (rec) + le chevron sont poussés À DROITE (user 2026-08-17 :
     # « ce badge doit être aligné à droite près de la flèche qui déplie »). `.zone-right{margin-left:auto}`.
-    # ICÔNE de catégorie (user 2026-08-19) : identité visuelle par type (⭐ Confiance · 💎 Value · 🪜 Montante
+    # ICÔNE de catégorie (user 2026-08-19) : identité visuelle par type (⭐ Confiance · 💎 Value
     # · 🎯 Combiné · ⏸ Abstention · 📋 Programme), discrète à gauche du titre.
     _ic = _ZONE_ICON.get(kind, "")
     _ich = f'<span class="zone-ic">{_ic}</span>' if _ic else ""
-    # SOUS-TITRE petit collé au titre (user 2026-08-22 : « Palier N » écrit plus petit que « Montante »).
+    # SOUS-TITRE petit collé au titre (user 2026-08-22).
     _sub = f'<span class="zone-sub">{html.escape(subtitle)}</span>' if subtitle else ""
     head = (f'{_ich}<span class="zone-t">{html.escape(title)}</span>{_sub}{t}')   # point (.zone-dot) retiré (user 2026-08-08)
     if collapsible:
@@ -7984,7 +7704,7 @@ _MO_FULL = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "a
 # finit vers 05-07h) reste rattaché à la journée de la veille jusqu'à 08h, au lieu de s'évanouir au rollover de
 # 06h (le programme se vide dès que sa date ≠ jour sportif courant, cf. `_load_day_programme`). Aligne AUSSI le
 # rollover sur l'intention d'origine « vider le programme avant 08h belge » (le scan du matin le repeuple).
-# SOURCE UNIQUE : tout le reste (calendrier, stats, combo_daily.day_key, montante, routeurs) passe par ici.
+# SOURCE UNIQUE : tout le reste (calendrier, stats, combo_daily.day_key, routeurs) passe par ici.
 _SPORT_DAY_START_H = 8
 
 
@@ -8180,7 +7900,7 @@ _DRM_CONF_CACHE: dict = {"ts": 0.0, "map": None}
 def _daily_conf_results_map() -> dict:
     """Comme `_daily_results_map` mais RESTREINT aux paris de CONFIANCE (tier « confiance »), football.
     Sert UNIQUEMENT à colorer les PASTILLES du calendrier horizontal (demande user 2026-08-30 : le point
-    vert/rouge ne doit refléter QUE la Confiance — le chiffre phare — pas la Value/le combiné/la montante).
+    vert/rouge ne doit refléter QUE la Confiance — le chiffre phare — pas la Value/le combiné).
     Net 1 u (won -> cote−1, lost -> −1), agrégé par JOUR SPORTIF. On lit le tier FIGÉ (`tier_of`, monotone :
     `confidence_bet`/`stat_bet.kind`), donc immunisé à la dérive de calibration. Caché 30 s (comme le map global)."""
     _now = time.time()
@@ -8193,7 +7913,7 @@ def _daily_conf_results_map() -> dict:
         sb = d.get("stat_bet")
         if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
             continue
-        if analyses.tier_of(d) != "confiance":                 # Value / combiné / montante -> hors pastille
+        if analyses.tier_of(d) != "confiance":                 # Value / combiné -> hors pastille
             continue
         ld = to_local(d.get("_start_dt")) if d.get("_start_dt") else None
         if ld is None:
@@ -8382,7 +8102,7 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             if not analyses.is_settled(d):
                 continue
             fid = str(d.get("id"))
-            if exclude_mids and fid in exclude_mids:   # ex. match de la montante -> déjà affiché en carte montante
+            if exclude_mids and fid in exclude_mids:
                 continue
             _bdg, _sco = analyses.result_chip(d)
             _board = analyses.result_board(d, sp) or {}
@@ -8433,8 +8153,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
 
 def _sport_pronos_counts(match_rows: list) -> dict:
     """Nb de paris affichés PAR SPORT dans Pronos (badge des boutons sport, demande user 2026-07-27, même
-    style que les badges d'onglets Stats) : paris joués + provisoires + combiné (+ montante + Betmines pour
-    le foot) — MÊME comptage que le `_cnt` de _today_zones, décliné par sport."""
+    style que les badges d'onglets Stats) : paris joués + provisoires + combiné — MÊME comptage que le
+    `_cnt` de _today_zones, décliné par sport."""
     from app import combo_daily as _cd
     _day = _sport_today().isoformat()
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
@@ -8443,26 +8163,12 @@ def _sport_pronos_counts(match_rows: list) -> dict:
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
-    _mont = 1 if _montante_palier() is not None else 0   # montante active (palier en attente) -> +1 au compte foot
-    # Le match de la montante peut DÉJÀ être un pari de Confiance dans match_rows -> il faut l'EXCLURE du
-    # compte `play` avant d'ajouter `_mont`, sinon double-compte (comme _today_zones l.6547). (fix user 2026-08-08)
-    _mont_pair = None
-    try:
-        from app import montante as _mt1
-        if _mt1.is_active():
-            _mm1 = _noF(str((_mt1.state().get("pending") or {}).get("match") or ""))
-            _mh1, _, _ma1 = _mm1.partition(" - ")
-            if _mh1:
-                _mont_pair = _prog_pair(_mh1, _ma1)
-    except Exception:
-        _mont_pair = None
     out = {}
     for sp in ("foot", "tennis", "basket"):
         _prog = [it for it in _programme_items(_paj, framed=True, keep_sport=sp)
                  if not it.get("_live") and it.get("_sport") == sp]
         prov = sum(1 for it in _prog if it.get("_prov"))
-        play = sum(1 for r in match_rows if _item_sport(r) == sp
-                   and not (sp == "foot" and _mont_pair and _prog_pair(r.get("home"), r.get("away")) == _mont_pair))
+        play = sum(1 for r in match_rows if _item_sport(r) == sp)
         try:
             # UN SEUL combiné/jour (user 2026-08-20) -> variant "" seulement.
             _cvars = ("", "soir")
@@ -8474,7 +8180,7 @@ def _sport_pronos_counts(match_rows: list) -> dict:
                     combo += 1
         except Exception:
             combo = 0
-        out[sp] = play + prov + combo + (_mont if sp == "foot" else 0)
+        out[sp] = play + prov + combo
     return out
 
 
@@ -8607,29 +8313,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                   key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
     _paj = {_prog_pair(r.get("home"), r.get("away")) for r in match_rows}
     # DÉDUP (demande user 2026-07-26) — un match déjà JAMBE du combiné du jour n'apparaît PLUS aussi en
-    # provisoire (fini le doublon exact type « Grêmio DC 1X »). La montante, elle, suit le meilleur simple
-    # value (déjà dans les paris joués -> déjà exclu ici) : pas de dédup montante↔combiné séparée.
+    # provisoire (fini le doublon exact type « Grêmio DC 1X »).
     try:
         from app import combo_daily as _cd0
         for _lh, _la in _cd0.leg_names(_sport_today().isoformat()):
             _paj.add(_prog_pair(_lh, _la))
     except Exception:
         pass
-    # MATCH DE LA MONTANTE : injecté en carte montante dédiée (cadre bleu) EN TÊTE de Confiance -> on l'EXCLUT
-    # de play (Confiance) ET de prov (Provisoire) pour ne PAS l'afficher 2× (user 2026-08-08).
-    _mont_pair = set()
-    try:
-        from app import montante as _mt0
-        if _mt0.is_active():
-            _mm0 = _noF(str((_mt0.state().get("pending") or {}).get("match") or ""))
-            _mh0, _, _ma0 = _mm0.partition(" - ")
-            if _mh0:
-                _mont_pair.add(_prog_pair(_mh0, _ma0))
-    except Exception:
-        pass
-    _paj |= _mont_pair
-    if _mont_pair:
-        play = [r for r in play if _prog_pair(r.get("home"), r.get("away")) not in _mont_pair]
     # LIVE GARDÉ DANS PRONOS (user 2026-08-08 : « un match live doit rester aussi dans Pronos et le considérer
     # comme en attente ») -> plus de filtre `not _live` ici. Le match live reste visible ET compté « en attente ».
     _prog = list(_programme_items(_paj, framed=True, keep_sport=sport))
@@ -8676,71 +8366,28 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _is_foot_view = sport in (None, "foot")
     # (Zone « Combiné » séparée RETIRÉE le 2026-08-02 : la double chance EST désormais le
     #  « Combiné football » ci-dessus (combo_daily), compté au ROI. Plus de carte combiné distincte.)
-    # MONTANTE : type de pari À PART (demande user 2026-07-30) -> zone dédiée « Montante · Palier N » plus bas
-    # (via _montante_zone_card). Plus de badge greffé sur les cartes de pari joué (surface unique = la zone).
     # Zones REPLIABLES (demande user 2026-07-20) : chaque type de pari peut être plié pour se concentrer sur
     # ce qui compte ; ouvertes par défaut, état mémorisé (localStorage via _CAL_JS).
-    # ORDRE : Confiance (montante incluse) → Value → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
-    # pari/résultat/montante (demande user 2026-07-26).
+    # ORDRE : Confiance → Value → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
+    # pari/résultat (demande user 2026-07-26).
     out = []
-    # MONTANTE FUSIONNÉE DANS CONFIANCE (user 2026-08-08) : PLUS de zone « Montante » séparée. Le match de la
-    # montante est souvent une ABSTENTION (son pari = le pick de la montante, pas un pari de Confiance) -> il
-    # N'EST PAS dans `play`. On INJECTE donc SA carte (LA MÊME que l'onglet Montante, via _montante_zone_card)
-    # dans `play`, avec un label « Montante • Palier N » au-dessus + un CADRE BLEU (conservé). Elle est donc
-    # comptée dans le JAUNE « à venir » du compteur (plus de badge bleu dédié, user 2026-08-08). (foot uniquement).
-    _mont_title, _mont_card = _montante_zone_card(sport)
-    _mont_settled = ""     # carte montante RÉGLÉE -> injectée avec les RÉSULTATS (après les à-venir), pas en tête
-    # La montante est classée par SA confiance (Confiance si ≥ seuil, sinon Value) -> cohérent avec les stats
-    # (user 2026-08-10 : on reste sur la nouvelle logique de tier ; le « bordel » du jour venait d'un faux
-    # règlement 6-0, pas de la montante). Son ROI est compté dans le bon tier via tier_of.
-    _mont_tier = "confiance"
-    if _mont_card:
-        _mpj = _montante_today_bet() or {}             # pending OU pari réglé du jour (heure/live/résultat)
-        _mont_tier = analyses.bet_tier_for("foot", str(_mpj.get("mid") or ""))
-        # CADRE vert (gagné) / rouge (perdu) une fois réglé, comme les autres cartes résultat (user 2026-08-08) ;
-        # bleu tant que non réglé (en attente/live). Le titre « MONTANTE • PALIER N » suit la même couleur.
-        _mres = _mpj.get("result")
-        _mcls = " won" if _mres == "won" else " lost" if _mres in ("lost", "void", "push") else ""
-        # Cadre/titre « MONTANTE • PALIER N » AU-DESSUS de la carte RETIRÉ (user 2026-08-18) : le palier est
-        # désormais porté par le TITRE DE LA ZONE (« Montante • Palier N »). On garde juste le cadre de couleur.
-        _mont_deco = f'<div class="mont-cardwrap{_mcls}">{_mont_card}</div>'
-        if _mres in ("won", "lost", "push", "void"):
-            # RÉGLÉ : avec les autres résultats (le bloc résultats vient APRÈS les à-venir/en cours) — user
-            # 2026-08-08 : « le résultat de la montante ne doit pas être tout au-dessus, il reste des paris à venir ».
-            _mont_settled = _mont_deco
-        else:
-            # EN ATTENTE / LIVE : dans la liste play, TRIÉE par statut (à venir avant en cours).
-            _msd = analyses.meta("foot", str(_mpj.get("mid") or "")) or {}
-            try:
-                _mts = datetime.fromisoformat(str(_msd.get("start")).replace("Z", "+00:00")).timestamp() if _msd.get("start") else 0
-            except (ValueError, AttributeError, TypeError):
-                _mts = 0
-            _mlive = bool(match_select.live_state_for("foot", _msd.get("home", ""), _msd.get("away", "")))
-            play.append({"_html": _mont_deco, "start_ts": _mts, "tier": _mont_tier,
-                         "status": "inprogress" if _mlive else "", "_mont": True,
-                         "home": _msd.get("home"), "away": _msd.get("away")})
-        play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
+    play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
     # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
     # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
     # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
     # injecte les PARIS JOUÉS et PROVISOIRES terminés à la suite de leurs homologues à venir/en cours.
     today_iso = _sport_today().isoformat()
-    # EXCLURE le match de la montante des cartes résultat SIMPLES : il est déjà affiché en carte MONTANTE
-    # (titre + cadre) -> sinon il apparaîtrait 2× (user 2026-08-08 : « le résultat sans montante ne doit pas
-    # être mis vu qu'il y est déjà avec la montante »).
-    _mont_ex = {str((_montante_today_bet() or {}).get("mid") or "")} if _mont_card else None
     _prov_res = _provisional_results(today_iso, sport, header=False) if analyses.PROVISOIRES_ON else ""
     _now_ts = time.time()
     # SPLIT CONFIANCE / VALUE (user 2026-08-09) : DEUX zones. CONFIANCE = picks à HAUTE confiance calibrée
     # (chiffre phare, taux ~92-95 %) ; VALUE = picks RETENUS sous le seuil (rentables, +19/+28 % ROI, mais plus
     # variables). Les DEUX restent joués + comptés au ROI/calibration (inchangé). Chaque carte foot porte son
     # `tier` (analyses.bet_tier via foot._card). RÉVERSIBLE : analyses.TIER_SPLIT_ON=False -> tout est
-    # « confiance » -> zone Value vide/masquée -> état EXACT d'avant. La MONTANTE (sans tier) reste en Confiance.
-    play_conf = [r for r in play if r.get("tier") == "confiance"]   # montante EXCLUE (zone dédiée, user 2026-08-12)
+    # « confiance » -> zone Value vide/masquée -> état EXACT d'avant.
+    play_conf = [r for r in play if r.get("tier") == "confiance"]
     play_value = [r for r in play if r.get("tier") == "value"]
-    play_mont = [r for r in play if r.get("tier") == "montante"]     # -> ZONE MONTANTE à part
-    _res_conf = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="confiance")
-    _res_value = _settled_bet_result_cards(today_iso, sport, exclude_mids=_mont_ex, tier="value")
+    _res_conf = _settled_bet_result_cards(today_iso, sport, tier="confiance")
+    _res_value = _settled_bet_result_cards(today_iso, sport, tier="value")
 
     def _tier_rec(_pl, _tier):
         # RECORD 6 états d'un tier : total · À VENIR/LIVE (jaune) · live · EN ATTENTE (gris) · gagnés · perdus.
@@ -8781,7 +8428,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # leur vague passée = pari/abstention figés) -> on masque les catégories vides ET les abstentions (user
     # 2026-09-07 : « une fois le programme terminé on peut cacher aussi les abstentions »).
     _has_prog = any(_prog_pending(m) for m in (_load_day_programme().get("matches") or []))
-    # ZONE CONFIANCE : PUREMENT des confiances (la montante a désormais sa PROPRE zone, user 2026-08-12).
+    # ZONE CONFIANCE : PUREMENT des confiances.
     _conf_html = _MC_SEP.join([h for h in (_rows_by_day(play_conf), _MC_SEP.join(_res_conf)) if h])
     _conf_rec = _tier_rec(play_conf, "confiance")
     # CONFIANCE + VALUE TOUJOURS AFFICHÉES (user 2026-08-17), même vides -> la catégorie reste visible (message
@@ -8800,24 +8447,6 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
                      len(play_value) + len(_res_value), _value_html,
                      collapsible=True, record=_value_rec if _value_rec[0] else None, waiting=_has_prog,
                      empty=("Aucun pari de value détecté pour l'instant." if _has_prog else None)))
-    # ZONE MONTANTE (dédiée, user 2026-08-12) : à venir/live (play_mont) + réglée (_mont_settled). Plus jamais
-    # fondue dans Confiance/Value. La carte garde son cadre bleu + titre « MONTANTE • PALIER N ».
-    _mont_html = _MC_SEP.join([h for h in (_rows_by_day(play_mont), _mont_settled) if h])
-    _mont_rec = _tier_rec(play_mont, "montante")
-    # BADGE MONTANTE (user 2026-08-18 « il doit y avoir le badge du nombre de paris gagné ») : le résultat de la
-    # montante vit dans montante_track — PAS toujours dans un stat_bet tier=montante (le match est SOUVENT une
-    # ABSTENTION -> `_settled_wl_today(tier=montante)` le rate -> badge absent). On lit donc le résultat du palier
-    # du jour et on l'injecte dans le record pour que le badge compte le pari GAGNÉ (vert) / perdu (rouge).
-    _mbr = (_montante_today_bet() or {}).get("result")
-    if _mbr in ("won", "lost", "push", "void") and (_mont_rec[0] or 0) == 0:
-        _mont_rec = (1, 0, 0, 1 if _mbr == "won" else 0, 1 if _mbr in ("lost", "void", "push") else 0, 0)
-    # ZONE MONTANTE TOUJOURS AFFICHÉE (user 2026-08-19 : « afficher tous les types de paris ») — même vide, avec
-    # un message d'état. Titre = « Montante • Palier N » s'il y a un palier, sinon « Montante ».
-    _mt_split = (_mont_title or "Montante").split(" · ", 1)   # « Montante · Palier N » -> titre + sous-titre PETIT
-    out.append(_zone("mont", _mt_split[0], "", len(play_mont), _mont_html,
-                     collapsible=True, record=_mont_rec if _mont_rec[0] else None, waiting=_has_prog,
-                     subtitle=(_mt_split[1] if len(_mt_split) > 1 else ""),
-                     empty=("Aucun palier engagé pour l'instant." if _has_prog else None)))
     # PARIS PROVISOIRES = à venir/en cours PUIS terminés.
     _prov_html = _MC_SEP.join([h for h in (_rows_by_day(prov), _prov_res) if h])
     # RECORD provisoires = MÊMES cartes affichées : à venir/en cours (prov) + réglés du jour (_prov_settled_wl,
@@ -8885,8 +8514,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     if not combo_daily:                                           # repli si aucun combiné avec jambes : ordre brut
         combo_daily = _MC_SEP.join([h for h in _combo_cards_by_var.values() if h])
     # ZONE COMBINÉ JUSTE SOUS VALUE (user 2026-08-20) : insérée à l'index 2 (après Confiance[0] + Value[1]),
-    # AVANT Montante/Provisoire. TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
-    # `empty` conditionné à `_has_prog` (user 2026-09-04, comme Confiance/Value/Montante) : la zone Combiné VIDE
+    # AVANT Provisoire. TOUJOURS AFFICHÉE (user 2026-08-19), même vide -> message d'état.
+    # `empty` conditionné à `_has_prog` (user 2026-09-04, comme Confiance/Value) : la zone Combiné VIDE
     # ne s'affiche QUE tant qu'il reste des matchs à jouer. Programme pas encore établi (avant 10h) ou journée
     # terminée -> pas d'en-tête « Combiné » orphelin.
     if _combos_shown():   # combinés MASQUÉS (user 2026-09-11) -> pas de zone « Combiné » du tout (même vide)
@@ -8900,14 +8529,13 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # qu'on n'a pas joué. Même condition `_has_prog` que le badge « en attente ».
     _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
     out.append(_abst_html)
-    # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné/Montante) —
+    # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné) —
     # user 2026-08-31. Tant qu'aucun pari : OUVERT (l'user voit le programme à venir).
-    _any_bet = bool(play_conf or _res_conf or play_value or _res_value
-                    or play_mont or _mont_settled or _n_combos)
+    _any_bet = bool(play_conf or _res_conf or play_value or _res_value or _n_combos)
     _prog_html = _programme_schedule(sport or "foot", collapse=_any_bet)
     # JOURNÉE TOTALEMENT VIDE (tôt le matin AVANT le scan de 08h, ou jour calme) : au lieu de 2 accordéons
     # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
-    _day_empty = not (play_conf or _res_conf or play_value or _res_value or play_mont or _mont_settled
+    _day_empty = not (play_conf or _res_conf or play_value or _res_value
                       or prov or _prov_res or combo_daily
                       or (_prog_html and _prog_html.strip()) or (_abst_html and _abst_html.strip()))
     inner = _paj_hero() if _day_empty else (_prog_html + "".join(x for x in out if x))
@@ -8921,8 +8549,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # BADGE nav = paris NON RÉGLÉS du jour (à venir + en cours). `play`/`prov` ne contiennent DÉJÀ que
     # l'actif (les réglés partent dans _res_cards/_prov_res). Le combiné ne compte donc QUE s'il est encore
     # actif (`_combo_active`) : un combiné RÉGLÉ ne doit plus gonfler le badge (fix user 2026-08-08 : badge
-    # « 2 » alors qu'il ne restait qu'1 pari en cours, le combiné du jour étant déjà perdu). La MONTANTE
-    # n'est PAS ajoutée séparément (fix double-compte) : sa carte est déjà dans `play` (l.6600).
+    # « 2 » alors qu'il ne restait qu'1 pari en cours, le combiné du jour étant déjà perdu).
     _cnt = len(play) + len(prov) + _combo_active   # _combo_active = NB de combinés encore actifs (0-2, user 2026-08-19)
     return _day_calendar(today_iso, sport) + _sport_selector(sport, _sport_pronos_counts(match_rows)) + zones, _cnt
 
@@ -8980,16 +8607,12 @@ def _day_view(iso: str, sport: str | None = None) -> str:
                           collapsible=True, open_=True, zk="pj-combo", record=_crec)
     # HISTORIQUE PAR TYPE DE PARI (user 2026-08-19 : « revoir les TYPES de paris et les résultats ») : mêmes
     # cartes riches que l'onglet (verdict/score/Pourquoi, cadre vert/rouge, via `_settled_bet_result_cards`),
-    # SPLIT par tier comme la vue du jour : Confiance · Value · Montante · Combiné · Provisoire. Le tier est
+    # SPLIT par tier comme la vue du jour : Confiance · Value · Combiné · Provisoire. Le tier est
     # FIGÉ au règlement -> l'historique reflète ce qui a VRAIMENT été joué ce jour-là.
     _res_conf = _settled_bet_result_cards(iso, sport, tier="confiance")
     _res_value = _settled_bet_result_cards(iso, sport, tier="value")
-    # MONTANTE HORS-TECHNIQUE (user 2026-08-20) : les paliers 09/08→20/08 sont MASQUÉS de l'historique
-    # (comme le ladder via public_steps) -> aucune carte montante pour ces jours dans le calendrier Programme.
-    from app import montante as _mtn_dv
-    _res_mont = [] if _mtn_dv._rule_void(iso) else _settled_bet_result_cards(iso, sport, tier="montante")
     # PLUS DE CATÉGORIE « PROVISOIRE » (user 2026-08-19) : un match est soit un pari JOUÉ (affiché dans son TYPE
-    # Confiance/Value/Montante ci-dessus, selon le calcul), soit une ABSTENTION (cachée). On respecte donc
+    # Confiance/Value ci-dessus, selon le calcul), soit une ABSTENTION (cachée). On respecte donc
     # `PROVISOIRES_ON=False` ici AUSSI (le jour passé était le seul endroit qui affichait encore les provisoires).
     # Les résultats/shadows restent en base pour STATS & CALIBRATION — on ne touche QUE l'affichage.
     _prov_res = _provisional_results(iso, sport) if analyses.PROVISOIRES_ON else ""
@@ -9009,9 +8632,6 @@ def _day_view(iso: str, sport: str | None = None) -> str:
     if _res_value:
         _zones.append(_zone("value", "Value", "", len(_res_value), _MC_SEP.join(_res_value),
                             collapsible=True, open_=True, zk="pj-value", record=_rec("value")))
-    if _res_mont:
-        _zones.append(_zone("mont", "Montante", "", len(_res_mont), _MC_SEP.join(_res_mont),
-                            collapsible=True, open_=True, zk="pj-mont", record=_rec("montante")))
     if combo:
         _zones.append(combo)
     if _prov_res:
@@ -9638,7 +9258,7 @@ def accueil_body(frag: bool = True) -> str:
 
 <div class="final"><div class="lzw">
   <h2>Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
-  <p>Les pronos du jour, la courbe en direct, les combinés, la montante — et chaque pari réglé au grand jour.</p>
+  <p>Les pronos du jour, la courbe en direct, les combinés — et chaque pari réglé au grand jour.</p>
   <div class="cta-row"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
   <p class="cta-note" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
 </div></div>
@@ -9724,8 +9344,8 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     """(pending_cards, abst_cards) — CARTES (comme les paris) des matchs À ANALYSER (Programme) et des
     ABSTENTIONS (analysés sans pari). Modèle user 2026-08-17 : chaque match d'abord au programme, puis basculé
     dans sa catégorie APRÈS analyse de son PARI SIMPLE. Un match avec un pari simple retenu part en Confiance/
-    Value (via `play`) et n'apparaît donc pas ici. Une jambe de combiné / le match montante NE sont PAS exclus :
-    leur pari simple s'analyse à part -> ils restent au Programme tant que non analysés. 0 réseau."""
+    Value (via `play`) et n'apparaît donc pas ici. Une jambe de combiné N'EST PAS exclue :
+    son pari simple s'analyse à part -> elle reste au Programme tant que non analysée. 0 réseau."""
     prog = _load_day_programme()          # VIDÉ si périmé (avant le scan du jour, user 2026-08-18)
 
     def _dt_of(m):
@@ -9737,10 +9357,10 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
     if not items:
         return [], []
-    # NB (user 2026-08-17) : on N'EXCLUT PLUS les jambes de combiné / le match montante. Leur PARI SIMPLE est
+    # NB (user 2026-08-17) : on N'EXCLUT PLUS les jambes de combiné. Leur PARI SIMPLE est
     # ANALYSÉ SÉPARÉMENT par la vague (~2h avant le KO) -> tant que ce n'est pas fait, le match est bien « à
-    # analyser » et doit RESTER dans le Programme. Le combiné / la montante sont des OVERLAYS (le même match peut
-    # donc figurer au Programme/Abstention/Confiance/Value ET dans Combiné/Montante). Ainsi les 20 matchs du jour
+    # analyser » et doit RESTER dans le Programme. Le combiné est un OVERLAY (le même match peut
+    # donc figurer au Programme/Abstention/Confiance/Value ET dans Combiné). Ainsi les 20 matchs du jour
     # sont TOUS représentés par leur état de pari simple, sans « trou ».
     _now = datetime.now(timezone.utc)
     pending, abst = [], []
@@ -9840,7 +9460,7 @@ def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
     """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en GRILLE HORAIRE compacte groupée par
     heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser.
     `collapse` (user 2026-08-31) : FERMÉ par défaut dès qu'un pari existe déjà dans une catégorie (Confiance/
-    Value/Combiné/Montante) ; OUVERT tant qu'aucun pari (pour voir le programme à venir)."""
+    Value/Combiné) ; OUVERT tant qu'aucun pari (pour voir le programme à venir)."""
     pending, _abst = _planning_cards(sport)
     if not pending:
         # RIEN À ANALYSER -> deux cas (user 2026-08-20 : la LIGNE « Programme du jour » doit rester visible avec
@@ -9905,8 +9525,6 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
     # #day-content (stable, indépendant de la navigation par jour). Pur affichage, 0 réseau.
-    # BADGE nav MONTANTE RETIRÉ (user 2026-08-19) : plus d'onglet Montante dans la barre (la montante est un
-    # onglet des Résultats). Son pari du jour est déjà compté dans le badge Pronos (zone Montante).
     body = (f'<span class="dv-nav" data-tab="home" data-n="{cnt}" hidden></span>'
             f'<span class="dv-nav" data-tab="directs" data-n="{_lv_total}" hidden></span>'
             # Bouton NOTIFICATIONS push (user 2026-08-16) — auto-masqué une fois activé (.on), libellé géré par JS.
@@ -9918,353 +9536,6 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
     return body if frag else spa_shell("home", "Programme", body, source=source)
 
 
-def _mont_eur(v) -> str:
-    """Montant en euros, format FR (virgule, espace insécable) : 42.48 -> « 42,48 € »."""
-    try:
-        return f"{float(v):.2f} €".replace(".", ",")
-    except (TypeError, ValueError):
-        return "—"
-
-
-def _mont_curve(caps: list, uid: str = "mc") -> str:
-    """COURBE D'AIRE de la trajectoire du capital d'une montante (10 € -> pic), refonte premium 2026-08-09 :
-    ligne verte lissée (Catmull-Rom) + remplissage dégradé, un point discret par palier, POINT FINAL mis en
-    valeur (halo + gros disque) avec l'étiquette du capital atteint. Échelle LINÉAIRE = la montée compose et
-    « décolle » visuellement (effet hockey-stick). '' si moins de 2 points."""
-    pts = [float(c) for c in (caps or []) if isinstance(c, (int, float)) and c > 0]
-    if len(pts) < 2:
-        return ""
-    lo, hi = min(pts), max(pts)
-    if hi - lo < 1e-9:
-        hi = lo + 1.0
-    n, W, H, L, R, T, B = len(pts), 320.0, 104.0, 12.0, 14.0, 14.0, 20.0   # H=104 -> même taille que _hero_chart (user 2026-08-19)
-    iw, ih = W - L - R, H - T - B
-    AC = "#34d27b"
-
-    def X(i):
-        return L + iw * (i / (n - 1))
-
-    def Y(v):
-        return T + ih * (1 - (v - lo) / (hi - lo))
-
-    co = [(X(i), Y(pts[i])) for i in range(n)]
-    # Lissage Catmull-Rom -> Bézier cubique (courbe douce, sans dépassement sur données croissantes).
-    d = f"M{co[0][0]:.1f},{co[0][1]:.1f}"
-    for i in range(n - 1):
-        p0 = co[i - 1] if i > 0 else co[i]
-        p1, p2 = co[i], co[i + 1]
-        p3 = co[i + 2] if i + 2 < n else p2
-        c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6
-        c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6
-        d += f" C{c1x:.1f},{c1y:.1f} {c2x:.1f},{c2y:.1f} {p2[0]:.1f},{p2[1]:.1f}"
-    area = d + f" L{co[-1][0]:.1f},{T + ih:.1f} L{co[0][0]:.1f},{T + ih:.1f} Z"
-    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2" fill="{AC}" opacity="0.55"/>'
-                   for x, y in co[:-1])
-    ex, ey = co[-1]
-    gid, fid = f"mcg-{uid}", f"mcf-{uid}"
-    p = [f'<svg viewBox="0 0 {W:g} {H:g}" class="mont-c">',
-         f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
-         f'<stop offset="0" stop-color="{AC}" stop-opacity="0.34"/>'
-         f'<stop offset="1" stop-color="{AC}" stop-opacity="0"/></linearGradient>'
-         f'<filter id="{fid}" x="-60%" y="-60%" width="220%" height="220%">'
-         f'<feGaussianBlur stdDeviation="3.2"/></filter></defs>',
-         f'<path d="{area}" fill="url(#{gid})"/>',
-         f'<path d="{d}" fill="none" stroke="{AC}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
-         dots,
-         f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="6.5" fill="{AC}" opacity="0.35" filter="url(#{fid})"/>',
-         f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="3.6" fill="{AC}" stroke="#0b0e14" stroke-width="1.4"/>',
-         f'<text class="mont-c-lbl" x="{L:.1f}" y="{H - 3:.1f}" text-anchor="start">{_mont_eur(pts[0])}</text>',
-         f'<text class="mont-c-lbl end" x="{ex:.1f}" y="{max(11.0, ey - 8):.1f}" text-anchor="end">'
-         f'{_mont_eur(pts[-1])}</text></svg>']
-    return "".join(p)
-
-
-def _mont_ladder(steps: list) -> str:
-    """Échelle (staircase) d'une montante, refonte premium 2026-08-09 : une ligne par palier avec une BARRE DE
-    PROGRESSION de fond (largeur ∝ capital atteint / pic) -> on VOIT la mise grimper, palier après palier. Le
-    palier PIC (dernier gagné, capital max) est souligné en OR. Colonne droite = capital après + gain."""
-    _sts = list(steps or [])
-    # Pic = plus haut capital atteint (payout des gagnés, sinon mise) -> échelle des barres de fond.
-    _vals = [(s.get("payout") if s.get("result") == "won" else s.get("stake")) for s in _sts]
-    _peak = max([v for v in _vals if isinstance(v, (int, float))] or [1.0])
-    _peak_i = max(range(len(_vals)), key=lambda k: (_vals[k] or 0)) if _vals else -1
-    rows = []
-    for i, s in enumerate(_sts):
-        res = s.get("result")
-        cls = {"won": "won", "lost": "lost"}.get(res, "pending")
-        if res == "won" and i == _peak_i:
-            cls += " peak"                                # palier PIC (capital max) -> accent OR
-        stake = s.get("stake")
-        payout = s.get("payout")
-        match = html.escape(_noF(str(s.get("match") or "")))
-        _sel_raw = re.sub(r"\s*·?\s*@\s*\d+(?:[.,]\d+)?\s*$", "", str(s.get("sel") or "")).strip()
-        sel = html.escape(_sel_raw)
-        cote = s.get("cote")
-        _cote_b = f'<span class="mont-step-c">@{analyses.fmt_cote(cote)}</span>' if isinstance(cote, (int, float)) else ""
-        _val = _vals[i]
-        _pct = max(7.0, min(100.0, 100.0 * (_val or 0) / _peak)) if _peak else 0.0
-        _fill = f'<span class="mont-step-fill" style="width:{_pct:.1f}%"></span>'
-        if res == "won":
-            _cap = _mont_eur(payout)
-            _gain = (f'<span class="mont-step-g up">+{_mont_eur((payout or 0) - (stake or 0))}</span>'
-                     if isinstance(payout, (int, float)) and isinstance(stake, (int, float)) else "")
-        elif res == "lost":
-            _cap = '<span class="ko">Perdu</span>'
-            _gain = f'<span class="mont-step-g dn">−{_mont_eur(stake)}</span>' if stake else ""
-        else:
-            _cap = '<span class="wait">En jeu</span>'
-            _gain = ""
-        _mise = (f'<span class="mont-step-mise">mise <b>{_mont_eur(stake)}</b></span>'
-                 if isinstance(stake, (int, float)) else "")
-        rows.append(
-            f'<div class="mont-step {cls}">{_fill}'
-            f'<div class="mont-step-n"><b>{i + 1}</b></div>'
-            f'<div class="mont-step-m"><div class="mont-step-t">{match}</div>'
-            f'<div class="mont-step-s"><span class="sel">{sel}</span>{_cote_b}</div></div>'
-            f'<div class="mont-step-a">{_mise}<span class="to">{_cap}</span>{_gain}</div></div>')
-    return "".join(rows)
-
-
-def render_montante(st: dict, example: dict) -> str:
-    """Onglet MONTANTE (activée 2026-07-25). Page premium : hero (multiplicateur ×N) + pari du jour + échelle
-    des paliers + historique + palmarès. 100 % affichage, hors ROI. La montante est 100 % RÉELLE (simulation
-    « meilleure montante » retirée — audit 2026-08-10 : sim/sim_state morts, jamais alimentés)."""
-    base = st.get("base", 10.0)
-    active = st.get("active")
-    cap = st.get("capital", base)
-    palier = st.get("palier", 0)
-    pending = st.get("pending")
-    featured = st.get("featured")
-    stats = st.get("stats", {})
-
-    # COURBE calculée AVANT le hero (user 2026-08-14 : « le graphique doit faire partie du hero »).
-    # `_fsteps`/`tag` servent aussi à l'échelle plus bas. Trajectoire RÉELLE base(10 €) -> capital après
-    # chaque palier gagné (le pic tracé = le vrai capital atteint).
-    if featured and featured.get("steps"):
-        _fsteps = featured["steps"]
-        tag = ''
-    else:
-        _fsteps = (example or {}).get("steps") or []
-        tag = '<span class="tag">Aperçu · exemple</span>'
-    _caps = [base] + [s.get("payout") for s in _fsteps
-                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    if st.get("lost"):                     # PERTE : la courbe RETOMBE à la base (user 2026-08-22) au lieu de rester au pic
-        _caps.append(base)
-    _curve = f'<div class="mont-curve mont-hero-curve">{_mont_curve(_caps, uid="best")}</div>' if len(_caps) >= 2 else ""
-
-    # HERO — capital mis en avant (montante en cours en réel)
-    hero = ""   # rempli par le hero PREMIUM en montante en cours ; sinon hero générique plus bas
-    if active and st.get("lost") and palier > 0:
-        # HERO PERDU (user 2026-08-22) : la montante a atteint le palier N puis a PERDU. On indique le PALIER
-        # ATTEINT (jamais « palier 0 ») + le retour à la base ; la courbe (ci-dessus) retombe à 10 €.
-        hero = (
-            '<div class="mont-hero mont-hero-live mont-hero-lost">'
-            '<div class="mhe">Montante perdue</div>'
-            f'<div class="mhx mhx-lost">Palier {palier}</div>'
-            '<div class="mhx-cap">atteint avant la perte · retour à la base</div>'
-            '<div class="mont-prog">'
-            f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
-            '<div class="mp-arrow" aria-hidden="true">→</div>'
-            f'<div class="mp-cell"><b class="mp-now">{_mont_eur(base)}</b><span>Nouvelle montante</span></div>'
-            '</div>' + _curve + '</div>')
-    elif active and palier > 0:
-        # HERO PREMIUM « montante en cours » (user 2026-08-09 : « rendu 100 % pro, il faut vraiment voir le X
-        # actuel sur la mise »). Le MULTIPLICATEUR (capital ÷ départ) est la VEDETTE : énorme chiffre en
-        # dégradé doré + halo. Sous une fine règle, la PROGRESSION 10 € → capital raconte l'histoire (palier
-        # accolé au capital). « X gains d'affilée » retiré (redondant palier). Badge retiré -> titre de page.
-        _q = (cap / base) if base else 0
-        _qtxt = f'{round(_q, 1):g}'.replace(".", ",")   # décimale FR (×9,4 pas ×9.4)
-        hero = (
-            '<div class="mont-hero mont-hero-live">'
-            '<div class="mhe">Multiplicateur actuel</div>'
-            f'<div class="mhx">×{_qtxt}</div>'
-            f'<div class="mhx-pal">Palier {palier} atteint</div>'
-            '<div class="mhx-cap">sur la mise de départ</div>'
-            '<div class="mont-prog">'
-            f'<div class="mp-cell"><b>{_mont_eur(base)}</b><span>Départ</span></div>'
-            '<div class="mp-arrow" aria-hidden="true">→</div>'
-            f'<div class="mp-cell"><b class="mp-now">{_mont_eur(cap)}</b>'
-            f'<span>Capital · palier {palier}</span></div>'
-            '</div>' + _curve + '</div>')
-    elif active:
-        sub = 'Nouvelle montante — prête pour le pari du jour'
-        chip = '<span class="mont-chip wait">En attente du pari du jour</span>'
-        lbl = 'Capital de la montante'
-    else:
-        sub = 'Mise de départ · prête à démarrer'
-        chip = '<span class="mont-chip wait">Bientôt · en préparation</span>'
-        lbl = 'Capital de la montante'
-    if not hero:
-        hero = (f'<div class="mont-hero"><div class="mont-hero-l">{lbl}</div>'
-                f'<div class="mont-hero-cap">{_mont_eur(cap)}</div>'
-                f'<div class="mont-hero-sub">{sub}</div>{chip}{_curve}</div>')
-
-    intro = ('<div class="mont-intro">Une <b>montante</b> par jour : on part de <b>10 €</b>, on mise sur '
-             '<b>UN seul</b> pari sûr, et à chaque gain on <b>rejoue la totalité</b> le lendemain. '
-             'L\'objectif : enchaîner les paliers pour faire grimper la mise, sans jamais risquer plus que '
-             'les 10 € de départ.</div>')
-
-    # PARI DU JOUR
-    if pending:
-        # PARI DU JOUR présenté comme un pari PRONOS (demande user 2026-07-28) : carte `_leg_card` complète
-        # (match + sélection + glose + ligne VERDICT confiance/marché/value + pli « Pourquoi »), plus la ligne
-        # d'échelle compacte. Confiance récupérée du sidecar (retenu/publié).
-        _pmatch = _noF(str(pending.get("match") or ""))
-        _ph, _psep, _pa = _pmatch.partition(" - ")
-        _psp = pending.get("sport") or "foot"
-        _prb = (analyses.retained_bet(_psp, str(pending.get("mid") or ""))
-                or analyses.published_bet(_psp, str(pending.get("mid") or "")) or {})
-        _pcard = _leg_card(
-            {"sport": _psp, "home": _ph, "away": _pa, "name": _pmatch, "comp": "",
-             "sel": pending.get("sel"), "cote": pending.get("cote"),
-             "prob": _prb.get("prob"), "code": _prb.get("code") or pending.get("code") or "",
-             "result": None, "start": pending.get("start"),
-             "why": _prov_why_snippet(_psp, str(pending.get("mid") or ""), maxlen=100000, played=True)},
-            why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
-        pari = ('<div class="mont-sec-h">Le pari du jour</div>'
-                '<div class="mont-lead">Un seul pari, le plus sûr du jour — pour viser le palier suivant.</div>'
-                f'{_pcard}')
-    else:
-        # Pas de pari EN ATTENTE -> montrer le pari du jour RÉGLÉ (avec son RÉSULTAT) LÀ où était la sélection
-        # (user 2026-08-08 : « le résultat doit s'afficher là où était sa sélection »). Sinon message vide.
-        _tb = _montante_today_bet()
-        if _tb and _tb.get("sel"):
-            _tsp = _tb.get("sport") or "foot"
-            _tmid = str(_tb.get("mid") or "")
-            _tsd = analyses.meta(_tsp, _tmid) or {}
-            _tmatch = _noF(str(_tb.get("match") or ""))
-            _th, _, _ta = _tmatch.partition(" - ")
-            _trb = analyses.retained_bet(_tsp, _tmid, for_history=True) or {}
-            _tboard = (analyses.result_board(_tsd, _tsp) or {}) if _tb.get("result") in ("won", "lost", "push", "void") else {}
-            _tcard = _leg_card(
-                {"sport": _tsp, "home": _tsd.get("home") or _th, "away": _tsd.get("away") or _ta,
-                 "name": _tmatch, "comp": _tsd.get("comp") or "", "sel": _tb.get("sel"),
-                 "cote": _tb.get("cote"), "prob": _trb.get("prob"),
-                 "code": _trb.get("code") or _tb.get("code") or "", "result": _tb.get("result"),
-                 "score": _tboard.get("score"), "periods": _tboard.get("periods"), "pens": _tboard.get("pens"),
-                 "start": _tsd.get("start"),
-                 "why": _prov_why_snippet(_tsp, _tmid, maxlen=100000, played=True)},
-                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix")
-            pari = f'<div class="mont-sec-h">Le pari du jour</div>{_tcard}'
-        else:
-            pari = ('<div class="mont-sec-h">Le pari du jour</div>'
-                    '<div class="mont-empty">Le <b>pari du jour</b> s\'affichera ici — <b>1</b> sélection sûre '
-                    'pour faire grimper la mise. À suivre chaque jour.</div>')
-
-    # ÉCHELLE — l'échelle des paliers (la COURBE est désormais dans le hero, calculée plus haut).
-    ladder = (f'<div class="mont-sec-h">La montante{tag}</div>'
-              '<div class="mont-lead">Chaque palier gagné fait grimper la mise — la voici, palier par palier.</div>'
-              f'<div class="mont-ladder">{_mont_ladder(_fsteps)}</div>')
-
-    # « COMMENT ÇA MARCHE » RETIRÉ (user 2026-08-09) : redondant avec le paragraphe d'intro sous le hero
-    # (principe + risque plafonné à 10 € déjà expliqués). L'échelle des paliers montre la mécanique en acte.
-
-    # HISTORIQUE des montantes terminées. La VRAIE montante vient de démarrer (aucune chaîne terminée) ->
-    # on montre l'historique de la SIMULATION (montantes terminées sur nos simples foot) plutôt qu'un cadre
-    # VIDE (bug user 2026-07-28 « rien dans l'historique »). Idem palmarès plus bas.
-    chains = st.get("chains") or []
-    if chains:
-        hrows = "".join(
-            '<div class="mont-hrow"><div class="mont-hrow-b">✗</div>'
-            f'<div class="mont-hrow-m"><b>{c.get("palier", 0)} palier{"s" if c.get("palier", 0) != 1 else ""}</b>'
-            f'<span>Pic atteint · {_mont_eur(c.get("peak"))}</span></div>'
-            f'<div class="mont-hrow-v">{_mont_eur(c.get("peak"))}</div></div>'
-            for c in chains)
-        hist = f'<div class="mont-sec-h">Historique des montantes</div><div class="mont-hist">{hrows}</div>'
-    else:
-        hist = ('<div class="mont-sec-h">Historique des montantes</div>'
-                '<div class="mont-empty">Les montantes terminées apparaîtront ici — chacune avec son '
-                'nombre de paliers et le capital maximal atteint.</div>')
-
-    # PALMARÈS / STATS
-    palmares = (
-        '<div class="mont-sec-h">Palmarès</div>'
-        '<div class="mont-kpis">'
-        f'<div class="mont-kpi best"><b>{_mont_eur(stats.get("best_capital", base))}</b><span>meilleure montante</span></div>'
-        f'<div class="mont-kpi"><b>{stats.get("best_palier", 0)}</b><span>paliers max</span></div>'
-        f'<div class="mont-kpi"><b>{stats.get("n", 0)}</b><span>montantes jouées</span></div>'
-        '</div>')
-
-    # BADGE NAV MONTANTE (user 2026-08-08) : 1 s'il y a un pari du jour (palier en attente), sinon 0.
-    _mn = 1 if _montante_palier() is not None else 0
-    return (f'<span class="dv-nav" data-tab="montante" data-n="{_mn}" hidden></span>'
-            + hero + intro + ladder + pari + palmares + hist)
-
-
-def render_montante_bilan(st: dict, example: dict) -> str:
-    """BILAN MONTANTE pour l'onglet RÉSULTATS — présenté EXACTEMENT comme Confiance/Value/Combiné (user 2026-08-19 :
-    « vraiment ressemblant aux autres ») : même cadre `.spf-hero` = label + GRAND CHIFFRE + KPIs + courbe + W/L +
-    série + liste d'historique. La seule spécificité montante : le grand chiffre = MULTIPLICATEUR ×N (au lieu du
-    ROI) et la courbe = trajectoire du CAPITAL. Le pari du jour reste dans Pronos. Hors ROI."""
-    from app import montante as _mtn
-    base = st.get("base", 10.0)
-    cap = st.get("capital", base)
-    featured = st.get("featured")
-    stats = st.get("stats", {})
-    # GRAND CHIFFRE = MULTIPLICATEUR ×N (analogue du ROI héros des autres onglets). >1 = doré/positif.
-    _q = (cap / base) if base else 1.0
-    _qtxt = f'×{round(_q, 1):g}'.replace(".", ",")
-    _qcls = "pos" if _q > 1.0001 else "na"
-    # COURBE DE CAPITAL — `_mont_curve` (échelle qui DÉMARRE À LA MISE DE BASE 10 €, pas 0 — user 2026-08-19 ;
-    # `_hero_chart` forçait le 0). Dans `.sx-equity` + hauteur alignée (H=104) -> MÊME taille que les autres onglets.
-    _fsteps = (featured.get("steps") if (featured and featured.get("steps")) else (example or {}).get("steps")) or []
-    _caps = [base] + [s.get("payout") for s in _fsteps
-                      if s.get("result") == "won" and isinstance(s.get("payout"), (int, float))]
-    _chart = (f'<div class="sx-equity">{_mont_curve(_caps, uid="mbil")}</div>' if len(_caps) >= 2 else "")
-    # KPIs + série + W/L, calculés sur les PARIS montante AFFICHÉS (paliers hors-technique 09/08→20/08 masqués,
-    # user 2026-08-20 -> `public_steps`) — MÊMES classes que les autres onglets. Calibration intacte (sidecars).
-    _steps = _mtn.public_steps()
-    _res = [s.get("result") for s in _steps]
-    _settled = [r for r in _res if r in ("won", "lost")]
-    _won, _nb = _settled.count("won"), len(_settled)
-    _hit = round(100 * _won / _nb) if _nb else None
-    _best = _cur = 0                                    # meilleure série = plus longue suite de gains
-    for r in _res:
-        if r == "won":
-            _cur += 1
-            _best = max(_best, _cur)
-        elif r == "lost":
-            _cur = 0
-    _, _streak = _form_streak(_res)                    # série EN COURS (run final)
-    # KPIs (user 2026-08-19) : GAINS RETIRÉ. Réussite · Plus gros gain (meilleur capital atteint) · Cote moyenne.
-    _bestg = stats.get("best_capital", base)
-    _cotes = [s.get("cote") for s in _steps
-              if s.get("result") in ("won", "lost") and isinstance(s.get("cote"), (int, float))]
-    _avgc = round(sum(_cotes) / len(_cotes), 2) if _cotes else None
-    _kpi = ('<div class="spf-hero-kpis">'
-            f'<div><span class="v arec-{_pct_class(_hit)}">{_hit if _hit is not None else "—"}%</span>'
-            '<span class="l">Réussite</span></div>'
-            f'<div><span class="v arec-pos">{_mont_eur(_bestg)}</span><span class="l">Plus gros gain</span></div>'
-            f'<div><span class="v">{_avgc if _avgc is not None else "—"}</span>'
-            '<span class="l">Cote moyenne</span></div></div>')
-    # GRAPHES « Taux de réussite » + « Cote moyenne » RETIRÉS (user 2026-09-10), comme les autres onglets
-    # (les chiffres restent dans la sous-ligne KPI ci-dessus). _rate_block/_cote_block = code mort conservé.
-    _curves = ""
-    _fd = form_dots([{"won": "W", "lost": "L"}.get(r, "N") for r in _res if r], n=16)
-    _fdh = f'<div class="spf-cv-form">{_fd}</div>' if _fd else ""
-    # HISTORIQUE EN LISTE — MÊME composant que les autres onglets (`_recent_bets_html`) : pastille W/L + affiche +
-    # sélection + cote + date, plus récent en haut. Coup d'envoi relu du sidecar (les steps n'ont pas de `start`).
-    _rec = []
-    for s in reversed(_steps):
-        _start = None
-        try:
-            _start = (analyses.meta(s.get("sport") or "foot", str(s.get("mid") or "")) or {}).get("start")
-        except Exception:
-            _start = None
-        if not _start and s.get("date"):
-            _start = s["date"] + "T12:00:00"
-        # result=None (pari du jour EN ATTENTE) -> "pending" pour afficher le SABLIER ⏳ (comme les autres
-        # onglets), user 2026-08-19. Sans ça `_recent_bets_html` le rendait « ? ».
-        _rec.append({"name": s.get("match"), "sel": s.get("sel"), "cote": s.get("cote"),
-                     "start": _start, "result": s.get("result") or "pending"})
-    _hist_list = _recent_bets_html(_rec)
-    _histb = f'<div class="spf-rec-lbl">Historique des montantes</div>{_hist_list}' if _hist_list else ""
-    # CADRE IDENTIQUE aux autres onglets : label + grand chiffre + KPIs + courbe + W/L + série + liste.
-    return ('<div class="spf-hero">'
-            '<div class="spf-hero-lbl">Multiplicateur</div>'
-            f'<div class="spf-hero-roi {_qcls}">{_qtxt}</div>'
-            f'{_kpi}{_chart}{_curves}{_fdh}{_streak_text(_streak, _best)}{_histb}</div>')
-
 
 _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
                   "septembre", "octobre", "novembre", "décembre"]
@@ -10273,7 +9544,7 @@ _CAL_MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juille
 def _daily_pnl() -> dict:
     """P&L par JOUR SPORTIF (06h→06h) pour le CALENDRIER de l'onglet Stats — CONFIANCE UNIQUEMENT (demande
     user 2026-08-30 : le calendrier Stats ne doit refléter QUE les paris de Confiance, le chiffre phare —
-    pas la Value/le combiné/la montante), football. DÉRIVÉ de `_daily_conf_results_map` (tier « confiance »
+    pas la Value/le combiné), football. DÉRIVÉ de `_daily_conf_results_map` (tier « confiance »
     figé via `tier_of`, monotone, immunisé à la dérive de calibration) -> teinte des jours ET bilan du mois
     (ROI/paris/jours joués/meilleure journée) tous en Confiance seule. Aligné sur la pastille du calendrier
     horizontal (Programme). {jour_iso: {profit, n, won, lost, roi}}. Lecture seule, hors ROI/calibration."""
@@ -11819,9 +11090,6 @@ def _sport_row(r: dict) -> str:
         # LIVE : MÊME ORDRE que les jambes de combiné (demande user 2026-07-21) — verdict, PUIS scoreboard
         # + chance live (posés par _live_score_row après mc-sub), et le pli « Pourquoi » EN DERNIER (avec
         # son filet). Hors live : le pli reste sous le verdict (pas de scoreboard).
-        # MONTANTE : plus de badge greffé ici (demande user 2026-07-30) — la montante a sa PROPRE zone
-        # « Montante · Palier N » (via _montante_zone_card). Surface unique -> pas de double affichage.
-        _mont_b = ""
         # Pari+glose (+ note « cote au conseil ») DANS le cadre des chiffres, centré (user 2026-08-15) :
         # passés à _verdict_block via pick_html -> plus de séparateur mc-div sous les équipes.
         _pick_in_box = f'<div class="mc-pick">{e(_psel_disp)}</div>' + _gloss + _moved
@@ -11833,7 +11101,6 @@ def _sport_row(r: dict) -> str:
         _premium = (_verdict_block(_pcote, _pconf, _foot, _cote_big, calibrated=True, pick_html=_pick_in_box,
                                    hide_context=is_live)
                     + (_live_bar_html(_lp_res) if (is_live and _lp_res) else "")
-                    + _mont_b
                     + ("" if is_live else _pwhy))
         # Le pli « 💡 Pourquoi » porte DÉJÀ toute l'analyse (demande user 2026-07-20) -> la carte n'a plus
         # de corps dépliable en dessous (Cotes & chances / Mise / détails = doublon). On le retire de
@@ -11936,8 +11203,6 @@ def _sport_row(r: dict) -> str:
     # 🔔 NOTIFS PAR MATCH (PWA, user 2026-09-06) : bouton en haut-gauche pour un match FOOT NON terminé
     # (à venir / live). Caché hors PWA (CSS `html.pwa`). Un match réglé n'a plus rien à notifier -> pas de 🔔.
     _bell = _notif_bell(_pmid) if (sport_key == "foot" and not is_finished and _pmid) else ""
-    # (La montante est injectée en carte dédiée EN TÊTE de Confiance + exclue de play -> plus de décoration
-    #  in-place ici, cf. _today_zones. user 2026-08-08.)
     # CARTE COMPACTE NON CLIQUABLE (user 2026-08-19 : prochains lives) : plate (pas de corps), classe `prog-card`
     # -> curseur normal, aucun déploiement d'analyse. On sort AVANT le cas cliquable.
     if r.get("_compact"):
@@ -12218,42 +11483,20 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # Combinés FOOT hors-ROI EN COURS (demande user 2026-07-28 : tout match de Pronos qui tourne doit
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
-    # MONTANTE EN COURS (1re zone de Pronos) : affichée en Live UNIQUEMENT si son match TOURNE (le Live ne
-    # montre que ce qui est en direct). Foot only.
-    _mont_title, _mont_card, _md0 = "", "", None
-    try:
-        from app import montante as _mt0
-        _mp0 = (_mt0.state().get("pending") or {}) if _mt0.is_active() else {}
-        _md0 = analyses.meta("foot", str(_mp0.get("mid") or "")) if _mp0.get("mid") else None
-        if _md0 and live_fields(match_select.live_state_for("foot", _md0.get("home"), _md0.get("away")),
-                                "foot").get("score"):
-            _mont_title, _mont_card = _montante_zone_card("foot")
-    except Exception:
-        _mont_title, _mont_card = "", ""
-    # La montante live est AFFICHÉE dans play_live (sa carte REMPLACE son pari dans Confiance) : son match y
-    # est DÉJÀ compté. On ne l'ajoute donc au badge QUE s'il n'est pas déjà un pari live -> sinon double-compte
-    # (badge « 4 » pour 3 matchs, la montante étant l'un d'eux). user 2026-08-11.
-    _mont_extra = 0
-    if _mont_card and _md0:
-        _mm0 = _prog_pair(_md0.get("home", ""), _md0.get("away", ""))
-        if not any(_prog_pair(c.get("home"), c.get("away")) == _mm0 for c in play_live):
-            _mont_extra = 1
-    _counts["foot"] += ((1 if _safe_combo else 0) + _mont_extra)
+    _counts["foot"] += (1 if _safe_combo else 0)
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     # PROCHAINS MATCHS (user 2026-08-19) : les matchs À VENIR repris par un pari, en CARTES DE PRONO (décompte +
-    # ligue + pick, pas « vs ») et CLASSÉS PAR TYPE -> fusionnés dans les zones Confiance/Value/Combiné/Montante
-    # avec les live. Combiné = jambes à venir ; Montante = palier du jour non commencé ; simples = paris retenus.
+    # ligue + pick, pas « vs ») et CLASSÉS PAR TYPE -> fusionnés dans les zones Confiance/Value/Combiné
+    # avec les live. Combiné = jambes à venir ; simples = paris retenus.
     from app import foot as _foot_up
     import datetime as _dtu
     _up_combo = _combo_leg_cards(_cur, want_live=False) if _cur == "foot" else []
-    _up_conf, _up_val, _up_mont = [], [], []
+    _up_conf, _up_val = [], []
     for _d in analyses.list_for(_cur, include_background=True):     # SIMPLES à venir (Confiance/Value)
         if analyses.status_of(_d) != "notstarted":
             continue
         if not (analyses.retained_bet(_cur, _d.get("id")) or {}).get("sel"):
-            continue
-        if analyses.bet_tier_for(_cur, _d.get("id")) == "montante":  # montante gérée à part (source fiable)
             continue
         if live_fields(match_select.live_state_for(_cur, _d.get("home"), _d.get("away")), _cur).get("score"):
             continue                                                # déjà live
@@ -12268,35 +11511,16 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             "perle": None, "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
         _c2["_compact"] = True                                       # carte compacte (comme le programme)
         (_up_val if _c2.get("tier") == "value" else _up_conf).append(_c2)
-    if _cur == "foot":                                              # MONTANTE à venir (palier du jour non commencé)
-        _mtu = _montante_today_bet() or {}
-        if _mtu.get("mid") and _mtu.get("result") is None:
-            _mtd = analyses.meta("foot", str(_mtu["mid"])) or {}
-            if not live_fields(match_select.live_state_for(
-                    "foot", _mtd.get("home") or "", _mtd.get("away") or ""), "foot").get("score"):
-                _mh2, _, _ma2 = _noF(str(_mtu.get("match") or "")).partition(" - ")
-                try:
-                    _msts = _dtu.datetime.fromisoformat(str(_mtd.get("start")).replace("Z", "+00:00")).timestamp()
-                except (ValueError, TypeError):
-                    _msts = 0
-                _mc = _foot_up._card({
-                    "id": _mtu.get("mid"), "status": "notstarted", "comp": _mtd.get("comp"),
-                    "home": _mtd.get("home") or _mh2, "away": _mtd.get("away") or _ma2, "probs": None,
-                    "goals": None, "o1": None, "ox": None, "o2": None, "imp": None, "pick": None,
-                    "start": _msts, "votes": None, "perle": None,
-                    "perle2": None, "perle_value": None, "pick_kind": "confiance", "sofa_ok": True})
-                _mc["_compact"] = True                              # carte compacte (comme le programme)
-                _up_mont.append(_mc)
-    for _lst in (_up_conf, _up_val, _up_mont, _up_combo):
+    for _lst in (_up_conf, _up_val, _up_combo):
         _lst.sort(key=lambda c: c.get("start_ts") or 0)
     _play = [c for c in play_live if _item_sport(c) == _cur]
     _prov = [c for c in prov_live if c.get("_sport") == _cur] if analyses.PROVISOIRES_ON else []
     _combo_rows = list(_combos.get(_cur, []))               # zone Combiné = jambes EN COURS (HTML `_leg_card` pré-rendu)
     _combo = _join_cards([r.get("_html") or _sport_row(r) for r in _combo_rows])   # rendu HTML pour la zone Combiné
-    # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + montante + simples), triés par coup d'envoi et
+    # PROCHAINS MATCHS = tous les à-venir MÉLANGÉS (combo + simples), triés par coup d'envoi et
     # DÉDUPLIQUÉS par match (un match repris par 2 types = une seule carte compacte). user 2026-08-19.
     _upcoming_all, _seen_up = [], set()
-    for _c in sorted(_up_combo + _up_mont + _up_conf + _up_val,
+    for _c in sorted(_up_combo + _up_conf + _up_val,
                      key=lambda c: c.get("start_ts") or float("inf")):   # sans heure -> en DERNIER (pas en 1er)
         _pu = _prog_pair(_c.get("home", ""), _c.get("away", ""))
         if _pu in _seen_up:
@@ -12304,8 +11528,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         _seen_up.add(_pu)
         _upcoming_all.append(_c)
     _safe_combo = _safe_combo if _cur == "foot" else ""   # combinés hors-ROI = foot uniquement
-    if _cur != "foot":
-        _mont_title, _mont_card = "", ""
 
     def _cards(rows):
         # `_livetab` : onglet Live -> présentation CLASSIQUE (pas de style E plat), user 2026-09-03.
@@ -12314,19 +11536,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                 c["_livetab"] = True
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    # MONTANTE FUSIONNÉE DANS CONFIANCE en Live aussi (user 2026-08-08) : plus de zone séparée. On DÉDUPLIQUE
-    # le match montante de _play/_prov et on injecte SA carte (titre + cadre bleu conservé) dans Confiance.
-    if _mont_card:
-        _mm_pair = _prog_pair(_md0.get("home", ""), _md0.get("away", "")) if _md0 else None
-        if _mm_pair:
-            _play = [c for c in _play if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
-            _prov = [c for c in _prov if _prog_pair(c.get("home"), c.get("away")) != _mm_pair]
-        # COMME DANS PRONOS (user 2026-08-18) : PAS de titre-cadre interne « MONTANTE • PALIER » au-dessus de la
-        # carte — le palier vit dans le TITRE DE LA ZONE (ci-dessous). Juste le cadre de couleur, carte identique.
-        _mont_deco = f'<div class="mont-cardwrap">{_mont_card}</div>'
-        _mont_tier_live = analyses.bet_tier_for("foot", str((_montante_today_bet() or {}).get("mid") or ""))
-        _play = list(_play) + [{"_html": _mont_deco, "start_ts": (_md0 or {}).get("start_ts") or 0,
-                                "status": "inprogress", "tier": _mont_tier_live}]   # montante classée par son tier
     if not (_play or _prov or _combo or _safe_combo or _upcoming_all):
         zones = (
             '<div class="live-empty">'
@@ -12337,13 +11546,12 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             's\'affichent ici dès qu\'un match analysé démarre.</div>'
             '</div>')   # foot-only (user 2026-08-22) ; bouton « Voir les matchs à venir » retiré
     else:
-        # MÊMES TYPES QUE PRONOS : Confiance (montante incluse) → Value → Provisoire → Combiné. Split
+        # MÊMES TYPES QUE PRONOS : Confiance → Value → Provisoire → Combiné. Split
         # Confiance/Value par le `tier` de chaque carte (user 2026-08-09) ; Value masquée si vide / split off.
         # LES ZONES DE TYPE = MATCHS EN COURS SEULEMENT (user 2026-08-19 : on ne classe par type qu'une fois le
         # match COMMENCÉ). Les prochains matchs (à venir) sont MÉLANGÉS dans une zone unique « Prochains matchs ».
         _play_c = [c for c in _play if c.get("tier") == "confiance"]
         _play_v = [c for c in _play if c.get("tier") == "value"]
-        _play_m = [c for c in _play if c.get("tier") == "montante"]     # zone MONTANTE à part
         # ZONES REPLIABLES comme PRONOS (user 2026-08-18 « meilleure répartition verticale des types de paris
         # pour utiliser l'écran ») : mêmes dividers/chevron/badge-à-droite qu'en Pronos. OUVERTES par défaut
         # (on veut voir les scores live) ; clés de persistance `live-*` DISTINCTES -> replier une zone en Live
@@ -12356,11 +11564,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                      zk="live-play", **_lz)]
         if _play_v:
             out.append(_zone("value", "Value", "en direct", len(_play_v), _cards(_play_v), zk="live-value", **_lz))
-        if _play_m:
-            _mt_lv = (_mont_title or "Montante").split(" · ", 1)
-            out.append(_zone("mont", _mt_lv[0], "en direct",
-                             len(_play_m), _cards(_play_m), zk="live-mont",
-                             subtitle=(_mt_lv[1] if len(_mt_lv) > 1 else ""), **_lz))
         out.append(_zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
                          zk="live-indic", **_lz))
         if _combos_shown():   # combinés MASQUÉS (user 2026-09-11) -> pas de zone « Combiné en direct »

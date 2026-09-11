@@ -193,7 +193,7 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
     def _sec(label: str, sub: str, body: str, open: bool = False) -> str:
         return web.sx_section_collapsible(label, sub, body, open=open)
 
-    # 2. OÙ EST L'EDGE : par sport, par TIER (confiance/value/montante), puis par cote & confiance.
+    # 2. OÙ EST L'EDGE : par sport, par TIER (confiance/value), puis par cote & confiance.
     edge = (web.render_sports_breakdown(full)
             + web.render_tier_compare(full)
             + web.render_perf(analyses.perf_breakdown(since_days)))
@@ -752,14 +752,6 @@ async def calendrier_page(ym: str = "", frag: int = 0, cal: int = 0) -> HTMLResp
     return HTMLResponse(web.spa_shell("calendrier", "Calendrier", body))
 
 
-@router.get("/montante")
-async def montante_page() -> RedirectResponse:
-    """L'onglet « Montante » a été INTÉGRÉ AUX RÉSULTATS (user 2026-08-19) : le bilan montante (multiplicateur
-    + courbe de capital + échelle des paliers) est désormais un ONGLET de /stats, comme Confiance/Value/Combiné
-    (son pari du jour reste dans Pronos). On redirige les anciens liens/favoris /montante vers /stats."""
-    return RedirectResponse("/stats", status_code=308)
-
-
 # Page « Simulation bankroll » /mybets + tout le module mybets/CLV SUPPRIMÉS (2026-06-14) : le pari
 # retenu est marqué d'une ⭐ sur les cadres (moteur d'analyse, intégré aux autres paris et aux stats).
 # On garde juste la redirection douce vers l'accueil (liens /mybets encore en cache mobile -> pas de 404).
@@ -950,7 +942,7 @@ async def directs_page(
     prov_live = ([it for it in web._programme_items(set()) if it.get("_live")]
                  if analyses.PROVISOIRES_ON else [])
     play_live = await _live_cards("foot")
-    # PROCHAINS MATCHS À VENIR : construits DANS render_directs depuis les paris (combo/montante/simples), en
+    # PROCHAINS MATCHS À VENIR : construits DANS render_directs depuis les paris (combo/simples), en
     # cartes de prono classées par type (user 2026-08-19) -> plus besoin de passer une liste `upcoming` ici.
     body = web.render_directs(play_live, prov_live, sport=sp, frag=bool(frag))
     if frag:
