@@ -1011,8 +1011,8 @@ CSS = """
   .mc-line-c{position:relative;justify-content:center;min-height:22px}
   /* ligue CENTRÉE : affichée EN ENTIER (user 2026-08-15) — retour à la ligne autorisé (plus d'ellipse),
      padding réduit ; en LIVE (pas de badge) elle prend quasi toute la largeur. */
-  .mc-line-c .mc-comp{flex:0 1 auto;text-align:center;padding:0 44px;white-space:normal;overflow:visible;
-       text-overflow:clip;line-height:1.25}
+  .mc-line-c .mc-comp{flex:0 1 auto;text-align:center;padding:0 44px;white-space:nowrap;overflow:hidden;
+       text-overflow:ellipsis;line-height:1.25}   /* ligue sur UNE seule ligne (user 2026-09-12), ellipse si trop long */
   .mc-r-live .mc-line-c .mc-comp{padding:0 10px}
   .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
   /* Ligue des cartes de PARI (Confiance/Value, à venir ET terminé, _sport_row) : calée EN HAUT À GAUCHE
@@ -2487,6 +2487,10 @@ CSS = """
      reste À LA MÊME PLACE quand le pli « Pourquoi » se déplie (la carte grandit vers le bas, l'offset top ne bouge pas). */
   .cleg::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
        opacity:.05;background:url('/static/logo.png') center 80px/135px no-repeat;filter:grayscale(.3) brightness(1.3)}
+  /* CARTE RÉSULTAT (réglée, ne se déplie plus) : filigrane VRAIMENT centré verticalement (user 2026-09-12) —
+     l'offset fixe 80px n'était bon que pour le cadre repliable ~266px, décentré sur une carte résultat plus courte. */
+  .cleg.cleg-res-live::before,.cleg.won::before,.cleg.lost::before,.cleg.push::before,.cleg.void::before{
+       background-position:center center}
   .cleg>*:not(.mc-corner):not(.mc-bell){position:relative;z-index:1}   /* badge coin + 🔔 gardent leur position:absolute */
   .cleg.live{border-color:var(--st-live)}
   /* Sémantique COULEUR (demande user 2026-07-18) : PAS DÉCIDÉ (à venir / en cours) = ORANGE (bord doré par
