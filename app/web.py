@@ -9288,7 +9288,7 @@ def _sidecar_analyzed_at(sport: str, fid) -> str:
 def _status_card(m: dict, dt, kind: str) -> str:
     """Carte d'un match SANS pari, présentée COMME une carte de pari (user 2026-08-17 : « affichés de la même
     manière que les cartes de paris ») : ligue + PAYS centrés, logos + HEURE au centre, et une ligne de STATUT
-    à la place du pari. `kind` = 'wait' (à analyser, + heure d'analyse ~KO−2 h) | 'abst' (abstention)."""
+    à la place du pari. `kind` = 'wait' (à analyser, + heure d'analyse ~KO−1 h = la vague) | 'abst' (abstention)."""
     name = _noF(str(m.get("name") or ""))
     if " - " in name:
         home, away = [s.strip() for s in name.split(" - ", 1)]
@@ -9304,7 +9304,7 @@ def _status_card(m: dict, dt, kind: str) -> str:
     teams = _teams_vs_html(home, away, _center)
     if kind == "wait":
         _sub = (f'<div class="mc-stat mc-stat-wait">À analyser'
-                f'<span class="mc-stat-sub">analyse prévue ~{(ld - timedelta(hours=2)).strftime("%H:%M")}</span></div>')
+                f'<span class="mc-stat-sub">analyse prévue ~{(ld - timedelta(hours=1)).strftime("%H:%M")}</span></div>')
     else:
         _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
                 '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
@@ -9457,8 +9457,9 @@ def _programme_grille(pending: list) -> str:
 
 
 def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
-    """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en GRILLE HORAIRE compacte groupée par
-    heure (user 2026-08-18). Badge compteur (à droite, près du chevron). '' si plus rien à analyser.
+    """Zone « Programme du jour » = les matchs PAS ENCORE analysés, en CARTES (user 2026-09-12 : présentées
+    COMME LES ABSTENTIONS via `_status_card`, avec l'heure d'analyse ~KO−1 h en bas). Badge compteur (à droite,
+    près du chevron). '' si plus rien à analyser.
     `collapse` (user 2026-08-31) : FERMÉ par défaut dès qu'un pari existe déjà dans une catégorie (Confiance/
     Value/Combiné) ; OUVERT tant qu'aucun pari (pour voir le programme à venir)."""
     pending, _abst = _planning_cards(sport)
@@ -9477,7 +9478,11 @@ def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
     # REPLIÉ PAR DÉFAUT (user 2026-08-19) : `open_=False` -> le Programme du jour est toujours fermé au chargement
     # (le JS `_CAL_JS` ne force jamais l'ouverture). On le déplie d'un tap pour voir la liste des matchs.
     # FERMÉ dès qu'un pari existe déjà dans une catégorie (user 2026-08-31) ; OUVERT sinon (voir le programme).
-    return _zone("prog", "Programme du jour", "", len(pending), _programme_grille(pending),
+    # PRÉSENTATION EN CARTES (user 2026-09-12) : les matchs à analyser sont montrés COMME LES ABSTENTIONS
+    # (mêmes cartes `_status_card`, ligue + logos + heure de coup d'envoi centrée), avec l'HEURE D'ANALYSE
+    # (~1 h avant le KO, = la vague) en bas de chaque carte. (Ex-grille horaire `_programme_grille` remplacée.)
+    _cards = _MC_SEP.join(_status_card(m, dt, "wait") for m, dt in pending)
+    return _zone("prog", "Programme du jour", "", len(pending), _cards,
                  collapsible=True, open_=(not collapse))
 
 
