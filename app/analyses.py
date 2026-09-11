@@ -4901,9 +4901,13 @@ def market_overview(min_n: int = 30) -> list:
 
 def bet_detail(sport: str | None = None, pari: int | None = None,
                since_days: int | None = None) -> list[dict]:
-    """Liste des PARIS réglés (pour le drill-down) filtrés par sport / position de pari / période.
-    Trié du plus récent au plus ancien. Chaque entrée : start, home, away, comp, pari (n°), sel,
-    result, odds."""
+    """Liste des PARIS JOUÉS réglés (drill-down « Détail par sport ») filtrés par sport / période.
+    ⚠️ LE PARI JOUÉ = `stat_bet` FIGÉ (couche STATS monotone), JAMAIS le pick brut `d["bets"]` — bug récurrent
+    n°1 (2026-09-12) : lire `d["bets"]` (table des picks de Claude) montrait des picks JAMAIS joués (Total
+    Over/handicaps non retenus) ET des abstentions (ex. Aigles du Congo retiré) dans le détail, avec un total
+    et un ROI FAUX (« 273/377 · −2 % » au lieu du vrai record joué). MIROIR EXACT de `iter_stat_bets` (même set
+    que la courbe/le record). `pari` (positionnel, ancien modèle multi-pari/match) est IGNORÉ : 1 pari joué/match.
+    Trié du plus récent au plus ancien. Chaque entrée : start, home, away, comp, pari, sel, result, odds, pnl."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=since_days)) if since_days else None
     out = []
     for p in glob.glob(os.path.join(DIR, f"{sport}_*.json" if sport else "*.json")):
@@ -4918,19 +4922,21 @@ def bet_detail(sport: str | None = None, pari: int | None = None,
                 dt = None
             if dt is None or dt < cutoff:
                 continue
-        if _is_world_cup(d):         # Coupe du Monde EXCLUE du drill-down (non comptée dans les stats).
+        if d.get("roi_void"):        # SEUL filtre d'exclusion, IDENTIQUE à iter_stat_bets/stats_full -> le total
+            continue                 # du détail matche le chip du sport (avant : `_is_world_cup` excluait 25 paris CdM
+            #                          POURTANT comptés au chip -> détail 109 ≠ chip 132).
+        # LE PARI JOUÉ FIGÉ (pas le pick brut d["bets"]) : lecture DIRECTE de d["stat_bet"] comme iter_stat_bets
+        # (le repli retained_bet re-injecterait le pick brut sur un réglé -> on ne l'utilise PAS ici).
+        sb = d.get("stat_bet")
+        if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost", "push")):
             continue
-        for i, b in enumerate(d.get("bets") or []):
-            if i >= len(_BET_KEYS) or (pari is not None and i != pari):
-                continue
-            res = b.get("result")
-            if res in ("won", "lost", "push"):
-                od = b.get("odds")
-                pnl = (round(float(od) - 1, 2) if (res == "won" and od)
-                       else (-1.0 if res == "lost" else 0.0))   # gain/perte mise plate 1u
-                out.append({"start": start, "home": d.get("home", ""), "away": d.get("away", ""),
-                            "comp": d.get("comp", ""), "sport": d.get("sport"), "pari": i + 1,
-                            "sel": b.get("sel", ""), "result": res, "odds": od, "pnl": pnl})
+        res = sb.get("result")
+        od = sb.get("cote") or sb.get("odds")
+        pnl = (round(float(od) - 1, 2) if (res == "won" and od)
+               else (-1.0 if res == "lost" else 0.0))   # gain/perte mise plate 1u
+        out.append({"start": start, "home": d.get("home", ""), "away": d.get("away", ""),
+                    "comp": d.get("comp", ""), "sport": d.get("sport"), "pari": 1,
+                    "sel": sb.get("sel", ""), "result": res, "odds": od, "pnl": pnl})
     out.sort(key=lambda x: x["start"] or "", reverse=True)
     return out
 
