@@ -12041,6 +12041,8 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     présentées comme un MATCH SEUL -> dicts `{_html, start_ts}`. `want_live` False -> jambes À VENIR en carte
     COMPACTE -> dicts `foot._card` (flag `_compact`, rendus par `_sport_row`). Sûr + Cote 2, DÉDUPLIQUÉES par
     match. Cache score live chaud -> lecture sync. [] si rien dans l'état demandé."""
+    if not _combos_shown():
+        return []     # combinés MASQUÉS (user 2026-09-11) : pas de jambe de combiné dans l'onglet Live
     from app import combo_daily as _cd, foot as _foot
     import datetime as _dt
     day = _cd.day_key()
@@ -12265,12 +12267,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             out.append(_zone("mont", _mt_lv[0], "en direct",
                              len(_play_m), _cards(_play_m), zk="live-mont",
                              subtitle=(_mt_lv[1] if len(_mt_lv) > 1 else ""), **_lz))
-        out += [
-            _zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
-                  zk="live-indic", **_lz),
-            _zone("combo", _plur(len(_combo_rows), "Combiné"), "en direct",
-                  len(_combo_rows), _combo, zk="live-combo", **_lz),
-        ]
+        out.append(_zone("indic", _plur(len(_prov), "Provisoire"), "en direct", len(_prov), _cards(_prov),
+                         zk="live-indic", **_lz))
+        if _combos_shown():   # combinés MASQUÉS (user 2026-09-11) -> pas de zone « Combiné en direct »
+            out.append(_zone("combo", _plur(len(_combo_rows), "Combiné"), "en direct",
+                             len(_combo_rows), _combo, zk="live-combo", **_lz))
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
         # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
         if _upcoming_all:
