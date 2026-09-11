@@ -169,6 +169,12 @@ def _day_fixtures(cl: httpx.Client, day: str) -> list:
     return resp
 
 
+# Plancher de correspondance PAR ÉQUIPE (2026-09-11) : chaque camp doit partager au moins ~un token distinctif
+# avec la fixture candidate (0.34 = 1 token sur ≤3, tolère les variantes via `_tok_match`). Bloque les fixtures
+# où seul le domicile matche (adversaire à 0.0). Assez bas pour ne pas rejeter les noms multi-tokens légitimes.
+_SIDE_FLOOR = 0.34
+
+
 def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_score: float = 0.5) -> dict | None:
     """Retrouve le fixture API-Football d'un match BETSFIX par NOM + coup d'envoi (±90 min pour désambiguïser
     senior/U19 du même jour). Renvoie {id, home, away, home_id, away_id, home_logo, away_logo, league, ts} ou None.
@@ -183,7 +189,18 @@ def resolve_fixture(cl: httpx.Client, home: str, away: str, ko_iso: str, min_sco
         xts = _ts(x["fixture"]["date"])
         if kts and xts and abs(kts - xts) > 90 * 60:
             continue
-        s = (_ov(nh, _norm(x["teams"]["home"]["name"])) + _ov(na, _norm(x["teams"]["away"]["name"]))) / 2
+        sh = _ov(nh, _norm(x["teams"]["home"]["name"]))
+        sa = _ov(na, _norm(x["teams"]["away"]["name"]))
+        # ANTI-MAUVAISE-FIXTURE (user 2026-09-11) : exiger que les DEUX équipes correspondent, pas seulement la
+        # MOYENNE. Avant, un domicile matché SEUL (1.0) + un adversaire TOTALEMENT différent (0.0) donnait une
+        # moyenne 0.5 = pile le seuil -> ACCEPTÉ. Cas vécu : « APR FC – FC Les Aigles du Congo » (absent d'API-
+        # Football) résolvait « APR – JSK » (JS Kabylie, Algérie) -> ancre sharp ET enrichissement tirés d'un
+        # AUTRE match -> faux conflit favori/marché -> pari publié sur données croisées. En imposant un plancher
+        # PAR CÔTÉ, un adversaire non trouvé -> None -> pas d'ancre -> match différé HONNÊTEMENT (mieux qu'une
+        # ancre d'un autre match). Version API-Football du piège pinnacle-match-resolution-confusion.
+        if sh < _SIDE_FLOOR or sa < _SIDE_FLOOR:
+            continue
+        s = (sh + sa) / 2
         if s > bs:
             bs, best = s, x
     if best and bs >= min_score:
