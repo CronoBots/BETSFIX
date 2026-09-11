@@ -186,9 +186,12 @@ mécaniques** backtestés :
   moitiés, ~75-79 % / +21-24 %, en DOUBLANT le volume ~5→~12/mois ; 64/60/58 s'affaiblissent en test, EV+3 %=piège.
   ⚠️ cote 1.30 à SURVEILLER sur les stat_bet FIGÉS. Telegram Value reste OFF). Cote la + haute, sur matchs **SANS**
   confiance. Marchés sauf bans **+ « Total Over » exclu** (`_VALUE_BAN_MARKETS` = seul marché value perdant :
-  56 %/−9 %). Optim via backtest fantômes 1/match + train/test (mémoire `value-exclude-total-over`). ⚠️ FORWARD :
-  l'historique value N'A PAS été re-piqué sous 66/1.30 (le champ `value_bet` est figé au scan à l'ancien seuil ;
-  re-pick = re-lancer value_pick sur ~3,5 mois — à décider). Le 2026-09-01 (58→68) l'**Historique avait été RE-PIQUÉ**
+  56 %/−9 %). Optim via backtest fantômes 1/match + train/test (mémoire `value-exclude-total-over`). **Historique
+  RE-PIQUÉ sous 66/1.30 le 2026-09-12** (user « les stats value doivent correspondre au filtre ») : re-lancé
+  value_pick sur tous les sidecars réglés value-éligibles (hors confiance/combo/différés `no_sharp`/`sharp_conflict`/
+  `_removed_wrong_anchor` → Aigles du Congo NON ré-ajouté), `value_bet` reposé + `stat_bet` re-figé via
+  `backfill_stat_bets`. ADDITIF : **+14 value** (0 retiré, monotone intact, pas de reset filigrane), record value
+  passé à ~34/40 · +29 %. Backup `data/_repick_value_backup_2026-09-12/`. Le 2026-09-01 (58→68) l'**historique avait été RE-PIQUÉ**
   (2026-09-01, pas d'abonnés) : 46→23 value (23 retirés = abstentions), stat_bet re-figé EXPLICITEMENT (pas via
   `retained_bet`/`stat_bet` qui ressuscitent le pari publié) + filigrane monotone remis à 0.
 - Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
