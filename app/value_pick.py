@@ -25,16 +25,17 @@ from app import confidence_pick as _cp
 VALUE_PICK_ON = True
 
 # Profil value B (backtest données propres). Bornes sur la proba BRUTE. Marchés = TOUS sauf bans.
-PROB_MIN = 68.0         # relevé 58 -> 68 (user 2026-09-01) : seul levier ROBUSTE au backtest fantômes 1/match
-#                         + train/test (train avant 11/08, test après) -> 68 tient DANS LES DEUX (83%/+27% train,
-#                         78%/+25% test) vs 58 qui se dégrade (76%->67%) et 64 qui vire négatif en test (piège).
-#                         EV/cote NON touchés (les monter n'aidait pas). Moins de value mais plus fiables. Forward.
-# COTE_LO = 1.40 CONSERVÉ. Testé 1.30 (user 2026-09-07) : le BACKTEST (candidats résolus) promettait +35,5 %,
-# mais la RÉALITÉ PRODUCTION (paris réellement figés) montre que les 11 paris récupérés à cote 1.30-1.38 sont
-# break-even (8G/3P, 72 %, ROI −2,5 %) → ils DILUENT la value de +36,7 %→+25,3 % (même piège que la bande
-# Confiance 1.05-1.12 : à cote courte il faut ~76 % pour être +EV). La rareté de la value est RÉELLE ; forcer le
-# volume à cote basse ajoute des perdants. Leçon : mesurer sur les stat_bet FIGÉS, pas un backtest résolu-filtré.
-COTE_LO = 1.40
+PROB_MIN = 66.0         # ABAISSÉ 68 -> 66 (user 2026-09-12 : « plus aucune value depuis 12 j ») pour REJOUER du
+#                         volume SANS casser l'edge. Diagnostic : à 68 seulement ~5 value/mois qualifient -> jours
+#                         sans value. Re-backtest TRAIN/TEST (train juin->11/08 = 185 matchs, test 11/08->auj = 149,
+#                         value sur matchs SANS Confiance) : 66 tient DANS LES DEUX moitiés (79%/+21% train · 75%/
+#                         +23% test) en DOUBLANT le volume (~5 -> ~12/mois). 64/60/58 s'affaiblissent en test
+#                         (+6 à +9%), EV+3% = PIÈGE (−8% test) -> EV INCHANGÉ. Historique : 58->68 le 2026-09-01.
+# COTE_LO ABAISSÉ 1.40 -> 1.30 (user 2026-09-12) : ajoute du volume et tient en train/test À PROB 66 (83%/+24%
+# train · 77%/+24% test) — contrairement au test 1.30 du 2026-09-07 qui était fait À PROB 68 (la bande 1.30-1.38
+# y diluait à −2,5% en prod). ⚠️ SURVEILLER sur les stat_bet FIGÉS (leçon 07/09 : un backtest résolu-filtré est
+# optimiste) — si la bande 1.30-1.40 vire break-even en prod réelle, remonter COTE_LO à 1.40. Forward, réversible.
+COTE_LO = 1.30
 COTE_HI = 2.30
 EV_MIN = 0.05            # vrai edge value : proba × cote − 1 ≥ +5 %
 MARKETS = None          # tous marchés (l'exclusion des bans se fait via _VALUE_BAN_MARKETS)
