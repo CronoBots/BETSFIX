@@ -91,7 +91,15 @@ def _hero_card(full: dict, combo: dict) -> str:
     # ici comptait les combinés DEUX FOIS (bug user : 162/91 % affiché au lieu du vrai 151/92 %, +14,1 %).
     # Quand les combinés sont déjà dans overall, on neutralise leur contribution au hero (compteurs ET courbe).
     _combo_in_overall = getattr(analyses, "COMBO_ROI_ON", False)
-    cb = {} if _combo_in_overall else (combo.get("overall") or combo or {})
+    # COMBINÉS STOPPÉS (user 2026-09-11) : AUCUNE contribution au hero. Sinon, `COMBO_ROI_ON=False` faisant
+    # sortir les combinés de `overall`, la branche `else` ci-dessous les RÉ-AJOUTERAIT au hero -> on les
+    # recompterait alors qu'on vient de les retirer du ROI. `COMBO_ENABLED=False` -> cb neutralisé.
+    try:
+        from app import combo_daily as _cd_h
+        _combos_off = not bool(getattr(_cd_h, "COMBO_ENABLED", True))
+    except Exception:
+        _combos_off = False
+    cb = {} if (_combo_in_overall or _combos_off) else (combo.get("overall") or combo or {})
     # PROVISOIRES retirés du produit (user 2026-08-11 : « je ne veux plus de provisoires ») -> ils ne
     # comptent PLUS au ROI global. Gardés uniquement en fantômes pour la calibration. On neutralise leur
     # contribution au hero (sinon « X paris réglés » gonflait de ~51 paris qui n'existent plus).

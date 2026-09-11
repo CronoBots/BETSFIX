@@ -15,6 +15,18 @@ from datetime import datetime, timezone, timedelta
 
 from . import analyses, match_select, paywall
 
+
+def _combos_shown() -> bool:
+    """Combinés AFFICHÉS ? Suivent le kill-switch `combo_daily.COMBO_ENABLED` (user 2026-09-11 : combinés
+    STOPPÉS + MASQUÉS + hors ROI « pour le moment »). False -> aucune carte/onglet/zone combiné nulle part
+    (à venir, résultats, stats). Réversible : COMBO_ENABLED=True les ré-affiche partout. Lu à chaud (pas de
+    cache) -> un reload du flag prend effet sans redémarrer."""
+    try:
+        from app import combo_daily as _cd
+        return bool(_cd.COMBO_ENABLED)
+    except Exception:
+        return True
+
 _WORDMARK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "static", "wordmark.png")
 _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -5415,6 +5427,8 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
         best_streak=_foot_c.get("best_streak"), cote_points=_foot_c.get("cote_points"),
         warmup=3))                                    # combiné du jour ~1/j depuis 29/07 : seuil courbes abaissé
         if (_foot_c.get("settled") or _pend_fc) else "")   # onglet Combiné AFFICHÉ mais « hors ROI » (user 2026-08-16)
+    if not _combos_shown():
+        combos_block = ""     # combinés MASQUÉS (user 2026-09-11) -> _sport_tabs ignore l'onglet vide
     # UN CADRE PAR SPORT (demande user 2026-07-24) : en-tête = BANNIÈRE BETSFIX du sport (image Telegram),
     # puis simples + combos séparés par le MÊME filet que les jambes de combiné (`_MC_SEP`).
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
@@ -7422,6 +7436,8 @@ def _combo_tg_card(include_settled: bool = True, cb: dict | None = None, sport: 
     2026-07-14) ; il reste consultable dans les Stats.
     `cb` fourni : rend CE combiné (ex. calendrier « Pronos » -> combiné d'un jour PASSÉ) au lieu de celui
     d'aujourd'hui."""
+    if not _combos_shown():
+        return ""     # combinés MASQUÉS (user 2026-09-11) : aucune carte combiné, ni à venir ni réglée
     if cb is None:
         try:
             import datetime as _dt
@@ -8040,6 +8056,8 @@ def _daily_all_results_map() -> dict:
     `_COMBO_STATS_FROM` + dédup) — PAS `combo_daily.load()` qui contient des combinés fantômes hors bilan (ex.
     14/08 dans le store brut mais ABSENT du track officiel → il gonflait la pastille à tort). Lecture seule."""
     res = {k: dict(v) for k, v in _daily_results_map().items()}     # confiance + value (copie mutable)
+    if not _combos_shown():
+        return res     # combinés STOPPÉS/MASQUÉS (user 2026-09-11) : exclus du % du jour (calendrier horizontal)
     try:
         for _c in (analyses.combo_stats().get("recent") or []):
             if not isinstance(_c, dict):
@@ -8276,6 +8294,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
             _board = analyses.result_board(d, sp) or {}
             combo = d.get("combo") or {}
             if combo.get("legs") and combo.get("result") in ("won", "lost", "void"):
+                if not _combos_shown():
+                    continue     # combinés MASQUÉS (user 2026-09-11) : pas de carte résultat de combiné
                 # UN COMBINÉ N'EST PAS UN PARI « CONFIANCE » (user 2026-08-19 : combiné 3 jambes affiché à tort en
                 # Confiance le 19/07). Il a son PROPRE type -> tier « combo » (zone Combiné), jamais Confiance/Value.
                 if tier is not None and tier != "combo":
@@ -8775,9 +8795,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # `empty` conditionné à `_has_prog` (user 2026-09-04, comme Confiance/Value/Montante) : la zone Combiné VIDE
     # ne s'affiche QUE tant qu'il reste des matchs à jouer. Programme pas encore établi (avant 10h) ou journée
     # terminée -> pas d'en-tête « Combiné » orphelin.
-    out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
-                        collapsible=True, record=_combo_rec, waiting=_has_prog,
-                        empty=("Aucun combiné du jour pour l'instant." if _has_prog else None)))
+    if _combos_shown():   # combinés MASQUÉS (user 2026-09-11) -> pas de zone « Combiné » du tout (même vide)
+        out.insert(2, _zone("combo", _plur(_n_combos, "Combiné"), "", _n_combos, combo_daily,
+                            collapsible=True, record=_combo_rec, waiting=_has_prog,
+                            empty=("Aucun combiné du jour pour l'instant." if _has_prog else None)))
     # ABSTENTIONS RÉAFFICHÉES (user 2026-08-24) : les matchs analysés SANS pari retenu, en cartes, catégorie à
     # part (cachée s'il n'y en a aucune). On remontre ce qu'on a analysé mais pas jugé jouable.
     # ABSTENTIONS masquées quand le PROGRAMME est TERMINÉ (plus aucun match à jouer, user 2026-08-27) : une
@@ -11076,14 +11097,17 @@ def render_sport_perf(sport: str) -> str:
     # Sabliers dorés « en attente » PROPRES à ce sport (simples / combinés du jour) — demande user 2026-07-17.
     _pend_s = sum(1 for b in analyses.pending_roi_bets() if b.get("sport") == sport)
     _pend_c = sum(1 for b in analyses.pending_roi_bets(combo=True) if b.get("sport") == sport)
+    # Courbe COMBINÉS masquée (user 2026-09-11) : combinés stoppés + hors ROI -> on ne montre que les Simples.
+    _combo_curve = ("" if not _combos_shown() else
+                    _perf_curve_block("Combinés" if analyses.COMBO_ROI_ON else "Combinés · hors ROI",   # compté au ROI (user 2026-08-19)
+                                      combo_bs, f"sp-{sport}-c",
+                                      "Aucun combiné réglé pour ce sport",
+                                      form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
+                                      pending=_pend_c))
     charts = ('<div class="spf-charts">'
               + _perf_curve_block("Simples", s, f"sp-{sport}-s", "Aucun simple réglé",
                                   form=s.get("form_simple") or s.get("form"), pending=_pend_s)
-              + _perf_curve_block("Combinés" if analyses.COMBO_ROI_ON else "Combinés · hors ROI",   # compté au ROI (user 2026-08-19)
-                                  combo_bs, f"sp-{sport}-c",
-                                  "Aucun combiné réglé pour ce sport",
-                                  form=(combo_bs or {}).get("form_run") or (combo_bs or {}).get("form12"),
-                                  pending=_pend_c)
+              + _combo_curve
               + '</div>')
     # Détail INTÉGRÉ au MÊME cadre (repliable) : par pari + calibration par TYPE DE PARI de ce sport.
     g = (analyses.calibration().get("by_sport") or {}).get(label) or {}
@@ -11486,6 +11510,8 @@ def _sport_row(r: dict) -> str:
     # ce qui s'affiche dans l'app = ce qui est posté sur Telegram = ce qui est compté dans les stats.
     reco_i = summ.get("reco_idx")          # pari RETENU par le moteur -> ⭐ EN TÊTE (à la place du •)
     is_combo = summ.get("is_combo")        # combiné = • comme les autres paris (ni ⭐ ni 🎲, demande user)
+    if is_combo and not _combos_shown():
+        return ""     # combinés MASQUÉS (user 2026-09-11) : aucune carte de match combiné (à venir/live/terminé)
     bets3 = summ.get("bets") or []
     if not is_combo:
         if is_finished:                    # TERMINÉ : le pari RÉELLEMENT JOUÉ = `stat_bet` FIGÉ.

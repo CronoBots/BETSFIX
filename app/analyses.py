@@ -3305,7 +3305,7 @@ def _combo_rule_void(day: str) -> bool:
 # le chip « C » du résumé perf est masqué et l'onglet Combiné ne porte PAS de chip ROI. `combo_stats()` reste
 # EXACT. N'affecte NI le ROI des simples (all_ev/stat_bet), NI l'invariant monotone, NI la calibration, NI la
 # carte combiné du jour. Remettre True pour recompter les combinés comme un ROI en tête.
-COMBO_ROI_ON = True  # user 2026-08-31 : combinés du JOUR (variant='') + du SOIR (variant='soir') COMPTÉS AU ROI et affichés dans les stats (jour ET nuit). Overall = Confiance + Value + Combiné. Repasser False = combinés en affichage seul.
+COMBO_ROI_ON = False  # user 2026-09-11 : combinés STOPPÉS + MASQUÉS + HORS ROI « pour le moment » (kill-switch combo_daily.COMBO_ENABLED=False). Overall = Confiance + Value SEULS. Les combinés déjà réglés NE sont plus comptés (retirés de all_ev). Remettre True (et COMBO_ENABLED=True) = re-compter + ré-afficher. Avant : True (2026-08-31, combinés jour+soir comptés au ROI).
 MONTANTE_ROI_ON = False  # user 2026-08-29 : montante DÉSACTIVÉE (refonte de la sélection à venir) -> RIEN dans
 #                          la catégorie montante ; les matchs montante-mids reviennent à leur tier réel
 #                          (confiance/value) via tier_of. Réactiver = True + recréer data/montante_active.flag.

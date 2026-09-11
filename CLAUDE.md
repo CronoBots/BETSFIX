@@ -240,9 +240,16 @@ est exclue du vivier combiné. Mémoire `omap-unibet-cote-capture` (RÉSOLU).
   mobile : produits déployés, maturité des marchés, calibration brute, et vue
   **FORWARD réel vs Historique (backfill)** (`537171b`/`4a2ecf1`/`9783807`).
 ## Combinés du jour + du soir (MAJ 2026-08-31 — refonte complète)
-> ⛔ **COMBINÉS STOPPÉS « pour le moment » (user 2026-09-11)** — kill-switch `combo_daily.COMBO_ENABLED=False`.
-> `_build_combo_montante_from_analysis` est court-circuité (ne bâtit plus de combiné). Les combinés DÉJÀ
-> publiés/réglés restent **affichés + comptés** (forward-only, on ne retire pas le passé). **Conséquence VOULUE :
+> ⛔ **COMBINÉS STOPPÉS + MASQUÉS + HORS ROI « pour le moment » (user 2026-09-11)** — kill-switch
+> `combo_daily.COMBO_ENABLED=False` **ET** `analyses.COMBO_ROI_ON=False`.
+> `_build_combo_montante_from_analysis` est court-circuité (ne bâtit plus de combiné). **MASQUÉS PARTOUT** via
+> `web._combos_shown()` (= `COMBO_ENABLED`) : plus aucune carte/onglet/zone combiné — zone « Combiné » du Pronos,
+> carte à venir (`_combo_tg_card`), carte de match combiné (`_sport_row`), carte résultat (`_settled_bet_result_cards`),
+> onglet + courbes « Combinés » des Stats (`render_stats`/`render_sport_perf`), **contribution au hero**
+> (`routers/web._hero_card`, sinon le hero les recomptait à cause de `COMBO_ROI_ON=False`), et **% du jour du
+> calendrier horizontal** (`_daily_all_results_map` — les jambes ne comptent plus). **HORS ROI** (`COMBO_ROI_ON=False`
+> → retirés de `all_ev`/overall). Les combinés déjà réglés ne sont donc **plus comptés ni affichés** (revert = les
+> 2 flags à True). **Conséquence VOULUE :
 > plus d'analyse complète matin/soir** (elle n'existait QUE pour le combiné) → **une seule analyse par match à
 > sa vague KO-1h** → fin de la DOUBLE analyse + des « premières abstentions » (fantômes `pre_refresh`). La
 > **montante est décrochée** et se construit à la vague (voir sa ligne). **Réactiver** = `COMBO_ENABLED=True`
@@ -366,8 +373,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     N'ONT PAS de filigrane. Les cartes du bloc sont marquées `_no_wm` → classe `mc-nowm` (`_sport_row`, branche
     `_compact`) → `.row.mc.mc-nowm::before{content:none}`. Toutes les AUTRES cartes compactes (autres onglets/
     zones) gardent le filigrane. Ciblage par flag (pas par sélecteur de zone) = pas de fuite ailleurs.
-  - **CALENDRIER horizontal — % DE RÉUSSITE du jour (MAJ 2026-09-07)** : le point de couleur est REMPLACÉ par le
-    **taux de réussite chiffré** de **TOUS les paris du jour** (Confiance + Value + Combiné, `_daily_all_results_map`).
+  - **CALENDRIER horizontal — % DE RÉUSSITE du jour (MAJ 2026-09-07 ; combinés retirés 2026-09-11)** : le point de
+    couleur est REMPLACÉ par le **taux de réussite chiffré** des paris du jour (Confiance + Value ; ⚠️ **combinés
+    EXCLUS depuis le 2026-09-11**, cf. `_combos_shown()` — `_daily_all_results_map` s'arrête à Confiance+Value tant
+    que `COMBO_ENABLED=False`).
     Rendu `.dcd-pct` (`N%` coloré). Règle de couleur : **<50 % rouge · 50–75 % orange · >75 % vert**. Jour sans pari
     réglé -> place réservée, invisible. Cliquabilité du jour = tous paris (`rmap`). (`_daily_conf_results_map` reste
     utilisé ailleurs pour les KPI Confiance.)
