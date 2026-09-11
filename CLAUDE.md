@@ -181,10 +181,14 @@ mécaniques** backtestés :
   ROI +5,0 %→+9,0 %, robuste train +10,4 % / test +7,2 %, −32 % de volume. Historique **re-piqué** (45→abstention,
   1→value, 1 re-pick ; `stat_bet` re-figé via `backfill_stat_bets`, filigrane selfcheck réinitialisé à 118).
   Plafond cote **1.50** (`3abb5f0`).
-- **Value** = `app/value_pick.py` — conf **≥68** (relevé de 58, MAJ 2026-09-01), cote 1.40–2.30, EV ≥ +5 %,
-  cote la + haute, sur matchs **SANS** confiance. Marchés sauf bans **+ « Total Over » exclu** (`_VALUE_BAN_MARKETS`
-  = seul marché value perdant : 56 %/−9 %). Perf ré-alignée ~87 % / +35 %. Optim via backtest fantômes 1/match +
-  train/test anti-surapprentissage (mémoire `value-exclude-total-over`). **Historique RE-PIQUÉ** sous ce modèle
+- **Value** = `app/value_pick.py` — conf **≥66** · cote **1.30–2.30** · EV ≥ +5 % (MAJ 2026-09-12 : ABAISSÉ de
+  68/1.40 car « plus aucune value depuis 12 j » ; re-backtest TRAIN/TEST juin→auj : 66/1.30 tient dans les DEUX
+  moitiés, ~75-79 % / +21-24 %, en DOUBLANT le volume ~5→~12/mois ; 64/60/58 s'affaiblissent en test, EV+3 %=piège.
+  ⚠️ cote 1.30 à SURVEILLER sur les stat_bet FIGÉS. Telegram Value reste OFF). Cote la + haute, sur matchs **SANS**
+  confiance. Marchés sauf bans **+ « Total Over » exclu** (`_VALUE_BAN_MARKETS` = seul marché value perdant :
+  56 %/−9 %). Optim via backtest fantômes 1/match + train/test (mémoire `value-exclude-total-over`). ⚠️ FORWARD :
+  l'historique value N'A PAS été re-piqué sous 66/1.30 (le champ `value_bet` est figé au scan à l'ancien seuil ;
+  re-pick = re-lancer value_pick sur ~3,5 mois — à décider). Le 2026-09-01 (58→68) l'**Historique avait été RE-PIQUÉ**
   (2026-09-01, pas d'abonnés) : 46→23 value (23 retirés = abstentions), stat_bet re-figé EXPLICITEMENT (pas via
   `retained_bet`/`stat_bet` qui ressuscitent le pari publié) + filigrane monotone remis à 0.
 - Verrous dans `app/analyses.py` : `FOOT_MECHANICAL_ONLY=True` (le foot ne prend QUE
