@@ -38,11 +38,12 @@ if ($running) {
 Log 'PROGRAMME : SLATE JOUR (coup d''envoi 6h-21h) pour l''accueil site — la nuit est sélectionnée le soir'
 # 2>&1 | Out-File : capture FIABLE du stdout+stderr natif de python (Out-File = cmdlet, $LASTEXITCODE reste python).
 # FOOTBALL SEUL (user 2026-08-07) : tennis/basket retirés -> tout le budget Claude au foot.
-# --top 10 = BUDGET TOTAL du jour (top-N GLOBAL ADAPTATIF, user 2026-08-24 : RETOUR à la SÉLECTIVITÉ de la
-# période gagnante — ~5-10 matchs analysés EN PROFONDEUR/jour au lieu de ~20 survolés qui saturaient le
-# forfait). Les 10 matchs les PLUS IMPORTANTS des 24 h, répartis par créneau selon leur coup d'envoi (jour
-# analysé le matin, nuit le soir). Le split suit la vraie distribution (ex. 7 JOUR + 3 NUIT).
-& $py 'tools\generate_analyses.py' --sport foot --top 7 --hours 24 --programme --no-notify --ko-from 6 --ko-to 21 2>&1 |
+# --top 10 PAR SLATE (user 2026-09-11, relevé de 7) : ~10 matchs JOUR (ici) + ~10 NUIT (scan soir) + pack élite
+# forcé ≈ 20-24 matchs analysés/jour. HAUSSE PERMISE par le retrait des combinés : avant, chaque match était
+# analysé DEUX fois (passe batch matin/soir pour le combiné + vague) ; désormais UNE seule analyse par match
+# à sa vague -> la charge Claude a ~diminué de moitié, donc +matchs reste à/sous l'ancienne consommation.
+# Chaque match du SLATE est analysé À SA VAGUE (--from-programme, KO-1h), pas ici (ici = SÉLECTION seule).
+& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours 24 --programme --no-notify --ko-from 6 --ko-to 21 2>&1 |
     Add-BfxStream $log
 Log ("PROGRAMME DONE (exit {0})" -f $LASTEXITCODE)
 # PLANIFIE LES PASSES DE RÈGLEMENT PAR MATCH (coup d'envoi − 1 h) sur « BETSFIX Scan Wave », d'après le

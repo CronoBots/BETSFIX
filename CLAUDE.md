@@ -299,8 +299,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   les libellés n'ont aucun token commun : « Saint-Trond » ↔ « St.Truiden »), **alerte privée** si un logo manque.
 - **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : **analyse (UNE seule fois)** chaque match
   ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), **construit la montante** (`_build_montante_from_wave`,
-  idempotent), puis reconcile (règlement + résultats combinés par jambe). Cap **7+7** (jour+nuit). Mémoire
-  `daily-construction-methodology` (flux de référence + invariants anti-bug).
+  idempotent), puis reconcile (règlement + résultats combinés par jambe). Cap **10+10** (jour+nuit) + pack élite
+  (relevé de 7+7 le 2026-09-11, permis par le retrait de la double analyse : ~2× moins de charge Claude/match →
+  ~20-24 matchs/jour restent à/sous l'ancienne consommation). Mémoire `daily-construction-methodology`
+  (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
 
 ## Autres sous-systèmes
 - **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API
