@@ -41,14 +41,6 @@ _LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # refonte annulée 2026-09-06). Les gates renvoient False (les branches alt sont retirées). Mémoire signature-card-style.
 CARD_STYLE = "classic"
 
-# 🎨 THÈME visuel global (user 2026-09-12) : "neumorphism" = surfaces DOUCES monochromes (fond mi-teinte unique,
-# doubles ombres relief, plus de bordures/glow cyan) ; "classic" = thème sombre historique. Piloté par l'env
-# BETSFIX_THEME (défaut = neumorphism ; `BETSFIX_THEME=classic` pour revenir). Ajoute la classe `neu` au <body>
-# -> le bloc CSS `body.neu{…}` (tout en fin de la constante CSS) SURCHARGE les surfaces. Le `_CSS_VER` (hash du
-# CSS) se recalcule tout seul -> cache invalidé. Réversible (l'uvicorn --reload reprend le flag au redémarrage).
-THEME = (os.environ.get("BETSFIX_THEME") or "neumorphism").strip().lower()
-_THEME_CLASS = "neu" if THEME == "neumorphism" else ""
-
 # (styles de carte ticket/unibet/signature + leurs gates RETIRÉS 2026-09-10 — style CLASSIC seul)
 
 def _form_pills(forme: str, fr: bool = True) -> str:
@@ -3891,68 +3883,6 @@ CSS = """
     *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
          transition-duration:.01ms!important}
   }
-
-  /* ══════════════════════════════════════════════════════════════════════════════════════════════
-     THÈME NEUMORPHISME (user 2026-09-12 · BETSFIX_THEME=neumorphism -> classe `neu` sur <html>+<body>)
-     Surfaces DOUCES monochromes : fond mi-teinte UNIQUE, relief par DOUBLES OMBRES (lumière haut-gauche
-     + ombre bas-droite), zéro bordure, zéro glow cyan/or. Actif = ENFONCÉ (inset). Réversible :
-     BETSFIX_THEME=classic retire la classe -> le thème sombre historique reprend tel quel.
-     ═════════════════════════════════════════════════════════════════════════════════════════════ */
-  html.neu{background:#232830}
-  html.neu::before{display:none!important}                 /* retire le fond fixe dégradé/glow -> mono */
-  body.neu{
-    --neu-bg:#232830; --neu-bg2:#262c37;
-    --neu-hi:rgba(255,255,255,.05); --neu-sh:rgba(0,0,0,.55);
-    --neu-d:7px;  --neu-b:15px;                             /* grandes surfaces (cartes) */
-    --neu-ds:4px; --neu-bs:9px;                             /* petites surfaces (boutons/onglets/chips) */
-    --neu-raise: var(--neu-d) var(--neu-d) var(--neu-b) var(--neu-sh),
-                 calc(-1*var(--neu-d)) calc(-1*var(--neu-d)) var(--neu-b) var(--neu-hi);
-    --neu-raise-s: var(--neu-ds) var(--neu-ds) var(--neu-bs) var(--neu-sh),
-                 calc(-1*var(--neu-ds)) calc(-1*var(--neu-ds)) var(--neu-bs) var(--neu-hi);
-    --neu-inset: inset var(--neu-ds) var(--neu-ds) var(--neu-bs) var(--neu-sh),
-                 inset calc(-1*var(--neu-ds)) calc(-1*var(--neu-ds)) var(--neu-bs) var(--neu-hi);
-    /* recâble les variables du thème -> tout le reste hérite du fond mono, sans glow ni bordure */
-    --bg:var(--neu-bg); --bg2:var(--neu-bg); --surface:var(--neu-bg2); --surface2:var(--neu-bg2);
-    --card-grad:var(--neu-bg); --glow:transparent; --cardglow:none; --cardline:transparent;
-    --border:rgba(255,255,255,.05); --border2:rgba(255,255,255,.06);
-    background:#232830!important;
-  }
-  body.neu::after{display:none!important}
-  /* CARTES + cadres = plateaux surélevés, MÊME fond que la page, ni bordure ni gradient ni glow */
-  body.neu .row.mc, body.neu .cleg, body.neu .spf-cv, body.neu .row.pick, body.neu .spf,
-  body.neu .sx-hero, body.neu .cal-verdict, body.neu .live-empty, body.neu .an-body,
-  body.neu details.sec2, body.neu .perf-fold{
-    background:var(--neu-bg)!important; border:none!important; border-radius:20px!important;
-    box-shadow:var(--neu-raise)!important;
-  }
-  /* NAV = plateau surélevé ; onglet ACTIF = enfoncé (inset) + texte accent */
-  body.neu .botnav{background:var(--neu-bg)!important; border:none!important; box-shadow:var(--neu-raise)!important;
-       border-radius:18px}
-  body.neu .botnav a.on{background:var(--neu-bg)!important; color:var(--accent)!important;
-       box-shadow:var(--neu-inset)!important; border-radius:14px}
-  /* BOUTONS / ONGLETS STATS / CHIPS = surélevés ; actif ou pressé = enfoncé */
-  body.neu .le-btn, body.neu .sctab, body.neu .chip, body.neu .sctabs, body.neu .daycal-btn,
-  body.neu #bfx-totop{
-    background:var(--neu-bg)!important; border:none!important; box-shadow:var(--neu-raise-s)!important;
-    border-radius:12px}
-  body.neu .le-btn-p{color:var(--accent)!important}
-  body.neu .sctab.on{box-shadow:var(--neu-inset)!important; color:var(--accent)!important}
-  body.neu .le-btn:active, body.neu .sctab:active, body.neu .le-btn-p:active{box-shadow:var(--neu-inset)!important}
-  /* CHAMPS de saisie = creux (inset) */
-  body.neu input, body.neu textarea, body.neu select{
-    background:var(--neu-bg)!important; border:none!important; box-shadow:var(--neu-inset)!important;
-    border-radius:12px; color:var(--text)}
-  /* BARRES (confiance live / possession / domination) = creux, remplissage accent conservé */
-  body.neu .mcx-bar, body.neu .mcx-dom-bar, body.neu .lb-track, body.neu .live-bar{
-    background:var(--neu-bg)!important; box-shadow:var(--neu-inset)!important; border-radius:6px}
-  /* Zones : le trait séparateur devient un creux doux */
-  body.neu .zone{border-bottom-color:rgba(0,0,0,.35)!important}
-  /* Le survol desktop garde un relief cohérent (ombre un peu plus marquée) */
-  @media(hover:hover){
-    body.neu .mc:hover{transform:translateY(-2px);
-      box-shadow: calc(var(--neu-d)+2px) calc(var(--neu-d)+2px) calc(var(--neu-b)+5px) var(--neu-sh),
-        calc(-1*(var(--neu-d)+2px)) calc(-1*(var(--neu-d)+2px)) calc(var(--neu-b)+5px) var(--neu-hi)!important}
-  }
 """
 
 # PERF (2026-09-10) : le CSS (~284 Ko = 75 % de la page) est CONSTANT -> servi comme fichier EXTERNE cacheable
@@ -4820,7 +4750,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
             for k, href, lbl in items) + "</div>"
 
     meta_refresh = '<meta http-equiv="refresh" content="180">' if refresh else ""
-    return f"""<!doctype html><html lang="fr" class="{_THEME_CLASS}"><head>
+    return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d15">
 <meta name="color-scheme" content="dark">
@@ -4831,7 +4761,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-{_CSS_LINK}</head><body class="sp-{e(sport)} {_THEME_CLASS}">
+{_CSS_LINK}</head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
@@ -4866,7 +4796,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
         for k, href, ico, name in _SPA_TABS) + "</nav>"
-    return f"""<!doctype html><html lang="fr" class="{_THEME_CLASS}"><head>
+    return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d15">
 <meta name="color-scheme" content="dark">
@@ -4877,7 +4807,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
-{_CSS_LINK}</head><body class="sp-{e(active)} {_THEME_CLASS}">
+{_CSS_LINK}</head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
