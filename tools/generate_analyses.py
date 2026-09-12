@@ -3617,21 +3617,17 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
         side["no_sharp"] = bool(meta.get("no_sharp"))
     if (meta or {}).get("sharp_conflict"):
         side["sharp_conflict"] = True
-    _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
-    if not _omap:                       # process courant n'a pas re-capté les cotes Unibet (ré-écriture, cache…)
-        try:                            # -> NE PAS PERDRE l'omap déjà écrit dans le sidecar (user 2026-08-31)
-            _prev_sc = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
-            if isinstance(_prev_sc.get("omap"), dict) and _prev_sc["omap"]:
-                _omap = _prev_sc["omap"]
-        except (OSError, ValueError):
-            pass
-    if not _omap and sport == "foot":
-        # DERNIER RECOURS (fix user 2026-08-31) : re-capter les VRAIES cotes Unibet EN DIRECT à l'écriture du
-        # sidecar. La capture de `build_dossier` (dans `_UNIBET_OMAP`) a pu être PERDUE avant d'arriver ici
-        # (ré-écriture du sidecar sur re-passe méthodo, ordre des passes…) -> sinon le match part avec omap
-        # VIDE = cotes fantômes LLM ET est exclu du vivier combiné (bug vécu 2026-08-31 : « combiné du jour
-        # PASS » car 5/7 matchs sans vraies cotes, alors que le fetch Unibet répond 200 + ~600 betOffers).
-        # Le fetch est fiable -> un retry SYNCHRONE borné récupère les cotes. Best-effort, jamais bloquant.
+    # ⚠️ FRAÎCHEUR OBLIGATOIRE DE LA COTE (bug user 2026-09-12 — Palmeiras-São Paulo : DC 1X publié 1.13 alors
+    # que le vrai Unibet À LA MÊME MINUTE valait 1.09). Cause : l'omap du process (`_UNIBET_OMAP`) était vide au
+    # write (perdu sur la re-passe méthodo) -> l'ancien ordre retombait D'ABORD sur l'omap du SIDECAR PRÉCÉDENT
+    # = celui figé LE MATIN (marché immature : Palmeiras 1.63 / DC 1X 1.13), et le re-fetch frais était SAUTÉ.
+    # Conséquence double : cote publiée SURÉVALUÉE, ET un pari qui aurait dû être une ABSTENTION (1.09 < plancher
+    # Confiance 1.12) a été joué. RÈGLE (user, définitive) : on NE PUBLIE JAMAIS une cote qui n'est pas la vraie
+    # cote Unibet DU MOMENT. Donc pour le foot on RE-CAPTE Kambi EN DIRECT au write (le plus proche de la
+    # publication) EN PRIORITÉ ; l'omap du process puis celui du sidecar précédent ne sont que des replis si
+    # Kambi est injoignable. Fetch fiable (~200-500 ms), best-effort, jamais bloquant.
+    _omap = {}
+    if sport == "foot":
         try:
             import httpx as _httpx
             _rr = _httpx.get(f"{UNIBET_B}/betoffer/event/{m['id']}.json",
@@ -3640,12 +3636,21 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
                                      m.get("home", ""), m.get("away", "")) or {}
             if _omap:
                 _UNIBET_OMAP[str(m.get("id"))] = _omap
-                print(f"  ↻ cotes Unibet re-captées à l'écriture : {m.get('name', '?')} ({len(_omap)} marchés)")
-            else:
-                print(f"  ⚠️ COTES UNIBET NON CAPTÉES (retry vide) : {m.get('name', '?')} "
-                      f"(id {m.get('id')}) -> cotes fantômes = estimations LLM")
+                print(f"  ↻ cotes Unibet FRAÎCHES au write : {m.get('name', '?')} ({len(_omap)} marchés)")
         except Exception as _rre:
-            print(f"  ⚠️ omap retry KO {m.get('name', '?')} : {type(_rre).__name__} {_rre}")
+            print(f"  ⚠️ omap re-fetch KO {m.get('name', '?')} : {type(_rre).__name__} {_rre}")
+    if not _omap:                       # Kambi injoignable -> capture de build_dossier de CE process (fraîche aussi)
+        _omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
+    if not _omap:                       # DERNIER recours : ne pas PERDRE l'omap déjà écrit (user 2026-08-31) —
+        try:                            # peut être un peu FIGÉ ; utilisé seulement si les deux captures fraîches ont échoué.
+            _prev_sc = json.load(open(os.path.join(OUT, f"{sport}_{fid}.json"), encoding="utf-8"))
+            if isinstance(_prev_sc.get("omap"), dict) and _prev_sc["omap"]:
+                _omap = _prev_sc["omap"]
+                print(f"  ⚠️ omap Kambi injoignable -> repli sidecar précédent (peut être figé) : {m.get('name', '?')}")
+        except (OSError, ValueError):
+            pass
+    if not _omap and sport == "foot":
+        print(f"  ⚠️ COTES UNIBET NON CAPTÉES : {m.get('name', '?')} (id {m.get('id')}) -> cotes fantômes = estimations LLM")
     if _omap:
         side["omap"] = _omap            # map {code -> vraie cote Unibet} persistée -> re-pricing read-time possible
     # INSTRUMENTATION SÉLECTION PAR EDGE (user 2026-08-20, étude edge : edge sharp > 0 -> +15,7% vs -4,4%).
