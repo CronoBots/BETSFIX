@@ -457,30 +457,19 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* ⚠️ FIX RACINE iOS (user 2026-09-12, après reload PROPRE : la barre reste décalée sur onglet peu rempli).
-       Cause : sur iOS standalone, un `position:fixed` avec un `bottom` NON NUL s'ancre au DOCUMENT (pas au
-       viewport) quand le contenu est plus COURT que l'écran -> la barre se place après le contenu (mi-écran).
-       Le navigateur ne reproduit pas (il ancre au viewport). La recette qui MARCHE en PWA (mémoire) = coquille
-       `position:fixed; bottom:0; left:0; right:0` PLEINE LARGEUR. On sépare donc :
-       • `.botnav` = COQUILLE fixe, `bottom:0`, pleine largeur, TRANSPARENTE, `pointer-events:none` (les taps
-         traversent ses marges vides). Son PADDING crée les écarts flottants (côtés + bas + safe-area).
-       • `.botnav-inner` = la CAPSULE visible (fond, bord, coins, ombre), centrée, `pointer-events:auto`.
-       Le `bottom:0` de la coquille est fiable sur iOS quel que soit le contenu ; la capsule flotte via le padding. */
-    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;
-            display:block;gap:0;border:0;border-radius:0;background:none;box-shadow:none;pointer-events:none;
-            padding:0 20px calc(18px + env(safe-area-inset-bottom, 0px))}
-    .botnav-inner{display:flex;gap:2px;padding:8px 8px;max-width:480px;margin:0 auto;pointer-events:auto;
-            border-radius:28px;border:1px solid rgba(255,255,255,.11);
-            /* fond translucide SOLIDE (on voit à travers, PAS de backdrop-filter -> iOS ne casse pas le fixe) */
-            background:rgba(17,19,27,.86);
-            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
-    /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
-       étroite que la barre pleine largeur. Padding généreux + coins arrondis = pilule active bien détourée. */
-    .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
-    /* Le body scrolle -> `.wrap` doit remplir AU MOINS un écran (moins la barre) pour que la chaîne flex:1
-       ci-dessous ait de la hauteur à répartir. Sans ça (jour léger), les catégories se tassent en haut et le
-       « 18+ » colle au dernier pari au lieu de descendre près de la barre (user 2026-08-22). */
-    .wrap{min-height:calc(100svh - 80px - env(safe-area-inset-bottom, 0px))}   /* svh statique (cf. body) ; 80 = capsule flottante + décalage bas */
+    /* ⚠️ APRÈS DE TRÈS NOMBREUX essais (flottant `bottom:nonzéro`, coquille `bottom:0` transparente,
+       app-shell flex) : sur cet iOS standalone, TOUT sauf la recette d'ORIGINE échoue (barre à mi-écran sur
+       onglet court, ou zone morte). SEULE recette fiable = barre `position:fixed; bottom:0` PLEINE LARGEUR,
+       SOLIDE (fond opaque), le body scrolle et RÉSERVE la place (padding-bas). C'est ce qui marchait AVANT la
+       refonte « flottante ». On y revient. Look moderne conservé : coins HAUTS arrondis + filet clair + ombre. */
+    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;z-index:60;
+            display:flex;gap:2px;
+            padding:9px 16px calc(9px + env(safe-area-inset-bottom, 0px));
+            background:#0f131c;border:0;border-top:1px solid rgba(255,255,255,.07);
+            border-radius:24px 24px 0 0;box-shadow:0 -8px 26px rgba(0,0,0,.45)}
+    .botnav-inner{display:contents}                  /* pas de capsule interne : la barre EST le conteneur flex */
+    .botnav a{min-width:0;padding:6px 0 4px;border-radius:14px;gap:4px}
+    .wrap{min-height:calc(100svh - 66px - env(safe-area-inset-bottom, 0px))}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
