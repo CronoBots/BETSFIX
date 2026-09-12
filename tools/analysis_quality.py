@@ -141,6 +141,37 @@ def _sidecar_for(mid: str, home: str, away: str):
     return None, None
 
 
+# ── GARDE-FOU « LA COTE N'EST JAMAIS ESTIMÉE » (user 2026-09-12) ─────────────────────────────────────────────
+# Principe FIGÉ : la cote d'un pari est TOUJOURS la VRAIE cote Unibet (`omap[code]`), JAMAIS une estimation.
+# Rappel des rôles (à ne pas confondre) :
+#   • Unibet (`omap`)                     = LA cote qu'on joue/affiche  (SEULE source de cote).
+#   • Pinnacle / The Odds API / API-Football = la PROBA de référence (ancre sharp dé-viggée), JAMAIS la cote.
+# Ce contrôle compare, sur un pari FRAÎCHEMENT publié (à venir), la cote FIGÉE à la vraie cote Unibet du MÊME
+# marché. Un écart notable = SOIT une régression (une cote estimée a fui = à corriger), SOIT un mouvement de
+# marché après le conseil (informatif, la « cote au conseil » reste celle qu'on a annoncée). Dans les DEUX cas
+# -> ALERTE PRIVÉE owner (jamais public, jamais bloquant) pour que tu tranches. Dédupliquée 1×/jour/pari.
+_COTE_DRIFT_TOL = 0.06   # écart RELATIF (6 %) au-delà duquel on alerte (sous ce seuil = simple bruit de marché)
+
+
+def _cote_drift(d: dict, rb: dict | None):
+    """Message si la cote FIGÉE diverge de la vraie cote Unibet (`omap[code]`) au-delà de la tolérance, sinon
+    None. Le code du marché est DÉRIVÉ du libellé (comme la sélection) quand il manque. 100 % lecture seule."""
+    if not (rb and rb.get("sel")):
+        return None
+    from app.settle_analyst import code_from_pick
+    om = d.get("omap") or {}
+    code = rb.get("code") or code_from_pick(rb.get("sel", ""), d.get("sport", "foot"),
+                                            d.get("home", ""), d.get("away", ""))
+    real, cote = om.get(code), rb.get("cote")
+    if not (isinstance(real, (int, float)) and isinstance(cote, (int, float)) and real > 1 and cote > 1):
+        return None                                    # marché non coté par Unibet ici -> rien à comparer
+    gap = abs(cote / real - 1.0)
+    if gap < _COTE_DRIFT_TOL:
+        return None
+    return (f"cote figée {cote:.2f} ≠ vraie cote Unibet {real:.2f} (écart {gap*100:.0f} %) — "
+            f"mouvement de marché après le conseil OU cote NON-Unibet à vérifier")
+
+
 def run(date: str | None = None, send_alert: bool = False) -> int:
     prog = _load_programme()
     matches = prog.get("matches") or []
@@ -154,6 +185,7 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     shallow = []          # matchs analysés mais .md manquant/stub
     missed_list = []      # matchs dont la vague est passée SANS analyse
     bad_bets = []         # (nom, [soucis]) : pari JOUÉ avec un pilier SÉLECTION/SOURCES ❌ (vérif par match)
+    cote_drift = []       # (nom, msg) : pari À VENIR dont la cote figée ≠ vraie cote Unibet -> alerte privée
     print(f"═══ CONTRÔLE QUALITÉ D'ANALYSE — {day or 'jour courant'} ═══")
     print(f"Programme : {len(matches)} match(s)\n")
     for m in matches:
@@ -197,6 +229,16 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
                         bad_bets.append((name, _bad))
             except Exception:
                 pass
+            # GARDE-FOU « cote jamais estimée » : sur un pari À VENIR (cote fraîchement figée, doit == omap),
+            # on compare la cote figée à la vraie cote Unibet. Un pari réglé/en cours a pu bouger (marché fermé /
+            # line movement) -> on ne vérifie QU'À VENIR pour rester actionnable et sans bruit.
+            try:
+                if has_bet and A.status_of(d) == "notstarted":
+                    _dr = _cote_drift(d, rb)
+                    if _dr:
+                        cote_drift.append((name, _dr))
+            except Exception:
+                pass
             tag = "PARI" if has_bet else ("abstention" if (d or {}).get("abstained") else "analysé")
             depth = "profond" + ("+panel" if panel else "") if md_ok else "SUPERFICIEL?"
             print(f"  {_icon} {name[:34]:34} {tag:11} [{depth}]{flag}"
@@ -225,6 +267,12 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
               + "; ".join(f"{n} ({', '.join(b)})" for n, b in bad_bets))
     else:
         print(f"  Vérification : ✅ {_ok_bets}/{bets} pari(s) joué(s) vérifié(s) (sélection + sources sains)")
+    # GARDE-FOU COTE (user 2026-09-12) : la cote figée d'un pari À VENIR colle-t-elle à la vraie cote Unibet ?
+    if cote_drift:
+        print(f"  Cote : ⚠️ {len(cote_drift)} pari(s) à venir dont la cote figée diverge de la vraie cote Unibet : "
+              + "; ".join(f"{n} ({m})" for n, m in cote_drift))
+    else:
+        print(f"  Cote : ✅ toutes les cotes des paris à venir = vraie cote Unibet (omap), aucune estimée")
 
     alert = []
     if missed:
@@ -239,6 +287,9 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     # PARI JOUÉ FRAGILE : un pilier SÉLECTION/SOURCES ❌ sur un pari réellement joué = à corriger (capital en jeu).
     for _n, _b in bad_bets:
         alert.append(f"pari joué FRAGILE — {_n} : {', '.join(_b)}")
+    # COTE à vérifier : cote figée ≠ vraie cote Unibet sur un pari à venir (régression cote-estimée ou mouvement).
+    for _n, _m in cote_drift:
+        alert.append(f"COTE à vérifier — {_n} : {_m}")
     print()
     if alert:
         print("🔴 ALERTE :")
@@ -246,7 +297,7 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
             print(f"   - {a}")
         # ENVOI PRIVÉ (owner) — dédupliqué : chaque problème n'alerte qu'UNE fois par jour.
         keys = ([f"missed:{n}" for n in missed_list] + [f"shallow:{n}" for n in shallow]
-                + [f"badbet:{n}" for n, _ in bad_bets])
+                + [f"badbet:{n}" for n, _ in bad_bets] + [f"cotedrift:{n}" for n, _ in cote_drift])
         if pending == 0 and analysed >= 4 and conv < CONV_ALERT:
             keys.append("conversion")
         new = _new_issues(day, keys)
