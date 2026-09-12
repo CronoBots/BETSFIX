@@ -47,9 +47,12 @@ MARKETS = None          # tous marchés (l'exclusion des bans se fait via _VALUE
 _VALUE_BAN_MARKETS = _cp._BAN_MARKETS | frozenset({"Total Over"})
 
 
-def match_candidates(d: dict) -> list[dict]:
-    """Vivier value = TOUS marchés sauf bans + « Total Over » (réutilise confidence_pick, mode exclusion)."""
-    return _cp.match_candidates(d, exclude_markets=_VALUE_BAN_MARKETS)
+def match_candidates(d: dict, require_omap: bool = False) -> list[dict]:
+    """Vivier value = TOUS marchés sauf bans + « Total Over » (réutilise confidence_pick, mode exclusion).
+    `require_omap=True` (PRODUCTION, user 2026-09-12) : re-prix à la VRAIE cote Unibet FRAÎCHE (`omap[code]`) au
+    lieu de la cote fantôme figée tôt — même correctif que la Confiance (cotes surévaluées). Backtest/sanity
+    gardent False (l'omap n'est fiable qu'en forward)."""
+    return _cp.match_candidates(d, exclude_markets=_VALUE_BAN_MARKETS, require_omap=require_omap)
 
 
 def resolve_result(d: dict, code: str) -> str | None:
@@ -77,9 +80,12 @@ def pick_for_sidecar(d: dict) -> dict | None:
         return None
     if isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"):
         return None                                    # Confiance prioritaire -> pas de value sur ce match
-    if _cp.pick_from_candidates(_cp.match_candidates(d)):
+    # PRODUCTION : re-prix à la vraie cote Unibet fraîche (require_omap=True), comme la Confiance — le test
+    # « une Confiance existe ? » DOIT utiliser le MÊME critère omap que la sélection Confiance réelle, sinon
+    # value abstiendrait sur une Confiance fantôme qui, re-prixée, n'existe pas (ou l'inverse).
+    if _cp.pick_from_candidates(_cp.match_candidates(d, require_omap=True)):
         return None                                    # un pari de confiance EXISTE (même pas encore posé)
-    return pick_from_candidates(match_candidates(d))
+    return pick_from_candidates(match_candidates(d, require_omap=True))
 
 
 def apply_to_sidecar(d: dict) -> bool:
