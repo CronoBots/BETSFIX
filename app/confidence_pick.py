@@ -166,7 +166,10 @@ def apply_to_sidecar(d: dict) -> bool:
     # l'EV/sélection n'est recoupée par AUCUN book sharp -> pari « à sec » (ex. ligues CAF hors couverture
     # Pinnacle). On N'EN POSE PAS -> abstention. Le match reste ANALYSÉ/affiché ; seule la PUBLICATION du pari
     # est bloquée. Verrou aligné sur le selfcheck `_check_played_bet_sharp_anchor` (mémoire sharp-anchor-theoddsapi).
-    if not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+    # + ANCRE REJETÉE (`sharp_conflict`, user 2026-09-12) : quand la garde anti-résolution a JETÉ l'ancre (favori
+    # Pinnacle opposé au marché = fixture douteuse), on s'abstient AUSSI — même si un sharp de MARCHÉ laissait un
+    # `sharp_map` non-vide (cas Sunderland-Hull : conf publié malgré ancre rejetée, aurait dû être différé).
+    if d.get("sharp_conflict") or not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
         return False
     c = pick_from_candidates(match_candidates(d, require_omap=True))   # PRODUCTION : cote Unibet vérifiée obligatoire
     if not c:
