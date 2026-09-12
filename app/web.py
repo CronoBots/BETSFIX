@@ -9351,7 +9351,28 @@ def _status_card(m: dict, dt, kind: str) -> str:
         _cty = ""
     comp_c = " • ".join(html.escape(p) for p in (_cty, _noF(comp)) if p).upper()
     ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
-    _center = f'<span class="tm-live"><b>{html.escape(ld.strftime("%H:%M"))}</b></span>'
+    _sp = m.get("sport") or "foot"
+    _mid = str(m.get("id") or "")
+    # UN MATCH SANS PARI PEUT ÊTRE EN DIRECT (abstention qui joue) — user 2026-09-12 : il montrait alors juste
+    # « Abstention » + l'heure, SANS score ni stats, alors que les paris live ont le bloc « 📊 Aperçu du match ».
+    # On aligne : si le match joue -> score+horloge au centre, tableau de score, badge 🟢 Live, bord doré, et le
+    # même « Aperçu du match » (stats live API-Football, pari-indépendant). Foot uniquement (source live foot).
+    _is_live = False; _lscore = ""; _mcx = ""
+    if kind == "abst" and _sp == "foot":
+        try:
+            _lf = live_fields(match_select.live_state_for(_sp, home, away), _sp)
+            _lsc = str(_lf.get("score") or "").strip()
+            if _lsc:
+                _is_live = True
+                _center = (f'<span class="tm-live"><b>{html.escape(_lsc.replace("-", " - "))}</b>'
+                           + _live_clock_html(_sp, home, away) + '</span>')
+                _lscore = _live_scoreboard(_lsc, home, away, clock=_lf.get("live_time"),
+                                           periods=_lf.get("periods"))
+                _mcx = _live_match_center_fold(_mid)
+        except Exception:
+            _is_live = False
+    if not _is_live:
+        _center = f'<span class="tm-live"><b>{html.escape(ld.strftime("%H:%M"))}</b></span>'
     teams = _teams_vs_html(home, away, _center)
     if kind == "wait":
         _sub = (f'<div class="mc-stat mc-stat-wait">À analyser'
@@ -9360,11 +9381,13 @@ def _status_card(m: dict, dt, kind: str) -> str:
         _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
                 '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
     _bell = _notif_bell(m.get("id"))    # 🔔 notifs de ce match (PWA) — même sur les matchs sans pari (live/à venir)
-    return (f'<div class="row mc mc-prem mc-statcard mc-st-{kind}">{_bell}'
+    _lvbadge = '<span class="mc-badge mc-live">🟢 Live</span>' if _is_live else ""
+    _livesc = f'<div class="mc-div"></div><div class="mc-livesc">{_lscore}</div>' if _lscore else ""
+    return (f'<div class="row mc mc-prem mc-statcard mc-st-{kind}{" mc-r-live" if _is_live else ""}">{_bell}'
             f'<div class="mc-head"><div class="mc-main">'
-            f'<div class="mc-line mc-line-c"><span class="mc-comp">{comp_c}</span></div>'
+            f'<div class="mc-line mc-line-c"><span class="mc-comp">{comp_c}</span>{_lvbadge}</div>'
             f'<div class="mc-teams">{teams}</div>'
-            f'<div class="mc-sub">{_sub}</div>'
+            f'<div class="mc-sub">{_sub}</div>{_livesc}{_mcx}'
             f'</div></div></div>')
 
 
