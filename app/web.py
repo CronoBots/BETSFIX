@@ -340,10 +340,13 @@ CSS = """
        transform:translateZ(0);backface-visibility:hidden;will-change:transform;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
                   radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%),
-                  /* LUEUR BASSE (user 2026-09-12) : la capsule FLOTTE au-dessus du bas d'écran ; sans halo bas,
-                     la zone sous/autour du menu retombait sur le fond plat --bg = « bande morte ». Ce 3e radial
-                     bas-centre redonne de la présence « app » derrière la barre, jusqu'au bord bas (à la Strava). */
-                  radial-gradient(1000px 420px at 50% 112%,rgba(34,184,255,.12),transparent 66%)}
+                  /* LUEUR BASSE (user 2026-09-12, « l'app doit remplir le bas comme Strava ») : la capsule
+                     FLOTTE au-dessus du bas d'écran ; sans halo bas, la zone sous/autour du menu retombait sur le
+                     fond plat --bg = « bande morte ». Ces radiaux bas-centre redonnent une PRÉSENCE d'app nette
+                     derrière la barre, jusqu'au bord bas (comme la carte Strava remonte sous sa pilule). Deux
+                     couches : une large douce + une plus concentrée pour bien « allumer » l'arête basse. */
+                  radial-gradient(1200px 520px at 50% 108%,rgba(34,184,255,.17),transparent 62%),
+                  radial-gradient(680px 300px at 50% 116%,rgba(34,184,255,.13),transparent 70%)}
   /* ⛔ Ancienne « bande safe-area » RETIRÉE (user 2026-09-12, menu flottant « Strava ») : elle peignait un
      rectangle OPAQUE #0b0d12 sur la zone home-indicator (z:59, sous la nav). Quand la barre COLLAIT au bas
      (bottom:0) c'était un filet utile ; mais la capsule FLOTTE maintenant au-dessus du vide -> cette bande
