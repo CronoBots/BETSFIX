@@ -302,9 +302,13 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
             keys.append("conversion")
         new = _new_issues(day, keys)
         if send_alert and new:
-            msg = (f"⚠️ BETSFIX — contrôle qualité {day}\n\n" + "\n".join(f"• {a}" for a in alert)
-                   + f"\n\nCouverture {analysed} analysé · {missed} manqué · conversion {100*conv:.0f}%.")
-            if _send_owner(msg):
+            from app import notify
+            _sev = "error" if (missed or bad_bets) else "warn"   # manqué / pari fragile = à corriger ; reste = à surveiller
+            _body = ("\n".join(f"• {a}" for a in alert)
+                     + f"\n\nCouverture : {analysed} analysé · {missed} manqué · conversion {100*conv:.0f}%.")
+            if notify.owner_alert(f"Contrôle qualité du {day}", _body, severity=_sev,
+                                  action="corriger les paris/analyses signalés ci-dessus.",
+                                  diag="python tools/analysis_quality.py --match-messages"):
                 print(f"   → alerte privée envoyée ({len(new)} nouveau(x) problème(s)).")
         return 1
     if pending:
@@ -726,15 +730,17 @@ def tail_quality(send_alert: bool = False) -> int:
                and (core["roi"] - tail["roi"]) >= ROI_GAP
                and tail["roi"] < 0)
     if diluted:
-        msg = (f"⚠️ BETSFIX — DILUTION PAR LE NOMBRE détectée\n\n"
-               f"Les matchs de QUEUE (rang ≥ {TAIL_RANK}, ajoutés par le cap 7→10) sous-performent le cœur :\n"
-               f"• CŒUR  {core['n']} paris · {core['win']:.0f}% · ROI {core['roi']:+.1f}%\n"
-               f"• QUEUE {tail['n']} paris · {tail['win']:.0f}% · ROI {tail['roi']:+.1f}%\n\n"
-               f"Envisager de rebaisser le cap (--top) ou de resserrer la sélection de queue.")
+        _body = (f"Les matchs de QUEUE (rang ≥ {TAIL_RANK}, ajoutés par le cap 7→10) sous-performent le cœur :\n"
+                 f"• CŒUR  {core['n']} paris · {core['win']:.0f}% · ROI {core['roi']:+.1f}%\n"
+                 f"• QUEUE {tail['n']} paris · {tail['win']:.0f}% · ROI {tail['roi']:+.1f}%")
         print("🔴 ALERTE : la queue sous-performe le cœur -> le nombre DILUE.")
         new = _new_issues(prog.get("date") or "", ["tail-dilution"])
-        if send_alert and new and _send_owner(msg):
-            print("   → alerte privée envoyée.")
+        if send_alert and new:
+            from app import notify
+            if notify.owner_alert("Dilution par le nombre", _body, severity="warn",
+                                  action="rebaisser le cap (--top) ou resserrer la sélection de queue.",
+                                  diag="python tools/analysis_quality.py --tail-check"):
+                print("   → alerte privée envoyée.")
         return 1
     if tail["n"] < MIN_TAIL_N:
         print(f"🟡 Recul insuffisant sur la queue ({tail['n']} < {MIN_TAIL_N} paris réglés) — à re-mesurer.")

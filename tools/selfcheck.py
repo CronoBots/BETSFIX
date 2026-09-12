@@ -74,13 +74,20 @@ def main() -> int:
                 # ⛔ PRIVÉ OWNER UNIQUEMENT (user 2026-09-08, « jamais ça sur le canal Telegram ! ») : un
                 # auto-audit interne ne doit JAMAIS partir au canal abonnés. `send_owner_sync` -> data/owner_chat.txt.
                 # (Avant : `notify.send_sync` = canal PUBLIC = fuite d'une alerte technique aux abonnés.)
-                lines = ["⚠️ BETSFIX — auto-audit : à surveiller (privé)", ""]
+                _sev = "error" if any(c["level"] == "error" for c in alerts) else "warn"
+                _body = []
                 for c in alerts:
                     _ic = "❌" if c["level"] == "error" else "⚠️"
-                    lines.append(f"{_ic} {c['title']} — {c['detail']}")
+                    _body.append(f"{_ic} {c['title']}")
+                    _body.append(f"   {c['detail']}")
                     for it in c["items"][:4]:
-                        lines.append(f"  • {it}")
-                notify.send_owner_sync("\n".join(lines))
+                        _body.append(f"   • {it}")
+                    _body.append("")
+                _keys = ", ".join(c["key"] for c in alerts)
+                notify.owner_alert(
+                    "Auto-audit d'intégrité", "\n".join(_body).strip(), severity=_sev,
+                    action="corriger le(s) point(s) ❌ (les ⚠️ sont à surveiller, pas bloquants).",
+                    diag=f"python tools/selfcheck.py  ·  contrôle(s) : {_keys}")
                 with open(_state_path, "w", encoding="utf-8") as fh:   # mémorise la dernière notif envoyée
                     json.dump({"sig": _sig, "ts": rep["ts"]}, fh)
             except Exception:

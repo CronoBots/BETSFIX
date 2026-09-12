@@ -285,11 +285,12 @@ def run(quiet: bool = False, alert: bool = False, check_http: bool = True, repai
     if alert and bad:
         new = _dedup_new(day, [b[0] for b in bad])
         if new:
-            lines = [f"🖼️ LOGOS MANQUANTS — {day}",
-                     f"{len(new)} équipe(s) du programme sortiront une carte SANS blason :", ""]
-            lines += [f"  • {n}" for n in new]
-            lines += ["", "Réparation : alias dans crest._ALIAS (sigle -> nom FotMob)."]
-            _send_owner("\n".join(lines))
+            from app import notify
+            _body = (f"{len(new)} équipe(s) du programme sortiront une carte SANS blason :\n"
+                     + "\n".join(f"• {n}" for n in new))
+            notify.owner_alert(f"Logos manquants ({day})", _body, severity="warn",
+                               action="ajouter un alias dans crest._ALIAS (sigle → nom FotMob complet).",
+                               diag="python tools/logo_check.py")
             print(f"  (alerte privée envoyée : {len(new)} équipe(s))")
     return 1 if (n_un or n_br) else 0
 

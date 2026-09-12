@@ -310,6 +310,38 @@ def send_owner_sync(text: str) -> bool:
         return False
 
 
+def owner_alert(title: str, body: str, *, severity: str = "warn",
+                action: str = "", diag: str = "") -> bool:
+    """ENVELOPPE UNIFORME des alertes privées owner (user 2026-09-12 : « tous les messages privés doivent être
+    clairs, nets et professionnels, pour toujours retrouver le problème »). Structure CONSTANTE, quel que soit
+    l'émetteur (auto-audit, contrôle qualité, règlement, sources, logos) :
+
+        <icône> BETSFIX · <titre> — <étiquette sévérité>
+        <horodatage Europe/Brussels>
+
+        <corps : QUOI + OÙ (match/date/fichier) + IMPACT>
+
+        👉 <action à faire>            (si fournie)
+        🔎 <comment investiguer>      (si fourni : commande / clé de contrôle)
+
+    `severity` ∈ {info, warn, error}. Texte BRUT (send_owner_sync : pas de markdown). Best-effort."""
+    ic = {"info": "🔵", "warn": "🟠", "error": "🔴"}.get(severity, "🟠")
+    tag = {"info": "INFO", "warn": "À VÉRIFIER", "error": "ACTION REQUISE"}.get(severity, "À VÉRIFIER")
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        _ts = datetime.now(ZoneInfo("Europe/Brussels")).strftime("%d/%m %H:%M")
+    except Exception:
+        _ts = ""
+    head = f"{ic} BETSFIX · {title} — {tag}"
+    parts = [head + (f"\n{_ts}" if _ts else ""), "", (body or "").strip()]
+    if action:
+        parts += ["", f"👉 Action : {action}"]
+    if diag:
+        parts.append(f"🔎 Investiguer : {diag}")
+    return send_owner_sync("\n".join(p for p in parts if p is not None))
+
+
 def send_sync(text: str, clean: bool = False) -> bool:
     """Variante synchrone (contextes hors boucle asyncio). Mêmes garanties + nettoyage du post précédent."""
     tok, chats = _config()

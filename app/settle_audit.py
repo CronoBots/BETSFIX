@@ -101,9 +101,9 @@ def postponed_alert() -> dict:
     if alerts:
         try:
             from app import notify
-            notify.send_owner_sync("⚠️ BETSFIX — matchs analysés REPORTÉS/ANNULÉS (API-Football, privé)\n\n"
-                                   + "\n".join(alerts)
-                                   + "\n\n(pari « à venir » sur un match qui n'aura peut-être pas lieu — à vérifier)")
+            notify.owner_alert("Matchs reportés / annulés (API-Football)", "\n".join(alerts),
+                               severity="warn",
+                               action="un pari « à venir » porte sur un match qui n'aura peut-être pas lieu — vérifier / retirer.")
         except Exception:
             pass
     return {"checked": checked, "flagged": flagged}
@@ -201,9 +201,11 @@ def audit_recent(days: int = 2, fix_abstentions: bool = True, alert: bool = True
     if alert and alert_lines:
         try:
             from app import notify
-            notify.send_owner_sync("⚠️ BETSFIX — audit règlement API-Football (privé)\n\n"
-                                   "Écart de score sur un pari joué / une jambe de combiné (ROI en jeu, "
-                                   "NON auto-corrigé) :\n\n" + "\n".join(alert_lines))
+            notify.owner_alert("Audit règlement (API-Football)",
+                               "Écart de score sur un pari joué / une jambe de combiné (ROI en jeu, NON "
+                               "auto-corrigé) :\n\n" + "\n".join(alert_lines),
+                               severity="error",
+                               action="vérifier le score réel et corriger le règlement si l'écart est confirmé.")
         except Exception:
             pass
 

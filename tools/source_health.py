@@ -51,12 +51,11 @@ def main() -> int:
             from app import notify
             downs = [s for s in rep["sources"] if not s["ok"] and s["critical"]]
             # ⛔ PRIVÉ OWNER (user 2026-09-08) : une alerte technique de monitoring ne va JAMAIS aux abonnés.
-            lines = ["🚨 BETSFIX — source CRITIQUE indisponible (privé)", ""]
-            for s in downs:
-                lines.append(f"❌ {s['label']} ({s['role']}) — {s['detail']}")
-            lines.append("")
-            lines.append("Les analyses/règlements peuvent être dégradés tant que la source est down.")
-            notify.send_owner_sync("\n".join(lines))
+            _body = ("\n".join(f"❌ {s['label']} ({s['role']}) — {s['detail']}" for s in downs)
+                     + "\n\nAnalyses/règlements potentiellement dégradés tant que la source est down.")
+            notify.owner_alert("Source critique indisponible", _body, severity="error",
+                               action="vérifier la source (réseau / quota / blocage Cloudflare).",
+                               diag="page /health/sources")
         except Exception:
             pass
         return 1
