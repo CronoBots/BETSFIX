@@ -2178,15 +2178,16 @@ async def _settle_analyses_impl() -> int:
                                 # LABEL FIABLE : « VALUE » via le FLAG FIGÉ `_is_value` (le tier dynamique DÉRIVE ->
                                 # un value avait été étiqueté « CONFIANCE PERDUE », bug 2026-09-01).
                                 _rlbl = ("VALUE" if card.get("_is_value") else "CONFIANCE")
-                                # COTE affichée UNIQUEMENT si GAGNÉ (user 2026-08-30) : « VALUE GAGNÉE @1.56 ✅ »
-                                # (met en valeur la cote remportée ; cote AVANT l'emoji = ✅ tampon final). Rien
-                                # sur perte/remboursé (on n'appuie pas sur le montant perdu).
-                                _rco = (card.get("cote") or (card.get("simple") or {}).get("cote") or "") if _mk == "won" else ""
+                                # COTE affichée sur GAGNÉ **ET PERDU** (user 2026-09-12 : « la cote aussi pour un
+                                # pronos perdu ») : « VALUE GAGNÉE @1.56 ✅ » / « CONFIANCE PERDUE @1.42 ❌ ». Cote
+                                # AVANT l'emoji (= tampon final). Neutre sur push/void (cote 1, remboursé).
+                                _rco = (card.get("cote") or (card.get("simple") or {}).get("cote") or "") if _mk in ("won", "lost") else ""
                                 _cotetxt = f" @{_rco}" if _rco else ""
-                                # PARI JOUÉ à la ligne du dessous (user 2026-09-02 « comme pour les jambes ») :
-                                # lève toute ambiguïté sur « quel pari » ce verdict règle (le label = stat_bet).
-                                _rplayed = str((card.get("simple") or {}).get("label") or "").strip()
-                                _emo = f"{_rlbl} {_vw}{_cotetxt} {_ve}" + (f"\n{_rplayed}" if _rplayed else "")
+                                # PARI JOUÉ à la ligne du dessous (user 2026-09-02 « comme pour les jambes »), EN
+                                # GRAS (user 2026-09-12) : lève toute ambiguïté sur « quel pari » ce verdict règle
+                                # (le label = stat_bet). parse_mode=HTML (reply_sync) -> <b> rendu.
+                                _rplayed = html.escape(str((card.get("simple") or {}).get("label") or "").strip())
+                                _emo = f"{_rlbl} {_vw}{_cotetxt} {_ve}" + (f"\n<b>{_rplayed}</b>" if _rplayed else "")
                             else:
                                 _emo = {"won": "Pari gagné ✅", "lost": "Pari perdu ❌"}.get(_mk, "Remboursé ➖")
                             # envoi BLOQUANT (httpx) -> hors event loop pour ne pas figer l'API
