@@ -4351,8 +4351,8 @@ async def main():
                     if _tg_ok:
                         try:
                             _png = f"data/_cards/scan_{_i}.png"
-                            # ANNONCE simple = carte COMPLÈTE (logos + pari + Confiance/Cote/marché), BORD BLEU +
-                            # crop serré sans zones mortes (user 2026-09-08) -> géré par card_image.
+                            # ANNONCE simple = LA carte du SITE à l'identique (`.row.mc` : logos + pari +
+                            # Confiance/Cote/marché, bord gold, filigrane) + crop serré (user 2026-09-12) -> card_image.
                             await card_image.render_card(_card, _png)
                             _sent = notify.send_photo_sync(_png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08)
                             if _sent:                # mémorise l'id du prono -> le résultat y répondra

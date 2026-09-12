@@ -73,7 +73,7 @@ async def _repost(d: dict) -> bool:
         # IMAGE + LÉGENDE COURTE (user 2026-09-08) : le « pourquoi » reste hors image (card_image) ; l'annonce
         # re-postée porte la même ligne texte que le résultat (« CONFIANCE @1.17 / <pari> »), comme la vague.
         png = f"data/_cards/reconcile_{d.get('sport')}_{d.get('id')}.png"
-        # ANNONCE simple = carte COMPLÈTE, bord bleu + crop serré (user 2026-09-08) -> géré par card_image.
+        # ANNONCE simple = LA carte du site à l'identique (user 2026-09-12) + crop serré -> géré par card_image.
         await card_image.render_card(card, png)
         sent = notify.send_photo_sync(png, "")   # ANNONCE = IMAGE SEULE (user 2026-09-08 : aucun texte)
         if sent:

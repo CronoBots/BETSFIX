@@ -427,81 +427,143 @@ def why_caption(d: dict, header: str = "💡 Pourquoi ce choix") -> str:
     return "\n".join(out)
 
 
-def _simple_card_html(d: dict) -> str:
-    """Carte de PARI SIMPLE façon SITE (user 2026-08-17) : logo BETSFIX + badge TYPE (Confiance/Value),
-    ligue + pays centrés, logos + heure au centre, le pari, barre de confiance (zone edge), grille verdict
-    Confiance/Edge/Value/Cote, et le « pourquoi » affiché en entier."""
-    def e(x):
-        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'   # FILIGRANE (comme le site)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# CARTE SIMPLE = LA CARTE DU SITE, À L'IDENTIQUE (user 2026-09-12 : « exactement pareil que le cadre
+# affiché sur le site, 100% identique »). Fini le look-alike `_simple_card_html`/`_CSS_SIMPLE` (markup
+# `.scard/.stms/.sbet` propre à Telegram qui DÉRIVAIT du site). On rend désormais le VRAI `.row.mc` du site :
+#   • la feuille de style ENTIÈRE du site est inlinée (`web.CSS`) -> chaque règle `.mc-*`/`.vb-*`/`:root`
+#     s'applique à l'identique, ZÉRO cherry-pick, ZÉRO dérive future ;
+#   • le bloc verdict vient du VRAI code du site (`web._verdict_block` -> `analyses.verdict_line`) ;
+#   • le markup de l'en-tête (`.mc-head`/`.mc-teams`/`.mc-sub`) reproduit `web._sport_row` (carte premium
+#     à venir `mc-prem mc-flat`), et les équipes reprennent `web._teams_vs_html`/`_crest_badge`.
+# Deux écarts TECHNIQUES imposés par le rendu file:// hors-serveur (invisibles à l'œil) : les logos passent
+# par l'URL FotMob absolue (le site route `/crest?name=` n'existe pas ici) et le filigrane `/static/logo.png`
+# est réinjecté en data-URI. Le décompte `.cd` est rempli par le VRAI `_COUNTDOWN_JS` du site.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def _kickoff(d: dict) -> tuple:
+    """(HH:MM heure belge, timestamp unix) du coup d'envoi depuis `_start` (ISO) ; repli sur l'heure de
+    `meta` (« … · HH:MM ») avec ts=0 (pas de décompte)."""
+    from datetime import datetime
+    s = str(d.get("_start") or "")
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        ts = int(dt.timestamp())
+        try:
+            from zoneinfo import ZoneInfo
+            dt = dt.astimezone(ZoneInfo("Europe/Brussels"))
+        except Exception:
+            pass
+        return dt.strftime("%H:%M"), ts
+    except (ValueError, TypeError):
+        m = str(d.get("meta") or "")
+        return (m.split("·")[-1].strip() if "·" in m else ""), 0
+
+
+def _site_crest(name: str, url) -> str:
+    """Pastille club = markup EXACT du site `_crest_badge` (`.tm-b` + monogramme `_team_badge` + `.team-logo`),
+    mais avec l'URL FotMob ABSOLUE (le site sert `/crest?name=`, injoignable en file://). Sans URL, le
+    monogramme est révélé (classe `tm-b-mono`, cf. override CSS)."""
+    from app import web
+    mono = web._team_badge(name)                      # <span class="team-mono" style=…>INI</span>
+    if url:
+        return (f'<span class="tm-b">{mono}'
+                f'<img class="team-logo" src="{_html.escape(str(url))}" alt="" '
+                f'onerror="var m=this.previousElementSibling;this.remove();if(m)m.style.visibility=&#39;visible&#39;">'
+                f'</span>')
+    return f'<span class="tm-b tm-b-mono">{mono}</span>'
+
+
+def _site_teams(home, home_logo, away, away_logo, center: str) -> str:
+    """Ligne équipes = markup EXACT du site `_teams_vs_html` (heure/score au centre)."""
+    from app import web
+    e = _html.escape
+    h, a = web._noF(str(home or "")), web._noF(str(away or ""))
+    if not a:
+        return e(h)
+    return (f'<span class="tmvs">'
+            f'<span class="tm-side">{_site_crest(h, home_logo)}<span class="tm-n">{e(h)}</span></span>'
+            f'<span class="tm-vs">{center or "VS"}</span>'
+            f'<span class="tm-side">{_site_crest(a, away_logo)}<span class="tm-n">{e(a)}</span></span></span>')
+
+
+def _site_page(card_html: str) -> str:
+    """Enveloppe HTML : feuille de style ENTIÈRE du site (`web.CSS`) + petits override file:// (filigrane en
+    data-URI, largeur mobile fixe, `content-visibility` forcé) + le VRAI décompte JS du site."""
+    from app import web
+    _logo = _logo_uri()
+    _wm = (f'.row.mc::before{{background-image:url({_logo})!important}}' if _logo
+           else '.row.mc::before{content:none!important}')
+    ov = ("html,body{margin:0;padding:0;background:transparent}"
+          "#shot{width:430px;padding:0 16px;box-sizing:border-box;margin:0 auto}"   # = .wrap mobile (padding 16)
+          ".row.mc{content-visibility:visible!important;margin:0!important}"        # forcé rendu (pas hors-écran)
+          ".tm-b.tm-b-mono .team-mono{visibility:visible}"                          # monogramme si pas de logo
+          + _wm)
+    return (f"<!doctype html><html lang=fr><head><meta charset=utf-8>"
+            f"<style>{web.CSS}</style><style>{ov}</style></head>"
+            f'<body class="sp-foot"><div id="shot">{card_html}</div>'
+            f"<script>{web._COUNTDOWN_JS}</script></body></html>")
+
+
+def _site_card_html(d: dict, *, settled: bool = False) -> str:
+    """Carte `.row.mc` du site (premium à venir `mc-prem mc-flat`), reproduite à l'identique. `settled=True`
+    = fiche RÉSULTAT (score au centre + « Terminé », bord + badge coin ✓/✗, verdict Confiance+Cote seuls)."""
+    from app import web
+    e = _html.escape
     home, away = str(d.get("home") or ""), str(d.get("away") or "")
-    _cat = str(d.get("cat", ""))                        # « Football · <comp> »
-    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
-    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
-    _hh = str(d.get("meta", "")).split("·")[-1].strip() if d.get("meta") else ""
-    _verdict = _verdict_site_html(d, e)           # bloc verdict EXACTEMENT comme le site (Confiance+qual · Cote · marché)
-    inner = (
-        _wmk                                          # filigrane DERRIÈRE le contenu (plus de logo/titre en tête, user 2026-09-06)
-        + f'<div class="slg">{e(_lg)}</div>'
-        f'<div class="stms">'
-        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
-        f'<div class="stc">{e(_hh)}</div>'
-        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
-        f'</div>'
-        f'<div class="sbet">'                             # CADRE « partie Paris » (comme le site, user 2026-08-17)
-        f'<div class="spk">{e(_strip_dc_paren(d.get("pick", "")))}</div>'
-        + (f'<div class="sgl">{e(d.get("gloss"))}</div>' if d.get("gloss") else "")
-        + _verdict                                        # VERDICT façon site (Confiance+qual · Cote · barre · marché)
-        + '</div>')                                       # « POURQUOI » TOUJOURS RETIRÉ de l'image (user 2026-08-22,
-        # tous types) : sur Telegram, l'image ne porte QUE le pari + les chiffres, aucune analyse dans le PNG.
-    # BORD BLEU (user 2026-09-08 : « cadre bleu autour ») + légère lueur interne, au lieu du doré « à venir ».
-    _cst = "border-color:#33b7ef;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 90px rgba(46,166,223,.06)"
-    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
-            f'<body><div class="card scard" style="{_cst}">{inner}</div></body></html>')
+    # LIGUE « Pays • Compétition » (foot : pas de préfixe FOOTBALL) ; la CSS met en majuscules.
+    _country = web._cap(str(d.get("country") or ""))
+    _comp = web._cap(str(d.get("comp") or ""))
+    if _country and _comp and _country.lower() in _comp.lower():
+        _country = ""
+    comp_only = " • ".join(e(web._noF(p)) for p in (_country, _comp) if p)
+    # CENTRE = score+« Terminé » (réglé) OU heure+décompte (à venir).
+    mark = str((d.get("simple") or {}).get("mark") or "") if settled else ""
+    if settled:
+        _sc = str(d.get("score") or "").strip().replace("-", " - ")
+        _center = (f'<span class="tm-live"><b>{e(_sc)}</b><span class="tm-fin">Terminé</span></span>'
+                   if _sc else '<span class="tm-live"><span class="tm-fin">Terminé</span></span>')
+    else:
+        _hh, _ts = _kickoff(d)
+        _cd = f'<span class="tm-cd"><span class="cd" data-ts="{_ts}"></span></span>' if _ts else ""
+        _center = f'<span class="tm-live"><b>{e(_hh)}</b>{_cd}</span>' if _hh else "VS"
+    teams = _site_teams(home, d.get("home_logo"), away, d.get("away_logo"), _center)
+    # PARI + glose DANS le cadre verdict (pick_html), puis barre de confiance -> markup identique au site.
+    _pick = _strip_dc_paren(str(d.get("pick") or (d.get("simple") or {}).get("label") or ""))
+    _gloss = str(d.get("gloss") or (d.get("simple") or {}).get("gloss") or "")
+    _gl = f'<div class="mc-gloss"><span class="ar">↳</span>{e(_gloss)}</div>' if _gloss else ""
+    _pib = f'<div class="mc-pick">{e(_pick)}</div>{_gl}'
+    # RÉGLÉ -> hide_context (Confiance + Cote seuls, comme le site réglé, CLAUDE.md 2026-09-06).
+    line3 = web._verdict_block(d.get("cote"), d.get("conf"), "", "x",
+                               calibrated=True, pick_html=_pib, hide_context=settled)
+    _rcls, _corner = "", ""
+    if settled:
+        _rcls = {"won": " mc-r-won", "lost": " mc-r-lost",
+                 "push": " mc-r-push", "void": " mc-r-push"}.get(mark, "")
+        if mark == "won":
+            _corner = ('<span class="mc-corner won" aria-label="Gagné"><svg viewBox="0 0 24 24">'
+                       '<path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></span>')
+        elif mark == "lost":
+            _corner = ('<span class="mc-corner lost" aria-label="Perdu"><svg viewBox="0 0 24 24">'
+                       '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>')
+    head = (f'<div class="mc-head"><div class="mc-main">'
+            f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{comp_only}</span></div>'
+            f'<div class="mc-teams">{teams}</div>'
+            f'<div class="mc-sub">{line3}</div>'
+            f'</div></div>')
+    card = f'<div class="row pick mc mc-prem mc-flat{_rcls}">{_corner}{head}</div>'
+    return _site_page(card)
+
+
+def _simple_card_html(d: dict) -> str:
+    """ANNONCE d'un prono simple = LA carte du site à l'identique (voir `_site_card_html`)."""
+    return _site_card_html(d, settled=False)
 
 
 def _result_simple_card_html(d: dict) -> str:
-    """Carte RÉSULTAT d'un pari SIMPLE = la MÊME carte que le pari, façon SITE (user 2026-08-17) : logo +
-    signature du TYPE (Confiance/Value, on GARDE le type), ligue, logos + SCORE + « Terminé », cadre Paris
-    (pari + glose + grille Confiance/Edge/Value/Cote + verdict Gagné/Perdu), puis l'analyse complète en puces."""
-    def e(x):
-        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
-    sp = d.get("simple") or {}
-    mark = sp.get("mark") or ""
-    # `_rcls` (won/lost/push) colore la BORDURE de la carte (comme le site). Plus de titre/marquage en tête
-    # (user 2026-09-06) : le résultat est porté par le CADRE coloré + le badge ✓/✗ du coin.
-    _rcls = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(mark, "push")
-    home, away = str(d.get("home") or ""), str(d.get("away") or "")
-    _cat = str(d.get("cat", ""))
-    _comp = _cat.split(" · ", 1)[1] if " · " in _cat else _cat
-    _lg = " • ".join(x for x in (str(d.get("country") or ""), _comp) if x).upper()
-    _score = str(d.get("score") or "").strip().replace("-", " - ")
-    _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
-               if _score else '<span class="rfin">Terminé</span>')
-    _verdict = _verdict_site_html(d, e, settled=True)     # fiche résultat = Confiance + Cote seuls (comme le site réglé)
-    _pick = _strip_dc_paren(d.get("pick") or sp.get("label", ""))
-    _gloss = d.get("gloss") or sp.get("gloss") or ""
-    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'
-    _corner = ""                                          # badge ✓/✗ coin (remplace le titre/logo, comme le site)
-    if mark == "won":
-        _corner = '<div class="scorner won"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></div>'
-    elif mark == "lost":
-        _corner = '<div class="scorner lost"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></div>'
-    inner = (
-        _wmk + _corner
-        + f'<div class="slg">{e(_lg)}</div>'
-        f'<div class="stms">'
-        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
-        f'<div class="stc">{_center}</div>'
-        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
-        f'</div>'
-        f'<div class="sbet">'
-        f'<div class="spk">{e(_pick)}</div>'
-        + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
-        + _verdict
-        + '</div>')                                       # verdict désormais dans la signature (marquage haut de carte) ; PAS d'analyse (user 2026-08-17)
-    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
-            f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
+    """Carte RÉSULTAT d'un pari SIMPLE = LA carte du site réglée à l'identique (voir `_site_card_html`) :
+    score au centre + « Terminé », bord coloré + badge coin ✓/✗, verdict Confiance + Cote seuls."""
+    return _site_card_html(d, settled=True)
 
 
 _CSS_MIN = """
@@ -784,7 +846,9 @@ async def render_card(d: dict, out_png: str) -> str:
             # La carte a une largeur FIXE (920px) -> tous les tickets font la MÊME largeur (peu importe le
             # sport / la longueur des textes) ; seule la HAUTEUR varie avec le contenu.
             r = await cmd("Runtime.evaluate", {"expression":
-                "(function(){var c=document.querySelector('.card');var b=c.getBoundingClientRect();"
+                # Carte SITE (`.row.mc`, simple/résultat) en priorité ; repli `.card` (combiné/legacy).
+                "(function(){var c=document.querySelector('.row.mc')||document.querySelector('.card');"
+                "var b=c.getBoundingClientRect();"
                 "return JSON.stringify({x:b.left,y:b.top,w:b.width,h:b.height});})()",
                 "returnByValue": True})
             box = json.loads(r["result"]["result"]["value"])
@@ -803,9 +867,11 @@ async def render_card(d: dict, out_png: str) -> str:
             os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
             with open(out_png, "wb") as f:
                 f.write(base64.b64decode(shot["result"]["data"]))
-        # ANNONCE simple : hauteur NATURELLE (pas de ZONES MORTES haut/bas) + MARGE (pad) pour que tout le
-        # contour (bleu) reste visible sur Telegram (bord non rogné). Sinon ratio fixe pour une largeur constante.
-        _tight = d.get("type") == "simple"
+        # CARTE SITE (simple à venir + résultat simple = `.row.mc` compact) : hauteur NATURELLE (pas de ZONES
+        # MORTES haut/bas) + MARGE (pad) pour que tout le contour reste visible sur Telegram (bord non rogné).
+        # Combiné/legacy : ratio fixe pour une largeur constante.
+        _tight = (d.get("type") == "simple"
+                  or (d.get("type") == "result" and d.get("simple") and not d.get("combo")))
         _normalize_card(out_png, None if _tight else _CARD_RATIO, pad=40 if _tight else 0)
         return out_png
     finally:

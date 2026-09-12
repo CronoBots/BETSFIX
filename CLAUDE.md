@@ -397,25 +397,23 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   (`reconcile._repost` + détection « manquée »), et au renotify manuel. Un résultat simple n'est posté QU'en
   réponse à un prono réel (`get_prono`) — donc supprimer l'annonce Value supprime aussi son résultat. Remettre
   `TG_VALUE=True` re-publie la value. Cf. `telegram-foot-simple-only`.
-  - **CARTE IMAGE = LA CARTE DU SITE (MAJ 2026-09-06)** : `tools/card_image.py` (HTML→screenshot Chrome) rend
-    la carte comme le site. Bloc verdict identique (`_verdict_site_html` reproduit `analyses.verdict_line`
-    compacte) : « Confiance X% \<qualificatif\> · Cote Y » + barre (repère marché) + « marché Z% », **edge/value
-    affichés SEULEMENT si positifs** (fini la grille 4 colonnes). Fiche résultat = Confiance+Cote seuls
-    (`settled=True`). **Habillage aligné site** : fond `#0d1119`, **bord GOLD** `#f6c54a` (à venir)/vert/rouge/gris
-    par état, **FILIGRANE** logo (`.swmk`, opacité .05, dans les JAMBES pour un combiné), **PLUS de logo BETSFIX
-    ni de titre CONFIANCE/VALUE en tête** (user 2026-09-06). Résultat = cadre coloré + **badge ✓/✗ coin** (`.scorner`),
-    plus de « CONFIANCE GAGNÉE ». Combiné = titre « COMBINÉ DU JOUR » conservé, **total = « TOTAL DU COMBINÉ ·
-    Confiance X% \<qual\> · Cote »** (via `combo_conf`=round(prob·100) + `_verdict_site_html(bare, calibrated=False)`
-    → échelle combiné Audacieux/Équilibré/Solide/Très solide) = identique au site. Ancienne
-    `_verdict_cells_html`/`.vgrid` supprimées. **Filigrane CENTRÉ** (`center center`, site ET Telegram) — sinon
-    collé en haut sur les cartes live plus hautes.
-  - **ANNONCE d'un prono simple (MAJ 2026-09-08)** : la carte d'annonce = **carte COMPLÈTE `_simple_card_html`**
-    (logos + pari + Confiance/Cote/barre marché), **BORD BLEU `#33b7ef`** (pas gold), **CROP SERRÉ** sans zones
-    mortes (`render_card` → `_normalize_card(ratio=None, pad=40)` pour toute carte `type=="simple"`) et **IMAGE
-    SEULE** (aucun texte : `send_photo_sync(png, "")` dans `generate_analyses` + `reconcile`). La RÉPONSE RÉSULTAT
-    (texte `reply_sync` « CONFIANCE GAGNÉE @cote ✅ / pari ») reste inchangée. Code carte minimale
-    (`_minimal_card_html`, `_MIN_THEMES`) + `announce_caption` conservés mais INUTILISÉS. Mémoire
-    `telegram-result-played-bet-line-and-repost`.
+  - **CARTE IMAGE SIMPLE = LE VRAI `.row.mc` DU SITE, 100 % IDENTIQUE (MAJ 2026-09-12)** : `tools/card_image.py`
+    ne REPRODUIT plus le look du site — il **rend le site**. `_site_card_html(d, settled=)` bâtit le markup EXACT
+    de `web._sport_row` (carte premium à venir `mc-prem mc-flat` : `.mc-head`/`.mc-teams`/`.mc-sub`) et la page
+    **inline la feuille de style ENTIÈRE `web.CSS`** + `<body class="sp-foot">` → chaque règle `.mc-*`/`.vb-*`/
+    `:root` s'applique à l'identique (ZÉRO cherry-pick, **ZÉRO dérive future** : c'est la cause racine des écarts
+    d'avant). Verdict = le VRAI `web._verdict_block`→`analyses.verdict_line` (fini le look-alike `_verdict_site_html`).
+    Équipes/logos = markup `web._teams_vs_html`/`_crest_badge` (helpers `_site_teams`/`_site_crest`). **Bord GOLD**
+    (site `--st-soon`, plus de bleu), fond radial bleu, **FILIGRANE** logo (`.row.mc::before`, réinjecté en data-URI
+    car `/static/logo.png` injoignable en file://), gloss MASQUÉE (comme le site, règle globale `.mc-gloss{display:none}`).
+    Décompte `.cd` rempli par le VRAI `web._COUNTDOWN_JS`. Écarts techniques file:// invisibles : logos par URL FotMob
+    absolue (pas la route `/crest?name=`), largeur mobile fixe 430px. Clip screenshot = `.row.mc` (repli `.card`).
+    **Fiche RÉSULTAT** (`settled=True`) = même carte : score au centre + « Terminé », bord coloré + **badge ✓/✗ coin**
+    (`.mc-corner`), verdict Confiance+Cote seuls (`hide_context`). `_simple_card_html`/`_result_simple_card_html` = fins
+    wrappers de `_site_card_html`. ⚠️ **Combiné** garde encore l'ANCIEN renderer look-alike (`_combo_card_html`/`_CSS_SIMPLE`/
+    `_verdict_site_html`/`_team_logo_html`, conservés) — OFF sur Telegram de toute façon. **CROP SERRÉ** conservé
+    (`_normalize_card(ratio=None, pad=40)` pour simple + résultat-simple) et **IMAGE SEULE** (`send_photo_sync(png,"")`).
+    La RÉPONSE RÉSULTAT texte (`reply_sync`) reste inchangée. Mémoire `telegram-card-is-the-site-card`.
 - **Push PWA** (MAJ 2026-09-08) : notifie les **paris SIMPLES** (nouveau prono + résultat, won/lost). Les
   **JAMBES et COMBINÉS ne poussent PLUS** (`push.PUSH_LEGS_COMBOS=False`) : quand plusieurs jambes se réglaient
   dans la même passe reconcile, chacune émettait « JAMBE GAGNÉE » → **rafale = spam** signalé par le user (capture
