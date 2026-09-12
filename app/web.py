@@ -456,12 +456,13 @@ CSS = """
     /* BARRE « à la Strava » (user 2026-09-12) : capsule FLOTTANTE, détachée des bords, verre dépoli (blur),
        coins pleinement arrondis, filet clair sur tout le pourtour + ombre douce. Elle ne colle plus au bord :
        elle plane au-dessus du contenu qui défile derrière (le dégradé html transparaît jusqu'au bord bas).
-       PLACEMENT BAS = comme Strava (user 2026-09-12 capture) : la capsule se cale JUSTE au-dessus du
-       home-indicator, pas à +43px. On RETRANCHE une partie de la safe-area au lieu de l'ADDITIONNER :
-       `max(8px, safe-area − 18px)` -> ~16px sur iPhone (safe 34), 8px sans safe-area. Le home-indicator passe
-       juste sous la capsule (ses icônes/labels vivent dans le tiers haut -> jamais masqués). */
-    .botnav{position:fixed;top:auto;bottom:max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
-            left:10px;right:10px;width:auto;max-width:500px;margin:0 auto;
+       ÉCARTS AUX BORDS = comme Strava (user 2026-09-12, 2e passe : « c'est trop collé ») — Strava respire
+       ~20px à GAUCHE/DROITE et ~22px en BAS (mesuré sur capture 1179px ÷3 DPR). Côtés : left/right 20px.
+       BAS : on RETRANCHE une partie de la safe-area (`max(12px, safe-area − 12px)` -> ~22px sur iPhone safe 34,
+       12px sans safe-area) -> la capsule se cale au-dessus du home-indicator SANS être ni trop haute (1re
+       version +43px) ni trop collée (2e version 16px). Icônes/labels dans le tiers haut -> jamais masqués. */
+    .botnav{position:fixed;top:auto;bottom:max(12px, calc(env(safe-area-inset-bottom, 0px) - 12px));
+            left:20px;right:20px;width:auto;max-width:480px;margin:0 auto;
             gap:2px;padding:8px 8px;border-radius:28px;border:1px solid rgba(255,255,255,.11);
             /* VERRE DÉPOLI (user 2026-09-12 « on voit à travers ») : fond très translucide -> le contenu qui
                défile derrière transparaît, flouté (blur) + saturé. Repli `@supports not` : fond ~opaque là où
