@@ -464,22 +464,24 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* CAPSULE FLOTTANTE restaurée (user « je l'aimais bcp ») + NOUVELLE technique anti-bug iOS JAMAIS essayée :
-       le SCROLL est déplacé dans `.wrap` (conteneur `position:fixed; inset:0` qui scrolle EN INTERNE) ; le BODY
-       ne scrolle PLUS (`overflow:hidden`, = viewport). Tous les essais précédents gardaient le BODY comme
-       scroller -> un `position:fixed; bottom:nonzéro` s'ancrait au DOCUMENT court et « remontait ». Ici, sans
-       scroll de document, un `position:fixed` s'ancre au VIEWPORT de façon stable sur iOS quel que soit le
-       contenu -> la barre flottante RESTE en bas, même sur un onglet vide. Écarts SYMÉTRIQUES 20px (bas=côtés). */
-    body{overflow:hidden;height:100svh;min-height:0;padding:0}
-    .wrap{position:fixed;top:0;left:0;right:0;bottom:0;max-width:none;margin:0;
-          overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-          padding:calc(8px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px))}
-    .botnav{position:fixed;top:auto;bottom:20px;left:20px;right:20px;width:auto;max-width:480px;margin:0 auto;z-index:60;
-            display:flex;gap:2px;padding:8px;border-radius:28px;
+    /* ⚠️ FLOTTANT FIABLE (fix régression user 2026-09-12 : la capsule flottait À MI-ÉCRAN sur l'onglet Accueil).
+       PREUVE terrain : sur cet iOS, un `position:fixed` à `bottom` NON NUL (ex. bottom:20px) NE s'ancre PAS au
+       bas de l'écran (il remonte) — MÊME en frère de `.wrap`, MÊME avec le body en overflow:hidden. SEUL
+       `bottom:0` s'ancre de façon fiable (c'est pourquoi la barre PLEINE LARGEUR bottom:0 marchait). Donc :
+       - `.botnav` = COQUILLE `position:fixed; bottom:0` pleine largeur (ANCRAGE BÉTON, identique à la barre qui
+         marchait), TRANSPARENTE, `pointer-events:none`. Son `padding-bas` (20px + safe) crée le FLOTTANT.
+       - `.botnav-inner` = CAPSULE VISIBLE (fond translucide solide, coins 28, ombre), remontée par le padding,
+         `max-width:480; margin:0 auto`. AUCUN backdrop-filter/transform (casse le `fixed` iOS).
+       Retour au SCROLL NORMAL du body (l'ancienne bidouille `.wrap` en position:fixed est ANNULÉE). */
+    body{min-height:100svh;padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
+    .wrap{min-height:calc(100svh - 96px - env(safe-area-inset-bottom, 0px))}
+    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;z-index:60;
+            padding:0 20px calc(20px + env(safe-area-inset-bottom, 0px));
+            background:transparent;border:0;box-shadow:none;pointer-events:none}
+    .botnav-inner{display:flex;gap:2px;max-width:480px;margin:0 auto;padding:8px;border-radius:28px;pointer-events:auto;
             border:1px solid rgba(255,255,255,.11);background:rgba(17,19,27,.86);
             box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
-    .botnav-inner{display:contents}                  /* pas de capsule interne : la barre EST le conteneur flex */
-    .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
+    .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
