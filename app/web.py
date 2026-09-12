@@ -469,11 +469,19 @@ CSS = """
                backdrop-filter n'existe pas, pour rester lisible. */
             background:rgba(19,21,29,.55);
             -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
-            /* COUCHE GPU (2026-09-10, jank scroll navigateur) : quand la barre Safari redimensionne le viewport
+            /* COUCHE GPU (2026-09-10, jank scroll NAVIGATEUR) : quand la barre Safari redimensionne le viewport
                au scroll, cette barre fixe + son ombre se re-peignaient à chaque frame. translateZ la met
-               sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. Absent en PWA. */
+               sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. NÉCESSAIRE au navigateur
+               SEULEMENT ; en PWA elle est NEUTRALISÉE plus bas (bug de placement, cf. html.pwa). */
             transform:translateZ(0);will-change:transform;
             box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
+    /* ⚠️ BUG iOS PWA (user 2026-09-12 : « de temps en temps la barre remonte sur Live/Compte ») : sur un onglet
+       à CONTENU COURT (état vide Live, Compte), une barre `position:fixed` PROMUE en couche GPU
+       (`transform`/`will-change`) se fige sur un SNAPSHOT de couche calculé pour la hauteur de l'onglet
+       PRÉCÉDENT -> elle « remonte » au lieu de rester au bas du viewport. Le navigateur (jank scroll) a besoin de
+       la couche ; le PWA standalone NON (pas de barre d'URL). On la RETIRE donc en PWA (`html.pwa` posé par JS)
+       -> le placement fixe redevient relatif au viewport, stable sur tous les onglets. */
+    html.pwa .botnav{transform:none;will-change:auto}
     /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
        étroite que la barre pleine largeur. Padding généreux + coins arrondis = pilule active bien détourée. */
     .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
