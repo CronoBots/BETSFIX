@@ -7763,16 +7763,16 @@ def _day_calendar(iso: str, sport: str | None = None, days: int | None = None) -
     except (ValueError, TypeError):
         sel = today
     rmap = _daily_results_map()                            # TOUS paris réglés -> pilote la CLIQUABILITÉ du jour
-    amap = _daily_all_results_map()                        # TOUS paris (Confiance+Value+Combiné) -> % de réussite (user 2026-09-07)
+    amap = _daily_conf_results_map()                       # CONFIANCE SEULE -> % de réussite (user 2026-09-12 : plus la Value)
     cells = []
     for i in range(days, -1, -1):                          # du plus ancien (gauche) à AUJOURD'HUI (droite)
         dd = today - timedelta(days=i)
         di = dd.isoformat()
         st = rmap.get(di) or {}
         settled = st.get("settled", 0)                     # activité TOUS paris (clic/emphase)
-        # % DE RÉUSSITE de TOUS les paris du jour (Confiance + Value + Combiné, user 2026-09-07) affiché À LA PLACE
-        # du point de couleur. Règle de COULEUR : <50 % rouge · 50–75 % orange · >75 % vert. Un jour sans pari
-        # réglé -> pas de chiffre (place réservée, invisible).
+        # % DE RÉUSSITE des paris de CONFIANCE du jour (user 2026-09-12 : plus la Value ni le combiné) affiché À
+        # LA PLACE du point de couleur. Règle de COULEUR : <50 % rouge · 50–75 % orange · >75 % vert. Un jour sans
+        # pari de confiance réglé -> pas de chiffre (place réservée, invisible).
         ast_ = amap.get(di) or {}
         a_settled, a_won = ast_.get("settled", 0), ast_.get("won", 0)
         if a_settled:
