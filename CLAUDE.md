@@ -315,7 +315,14 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   JOUÉ+FINAL avec un pilier SÉLECTION/SOURCES ❌ (cote hors bande/hors omap, proba≫implicite, ancre fabriquée/
   absente, <2 sources) remonte en **alerte privée owner** (dédup/jour). Ligne bilan « Vérification : N/N paris
   vérifiés ». Selfcheck `_check_final_mechanical_bet_revealed` garde en plus qu'un pari mécanique dont la vague
-  est passée est bien publié. Mémoire `per-match-verification-count-independent`.
+  est passée est bien publié. **TRIPWIRE QUEUE vs CŒUR** (user « la dernière fois qu'on a augmenté le nombre
+  c'était la catastrophe ») : le **rang de sélection PAR SLATE** est figé dans le programme puis le sidecar
+  (`sel_rank`/`sel_slate`, reporté à la vague — le rang de la boucle vague n'est PAS le rang de sélection). Le
+  match `--programme` tague le cœur top-N (0..N-1) ; élite forcé = pas de rang. `analysis_quality.py --tail-check`
+  (lancé 1×/jour dans `scan_daily.ps1`) compare les paris JOUÉS réglés de la **QUEUE (rang ≥ 7 = ajoutés par le
+  cap 7→10)** au **CŒUR (<7)** : réussite % + ROI + conversion du jour. Alerte privée SEULEMENT si la queue
+  sous-performe NETTEMENT (n≥12, réussite −12 pts ET ROI −15 pts ET ROI queue négatif) → preuve chiffrée que le
+  nombre ne dilue pas (et détecteur si un jour ça change). Mémoire `per-match-verification-count-independent`.
 
 ## Autres sous-systèmes
 - **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API

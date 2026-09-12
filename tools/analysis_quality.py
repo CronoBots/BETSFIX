@@ -595,6 +595,98 @@ def notify_match_qc(date: str | None = None, send: bool = False) -> int:
     return 0
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TRIPWIRE QUEUE vs CŒUR (user 2026-09-12 : « la dernière fois qu'on a augmenté le nombre de matchs
+# c'était la catastrophe » -> preuve CHIFFRÉE que le cap 7→10 ne dilue pas). Compare, sur TOUT l'historique
+# réglé, les paris JOUÉS des matchs de QUEUE (rang de sélection ≥ 7 = ceux ajoutés par le cap) au CŒUR
+# (rang < 7). Si la queue sous-performe NETTEMENT le cœur (échantillon suffisant) -> alerte privée owner :
+# signal que rallonger le slate abîme la qualité. Sinon -> « queue ≈ cœur » = le nombre ne dilue pas.
+# Lecture SEULE. Le rang vient de `sidecar["sel_rank"]` (reporté du programme, cf. generate_analyses).
+# ─────────────────────────────────────────────────────────────────────────────
+TAIL_RANK = 7            # rang ≥ 7 (0-indexé) = matchs ajoutés par le passage du cap 7 → 10
+MIN_TAIL_N = 12          # taille mini de l'échantillon QUEUE avant de juger (sinon variance)
+WINPCT_GAP = 12.0        # écart de réussite (points) queue-sous-cœur qui déclenche l'alerte
+ROI_GAP = 15.0           # + écart de ROI (points) ; l'alerte exige AUSSI un ROI queue négatif
+
+
+def _bucket_stats(rows: list) -> dict:
+    """n paris décisifs (won/lost), réussite %, ROI % (mise 1u/pari) d'un lot de (cote, result)."""
+    n = w = 0
+    ret = 0.0
+    for cote, res in rows:
+        if res not in ("won", "lost"):
+            continue                       # push/void = neutre -> hors réussite/ROI
+        n += 1
+        if res == "won":
+            w += 1
+            ret += (float(cote or 0) - 1.0)
+        else:
+            ret -= 1.0
+    return {"n": n, "win": (100.0 * w / n if n else 0.0), "roi": (100.0 * ret / n if n else 0.0)}
+
+
+def tail_quality(send_alert: bool = False) -> int:
+    """Compare QUEUE (sel_rank ≥ 7) vs CŒUR (< 7) sur les paris JOUÉS réglés + la conversion du jour.
+    Alerte privée si la queue sous-performe nettement (preuve que le nombre dilue). 0 = OK, 1 = alerte."""
+    core_rows, tail_rows = [], []
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        rk = d.get("sel_rank")
+        if not isinstance(rk, int):
+            continue                       # hors programme / élite forcé / avant l'instrumentation
+        sb = A.stat_bet(d)
+        if not (isinstance(sb, dict) and sb.get("sel") and sb.get("result")):
+            continue                       # pas de pari joué réglé
+        (tail_rows if rk >= TAIL_RANK else core_rows).append((sb.get("cote"), sb.get("result")))
+    core, tail = _bucket_stats(core_rows), _bucket_stats(tail_rows)
+
+    # CONVERSION DU JOUR par bucket (analysé -> pari), depuis le programme courant (instantané, non durable).
+    prog = _load_programme()
+    cd = {"core": [0, 0], "tail": [0, 0]}   # [analysés, paris]
+    for m in (prog.get("matches") or []):
+        rk = m.get("sel_rank")
+        if not isinstance(rk, int):
+            continue
+        d, _ = _sidecar_for(str(m.get("id") or ""), m.get("home", ""), m.get("away", ""))
+        if not (d and (d.get("bets") or d.get("shadow") or d.get("abstained") or d.get("stat_bet"))):
+            continue
+        b = "tail" if rk >= TAIL_RANK else "core"
+        cd[b][0] += 1
+        rb = _played_bet(d)
+        if rb and rb.get("sel"):
+            cd[b][1] += 1
+
+    print(f"═══ QUEUE (rang ≥ {TAIL_RANK}) vs CŒUR — le nombre dilue-t-il ? ═══")
+    print(f"  CŒUR  : {core['n']:3} pari(s) joué(s) réglé(s) · {core['win']:.0f}% · ROI {core['roi']:+.1f}%")
+    print(f"  QUEUE : {tail['n']:3} pari(s) joué(s) réglé(s) · {tail['win']:.0f}% · ROI {tail['roi']:+.1f}%")
+    print(f"  Conversion du jour — cœur {cd['core'][1]}/{cd['core'][0]} · queue {cd['tail'][1]}/{cd['tail'][0]}")
+
+    # ALERTE : queue avec assez de recul ET nettement sous le cœur (réussite ET ROI) ET ROI queue négatif.
+    diluted = (tail["n"] >= MIN_TAIL_N
+               and (core["win"] - tail["win"]) >= WINPCT_GAP
+               and (core["roi"] - tail["roi"]) >= ROI_GAP
+               and tail["roi"] < 0)
+    if diluted:
+        msg = (f"⚠️ BETSFIX — DILUTION PAR LE NOMBRE détectée\n\n"
+               f"Les matchs de QUEUE (rang ≥ {TAIL_RANK}, ajoutés par le cap 7→10) sous-performent le cœur :\n"
+               f"• CŒUR  {core['n']} paris · {core['win']:.0f}% · ROI {core['roi']:+.1f}%\n"
+               f"• QUEUE {tail['n']} paris · {tail['win']:.0f}% · ROI {tail['roi']:+.1f}%\n\n"
+               f"Envisager de rebaisser le cap (--top) ou de resserrer la sélection de queue.")
+        print("🔴 ALERTE : la queue sous-performe le cœur -> le nombre DILUE.")
+        new = _new_issues(prog.get("date") or "", ["tail-dilution"])
+        if send_alert and new and _send_owner(msg):
+            print("   → alerte privée envoyée.")
+        return 1
+    if tail["n"] < MIN_TAIL_N:
+        print(f"🟡 Recul insuffisant sur la queue ({tail['n']} < {MIN_TAIL_N} paris réglés) — à re-mesurer.")
+    else:
+        print("🟢 OK : la queue tient face au cœur — le NOMBRE NE DILUE PAS (preuve chiffrée).")
+    return 0
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="jour ISO (défaut : programme courant)")
@@ -604,7 +696,12 @@ if __name__ == "__main__":
     ap.add_argument("--match-messages", action="store_true",
                     help="envoie une FICHE QC PRIVÉE par match analysé finalisé (une fois/match/jour). "
                          "Combiner avec --alert pour ENVOYER ; seul = prévisualisation console.")
+    ap.add_argument("--tail-check", action="store_true",
+                    help="compare QUEUE (rang de sélection ≥ 7, ajoutée par le cap 7→10) vs CŒUR sur les "
+                         "paris joués réglés -> preuve que le NOMBRE ne dilue pas. --alert = alerte privée si dilution.")
     args = ap.parse_args()
+    if args.tail_check:
+        sys.exit(tail_quality(send_alert=args.alert))
     if args.match_messages:
         sys.exit(notify_match_qc(args.date, send=args.alert))
     sys.exit(run(args.date, send_alert=args.alert))

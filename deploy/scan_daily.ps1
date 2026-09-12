@@ -89,6 +89,14 @@ Log 'SELFCHECK : auto-audit d''intégrité'
 & $py 'tools\selfcheck.py' --quiet 2>&1 | Add-BfxStream $log
 Log ("SELFCHECK DONE (exit {0})" -f $LASTEXITCODE)
 
+# GARDE ANTI-DILUTION PAR LE NOMBRE (user 2026-09-12 : « la dernière fois qu'on a augmenté le nombre de
+# matchs c'était la catastrophe ») : compare les paris joués réglés des matchs de QUEUE (rang de sélection
+# ≥ 7, ajoutés par le cap 7→10) au CŒUR. Preuve chiffrée que le nombre ne dilue pas ; alerte PRIVÉE owner si
+# la queue sous-performe nettement. Lecture seule, 1×/jour (l'historique s'accumule sur plusieurs jours).
+Log 'TAIL-CHECK : queue (cap 7->10) vs coeur — le nombre dilue-t-il ?'
+& $py 'tools\analysis_quality.py' --tail-check --alert 2>&1 | Add-BfxStream $log
+Log ("TAIL-CHECK DONE (exit {0})" -f $LASTEXITCODE)
+
 # JOURNAL D'APPRENTISSAGE : photo du jour + deltas vs la veille + auto-écriture des événements notables
 # (marché écarté / ré-intégré, mouvement de fiabilité/ROI) dans LEARNING.md. Lecture seule.
 Log 'LEARNING : journal d''apprentissage'

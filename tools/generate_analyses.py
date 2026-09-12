@@ -780,6 +780,21 @@ def _load_programme_ids() -> set:
         return set()
 
 
+def _load_programme_ranks() -> dict:
+    """{id: (sel_rank, sel_slate)} du programme du jour — RANG de sélection PAR SLATE (0 = le plus fort
+    favori-net). Sert à mesurer si les matchs de QUEUE (rang ≥ 7, ceux ajoutés par le cap 7→10) sont
+    analysés/pariés aussi bien que le cœur (garde anti-dilution par le nombre, user 2026-09-12). Élite forcé
+    = pas de rang (ajout hors top-N, pas une « queue par le nombre »). Vide si programme absent/périmé."""
+    try:
+        if (time.time() - os.path.getmtime(PROGRAMME_PATH)) / 3600 > 30:
+            return {}
+        d = json.load(open(PROGRAMME_PATH, encoding="utf-8"))
+        return {str(m.get("id")): (m.get("sel_rank"), m.get("sel_slate"))
+                for m in (d.get("matches") or []) if m.get("sel_rank") is not None}
+    except (OSError, ValueError):
+        return {}
+
+
 def _set_programme_status(match_id: str, status: str, provisional: dict | None = None) -> None:
     """Marque le STATUT d'un match dans le programme du jour (data/day_programme.json) pour l'affichage
     site : 'bet' (un pari a été retenu/publié) ou 'abstained' (analysé mais aucun pari ≥ seuil = pas de
@@ -1238,21 +1253,35 @@ async def _build_and_post_programme(client, sports: list, args) -> None:
             seen = {m.get("id") for m in sel}
             extra = [m for m in pool if m.get("id") not in seen and is_elite_comp(m.get("comp") or "")]
             return sel + extra, len(extra)
+        # RANG DE SÉLECTION PAR SLATE (user 2026-09-12) : position 0-indexée dans le CŒUR top-N (0 = plus fort
+        # favori-net) + libellé slate. Persiste dans le programme puis le sidecar -> permet de MESURER que la
+        # QUEUE (rang ≥ 7, ajoutée par le cap 7→10) est analysée/pariée aussi bien que le cœur. Élite = None.
+        _rankmap: dict = {}
         if args.ko_from is not None and args.ko_to is not None:
+            _core = [m for m in top if _in_ko_band(m.get("start", ""), args.ko_from, args.ko_to)][:_top]
             _inband = [m for m in top if _in_ko_band(m.get("start", ""), args.ko_from, args.ko_to)]
             top, _nelite = _with_elite(_inband[:_top], _inband[_top:])
             _lbl = "NUIT" if args.ko_from == _SLATE_BOUNDARY_H else "JOUR"
+            _slk = "night" if args.ko_from == _SLATE_BOUNDARY_H else "day"
+            _rankmap = {str(m.get("id")): (i, _slk) for i, m in enumerate(_core)}
             print(f"[foot] programme SLATE {_lbl} ({args.ko_from}h→{args.ko_to}h) : {len(top)} match(s) "
                   f"(top-{_top} + {_nelite} élite).")
         else:
-            _glob, _nelite = _with_elite(top[:_top], top[_top:])
+            _core = top[:_top]
+            _glob, _nelite = _with_elite(_core, top[_top:])
             _day = [m for m in _glob if _in_ko_band(m.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H)]
             _night = [m for m in _glob if _in_ko_band(m.get("start", ""), _SLATE_BOUNDARY_H, _DAY_START_H)]
             top = _day + _night
+            for i, cm in enumerate(_core):
+                _sl = ("day" if _in_ko_band(cm.get("start", ""), _DAY_START_H, _SLATE_BOUNDARY_H) else "night")
+                _rankmap[str(cm.get("id"))] = (i, _sl)
             print(f"[foot] programme TOP-{_top} adaptatif + {_nelite} élite : {len(_day)} JOUR + {len(_night)} NUIT.")
         for m in top:
             _e = {"id": str(m.get("id")), "sport": sport, "name": m.get("name", ""),
                   "start": m.get("start", ""), "comp": m.get("comp") or m.get("circuit") or ""}
+            _rk = _rankmap.get(str(m.get("id")))
+            if _rk is not None:
+                _e["sel_rank"], _e["sel_slate"] = _rk[0], _rk[1]
             if str(m.get("id")) in prev_status:          # préserve le statut au re-run (bet/abstained)
                 _e["status"] = prev_status[str(m.get("id"))]
             if str(m.get("id")) in prev_prov:            # + le provisoire (sinon abstained sans pick = masqué)
@@ -3530,6 +3559,10 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
             # (`nonLiveBoCount`) = le critère de TRI de rank_important. Figée ici -> permet enfin de mesurer
             # le ROI par rang/profondeur de sélection a posteriori (0 impact sélection/pari : champ additif).
             "markets": m.get("markets", 0),
+            # RANG DE SÉLECTION PAR SLATE (user 2026-09-12) : reporté du programme -> mesure durable « queue
+            # (rang ≥ 7) vs cœur » (garde anti-dilution par le nombre). None si hors programme / élite forcé.
+            "sel_rank": (meta.get("sel_rank") if meta else None),
+            "sel_slate": (meta.get("sel_slate") if meta else None),
             "o1": o1, "ox": ox, "o2": o2, "pick": _safe_pick(analysis),
             "pick_code": _parse_pick(analysis),   # code technique pour le règlement auto après match
             "unibet_url": (f"https://fr.unibetsports.be/betting/sports/event/{m.get('id')}"
@@ -3718,6 +3751,7 @@ async def main():
             await _build_and_post_programme(client, sports, args)
         return
     _prog_ids = _load_programme_ids() if args.from_programme else None
+    _prog_ranks = _load_programme_ranks() if args.from_programme else {}   # {id: (sel_rank, sel_slate)}
     total_t0 = time.time()
     n_gen = 0
     notif_lines: list[str] = []   # texte Telegram (repli si la carte image échoue) — 1 par match
@@ -4181,6 +4215,11 @@ async def main():
                     f.write(header + analysis + "\n")
                 votes = await _fetch_votes(client, sport, sofa_id)
                 surl = await _sofa_url(sofa_id)
+                # RANG DE SÉLECTION (garde anti-dilution) : reporté du programme dans le sidecar -> durable
+                # par match (le rang de la boucle vague n'est PAS le rang de sélection, cf. filtre 200→programme).
+                _rk = (_prog_ranks or {}).get(str(m.get("id")))
+                if _rk is not None:
+                    meta["sel_rank"], meta["sel_slate"] = _rk[0], _rk[1]
                 _write_sidecar(sport, fid, sofa_id, m, meta, analysis, votes, surl, validation, combo,
                                prematch=bool(args.refresh_early))  # vague ~1h avant KO -> décision FINALE
 
