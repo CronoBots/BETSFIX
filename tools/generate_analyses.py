@@ -3658,12 +3658,21 @@ def _write_sidecar(sport: str, fid: str, sofa_id: str, m: dict, meta: dict, anal
     # ⚠️ BUG CORRIGÉ : ce re-pricing était imbriqué dans `if _sharp_map and _omap` -> SAUTÉ sur les matchs SANS
     # Pinnacle (ligues obscures) -> cotes fantômes fausses dans le vivier combiné. Il ne dépend QUE d'`_omap`.
     if _omap:
+        # ⚠️ ROOT FIX (user 2026-09-12 : « il ne faut JAMAIS estimer la cote ») : les fantômes `shadow` ne
+        # portent PAS de champ `code` (juste `sel`) -> l'ancien `_omap.get(_p.get("code"))` renvoyait None et
+        # NE re-prixait JAMAIS les ghosts -> la cote ESTIMÉE par Claude (ex. DC 1X 1.16) survivait et se figeait.
+        # On DÉRIVE le code du libellé (comme match_candidates) -> CHAQUE prédiction/pari reçoit la VRAIE cote
+        # Unibet de son marché. La cote LLM n'est plus JAMAIS conservée dès qu'Unibet cote ce marché.
+        from app.settle_analyst import code_from_pick as _cfp
+        _h, _a = m.get("home", ""), m.get("away", "")
         for _p in (side.get("shadow") or []):
-            _rc = _omap.get(_p.get("code"))
+            _code = _p.get("code") or _cfp(_p.get("sel") or "", sport, _h, _a)
+            _rc = _omap.get(_code)
             if isinstance(_rc, (int, float)) and _rc >= 1.01:
                 _p["cote"] = _rc
         for _b in (side.get("bets") or []):
-            _rc = _omap.get(_b.get("code"))
+            _code = _b.get("code") or _cfp(_b.get("sel") or "", sport, _h, _a)
+            _rc = _omap.get(_code)
             if isinstance(_rc, (int, float)) and _rc >= 1.01:
                 _b["odds"] = _rc
     # `sel_edge` (edge sharp) a besoin des DEUX cartes (Pinnacle ∩ Unibet).
