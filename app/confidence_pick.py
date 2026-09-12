@@ -99,6 +99,14 @@ def match_candidates(d: dict, markets=None, exclude_markets=None, require_omap: 
         if exclude_markets is not None and _m in exclude_markets:
             continue
         pr, co = p.get("prob"), p.get("cote")
+        # RE-PRIX à la VRAIE cote Unibet FRAÎCHE (user 2026-09-12) : quand l'omap est exigé, la cote du candidat
+        # est celle du FANTÔME (figée tôt, marché immature — ex. Chelsea DC 1X @1.16 au scan) alors que la vraie
+        # cote Unibet a bougé (omap = 1.02). On IMPOSE donc `omap[code]` (déjà garanti présent, cf. le `continue`
+        # ci-dessus) -> la sélection ET le prix figé collent au marché réel ; un favori retombé SOUS le plancher
+        # (1.12) est correctement ÉCARTÉ (avant : publié/affiché à une cote surévaluée). Backtest (require_omap
+        # False) inchangé : `_om` None -> on garde la cote fantôme historique.
+        if _om is not None:
+            co = _om.get(code)
         if not isinstance(pr, (int, float)) or not isinstance(co, (int, float)):
             continue
         c = {"sel": p.get("sel"), "code": code, "market": analyses.market_of(code),
