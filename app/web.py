@@ -448,28 +448,30 @@ CSS = """
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
+  /* WRAPPER interne (user 2026-09-12) : `display:contents` par défaut -> il DISPARAÎT de la mise en page (les
+     <a> se comportent comme enfants directs de .botnav) donc DESKTOP/socle inchangés. En MOBILE il devient la
+     CAPSULE flottante (voir plus bas) tandis que `.botnav` n'est plus qu'une COQUILLE fixe ancrée `bottom:0`. */
+  .botnav-inner{display:contents}
   /* MOBILE (<1000px) : placement EXACTEMENT comme CRYPTONAUTS (demande user 2026-08-02, projet voisin qui
      marche parfaitement en app installée) — barre FIXE en bas, padding bas = 6px + safe-area, ombre portée
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* BARRE « à la Strava » (user 2026-09-12) : capsule FLOTTANTE, détachée des bords, verre dépoli (blur),
-       coins pleinement arrondis, filet clair sur tout le pourtour + ombre douce. Elle ne colle plus au bord :
-       elle plane au-dessus du contenu qui défile derrière (le dégradé html transparaît jusqu'au bord bas).
-       ÉCARTS AUX BORDS = comme Strava (user 2026-09-12, 2e passe : « c'est trop collé ») — Strava respire
-       ~20px à GAUCHE/DROITE et ~22px en BAS (mesuré sur capture 1179px ÷3 DPR). Côtés : left/right 20px.
-       BAS : on RETRANCHE une partie de la safe-area (`max(12px, safe-area − 12px)` -> ~22px sur iPhone safe 34,
-       12px sans safe-area) -> la capsule se cale au-dessus du home-indicator SANS être ni trop haute (1re
-       version +43px) ni trop collée (2e version 16px). Icônes/labels dans le tiers haut -> jamais masqués. */
-    .botnav{position:fixed;top:auto;bottom:max(12px, calc(env(safe-area-inset-bottom, 0px) - 12px));
-            left:20px;right:20px;width:auto;max-width:480px;margin:0 auto;
-            gap:2px;padding:8px 8px;border-radius:28px;border:1px solid rgba(255,255,255,.11);
-            /* ⚠️ AUCUN `backdrop-filter` NI `transform` sur la barre fixe NI sur un pseudo (user 2026-09-12,
-               plusieurs allers-retours) : sur iOS/WebKit, `backdrop-filter` près d'un `position:fixed` CASSE
-               son ancrage -> la barre « remonte » et suit le contenu/scroll. On abandonne le FLOU : fond
-               translucide SOLIDE -> on voit ENCORE à travers (Strava-like), mais ZÉRO filtre = placement fixe
-               GARANTI sur iOS, quel que soit le contenu de l'onglet. (Structure prouvée content-indépendante
-               au navigateur : gap bas = 12px après scroll ET contenu court.) */
+    /* ⚠️ FIX RACINE iOS (user 2026-09-12, après reload PROPRE : la barre reste décalée sur onglet peu rempli).
+       Cause : sur iOS standalone, un `position:fixed` avec un `bottom` NON NUL s'ancre au DOCUMENT (pas au
+       viewport) quand le contenu est plus COURT que l'écran -> la barre se place après le contenu (mi-écran).
+       Le navigateur ne reproduit pas (il ancre au viewport). La recette qui MARCHE en PWA (mémoire) = coquille
+       `position:fixed; bottom:0; left:0; right:0` PLEINE LARGEUR. On sépare donc :
+       • `.botnav` = COQUILLE fixe, `bottom:0`, pleine largeur, TRANSPARENTE, `pointer-events:none` (les taps
+         traversent ses marges vides). Son PADDING crée les écarts flottants (côtés + bas + safe-area).
+       • `.botnav-inner` = la CAPSULE visible (fond, bord, coins, ombre), centrée, `pointer-events:auto`.
+       Le `bottom:0` de la coquille est fiable sur iOS quel que soit le contenu ; la capsule flotte via le padding. */
+    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;
+            display:block;gap:0;border:0;border-radius:0;background:none;box-shadow:none;pointer-events:none;
+            padding:0 20px calc(18px + env(safe-area-inset-bottom, 0px))}
+    .botnav-inner{display:flex;gap:2px;padding:8px 8px;max-width:480px;margin:0 auto;pointer-events:auto;
+            border-radius:28px;border:1px solid rgba(255,255,255,.11);
+            /* fond translucide SOLIDE (on voit à travers, PAS de backdrop-filter -> iOS ne casse pas le fixe) */
             background:rgba(17,19,27,.86);
             box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
     /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
@@ -4794,13 +4796,13 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
                     f'⏸ Source en pause</span></div>')
     # Barre d'onglets fixée en BAS (MÊMES 5 onglets que la SPA, Directs inclus) : sur une page
     # layout (détail, dashboard…), cliquer un onglet recharge l'URL -> la SPA reprend la main.
-    botnav = '<nav class="botnav">' + "".join(
+    botnav = '<nav class="botnav"><div class="botnav-inner">' + "".join(
         f'<a class="{"on" if sport == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _SPA_TABS) + "</nav>"
+        for k, href, ico, name in _SPA_TABS) + "</div></nav>"
 
     sub = ""
     if subnav and sport in _SPORT_MATCH_URL:
@@ -4851,13 +4853,13 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
                  '<div class="skel"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>')
         panels.append(f'<section class="panel{on}" id="pn-{k}" data-tab="{k}" '
                       f'data-src="{href}">{inner}</section>')
-    botnav = '<nav class="botnav">' + "".join(
+    botnav = '<nav class="botnav"><div class="botnav-inner">' + "".join(
         f'<a class="{"on" if active == k else ""}" data-tab="{k}" href="{href}" aria-label="{e(name)}">'
         f'<span class="ic">{ico}</span><span class="lb">{e(name)}</span>'
         + ('<span class="nav-n" hidden></span>'
            if k in ("home", "tennis", "basket", "foot", "directs") else '')
         + '</a>'
-        for k, href, ico, name in _SPA_TABS) + "</nav>"
+        for k, href, ico, name in _SPA_TABS) + "</div></nav>"
     return f"""<!doctype html><html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d15">
