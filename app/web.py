@@ -473,12 +473,19 @@ CSS = """
        - `.botnav-inner` = CAPSULE VISIBLE (fond translucide solide, coins 28, ombre), remontée par le padding,
          `max-width:480; margin:0 auto`. AUCUN backdrop-filter/transform (casse le `fixed` iOS).
        Retour au SCROLL NORMAL du body (l'ancienne bidouille `.wrap` en position:fixed est ANNULÉE). */
-    body{min-height:100svh;padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))}
-    .wrap{min-height:calc(100svh - 96px - env(safe-area-inset-bottom, 0px))}
-    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;z-index:60;
-            padding:0 20px calc(20px + env(safe-area-inset-bottom, 0px));
-            background:transparent;border:0;box-shadow:none;pointer-events:none}
-    .botnav-inner{display:flex;gap:2px;max-width:480px;margin:0 auto;padding:8px;border-radius:28px;pointer-events:auto;
+    /* APP-SHELL FLEX (fix DÉFINITIF régression « menu à mi-écran » — 3 tentatives fixed échouées) : sur cet iOS,
+       un `position:fixed` (même bottom:0, même hors scroll-container) NE tient PAS de façon fiable. On ARRÊTE le
+       fixed : le body est un FLEX COLONNE de hauteur viewport EXACTE, le contenu scrolle DANS `.wrap`, et la barre
+       est un ITEM EN FLUX poussé tout en bas par `margin-top:auto`. Structurellement, la barre NE PEUT PLUS
+       flotter au milieu (elle n'est pas positionnée ; le body fait pile 100svh -> son dernier enfant est au bord
+       bas). Le FLOTTANT vient du padding de `.botnav` (capsule `.botnav-inner` remontée). Zéro fixed = zéro bug iOS. */
+    body{display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
+    .wrap{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+          max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 14px}
+    .botnav{flex:0 0 auto;margin:auto 0 0;align-self:stretch;position:static;width:auto;max-width:none;z-index:60;
+            padding:0 20px calc(16px + env(safe-area-inset-bottom, 0px));
+            background:transparent;border:0;box-shadow:none}
+    .botnav-inner{display:flex;gap:2px;max-width:480px;margin:0 auto;padding:8px;border-radius:28px;
             border:1px solid rgba(255,255,255,.11);background:rgba(17,19,27,.86);
             box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
