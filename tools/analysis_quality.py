@@ -153,6 +153,7 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     bets = 0
     shallow = []          # matchs analysés mais .md manquant/stub
     missed_list = []      # matchs dont la vague est passée SANS analyse
+    bad_bets = []         # (nom, [soucis]) : pari JOUÉ avec un pilier SÉLECTION/SOURCES ❌ (vérif par match)
     print(f"═══ CONTRÔLE QUALITÉ D'ANALYSE — {day or 'jour courant'} ═══")
     print(f"Programme : {len(matches)} match(s)\n")
     for m in matches:
@@ -175,9 +176,31 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
             flag = ""
             if not md_ok:
                 shallow.append(name); flag = "  ⚠️ .md manquant/stub"
+            # ═══ VÉRIFICATION PAR MATCH (user 2026-09-12 : « une vérification pour chaque match, l'analyse/
+            # sélection ne doit PAS être affaiblie par le nombre ») : on passe CHAQUE match analysé au MÊME
+            # audit 4 piliers que la fiche QC privée (`_qc_audit`). Un match dont le PARI JOUÉ a un pilier
+            # SÉLECTION ou SOURCES ❌ (cote hors bande / hors omap / proba≫implicite / ancre fabriquée ou
+            # absente / <2 sources) est un pari FRAGILE -> il remonte dans l'alerte privée. Les ⚠️ (panel/
+            # fantômes/sharp d'abstention) restent informatifs (pas d'alerte, pas de bruit). Le feu 🟢/🟠/🔴
+            # est affiché par match -> on VOIT que chaque match a été vérifié (« 17/17 »), pas seulement compté.
+            _icon, _bad = "✅", []
+            try:
+                _sig = _qc_collect(d, md, _md_text(md))
+                _au = _qc_audit(d, rb, _sig)
+                _icon = _au["overall"]
+                # Alerte SEULEMENT sur un pari JOUÉ + décision FINALE (vague passée / publié / réglé) : un
+                # provisoire du matin hors bande sera re-analysé à sa vague -> pas de faux positif.
+                if has_bet and _sig.get("final") and (_au["selection"] == "❌" or _au["sources"] == "❌"):
+                    _bad = [i for i in _au["issues"]
+                            if i.split(" :", 1)[0].strip().lower() in ("sélection", "sources")]
+                    if _bad:
+                        bad_bets.append((name, _bad))
+            except Exception:
+                pass
             tag = "PARI" if has_bet else ("abstention" if (d or {}).get("abstained") else "analysé")
             depth = "profond" + ("+panel" if panel else "") if md_ok else "SUPERFICIEL?"
-            print(f"  ✅ {name[:34]:34} {tag:11} [{depth}]{flag}")
+            print(f"  {_icon} {name[:34]:34} {tag:11} [{depth}]{flag}"
+                  + (f"  🔴 {' ; '.join(_bad)}" if _bad else ""))
         elif wave_due:
             missed += 1; missed_list.append(name)
             print(f"  ❌ {name[:34]:34} NON ANALYSÉ (vague KO−1 h PASSÉE) — MANQUÉ")
@@ -195,6 +218,13 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
         print(f"  Profondeur : ⚠️ {len(shallow)} match(s) au .md manquant/stub : {', '.join(s[:20] for s in shallow)}")
     else:
         print(f"  Profondeur : ✅ tous les .md sont substantiels")
+    # VÉRIFICATION PAR MATCH : chaque pari joué est-il SAIN (sélection + sources) ? (user 2026-09-12)
+    _ok_bets = bets - len(bad_bets)
+    if bad_bets:
+        print(f"  Vérification : 🔴 {len(bad_bets)} pari(s) FRAGILE(s) / {bets} : "
+              + "; ".join(f"{n} ({', '.join(b)})" for n, b in bad_bets))
+    else:
+        print(f"  Vérification : ✅ {_ok_bets}/{bets} pari(s) joué(s) vérifié(s) (sélection + sources sains)")
 
     alert = []
     if missed:
@@ -206,13 +236,17 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
         alert.append(f"conversion {100*conv:.0f}% < {100*CONV_ALERT:.0f}% -> analyse peut-être superficielle")
     if shallow:
         alert.append(f"{len(shallow)} analyse(s) superficielle(s) (.md stub)")
+    # PARI JOUÉ FRAGILE : un pilier SÉLECTION/SOURCES ❌ sur un pari réellement joué = à corriger (capital en jeu).
+    for _n, _b in bad_bets:
+        alert.append(f"pari joué FRAGILE — {_n} : {', '.join(_b)}")
     print()
     if alert:
         print("🔴 ALERTE :")
         for a in alert:
             print(f"   - {a}")
         # ENVOI PRIVÉ (owner) — dédupliqué : chaque problème n'alerte qu'UNE fois par jour.
-        keys = [f"missed:{n}" for n in missed_list] + [f"shallow:{n}" for n in shallow]
+        keys = ([f"missed:{n}" for n in missed_list] + [f"shallow:{n}" for n in shallow]
+                + [f"badbet:{n}" for n, _ in bad_bets])
         if pending == 0 and analysed >= 4 and conv < CONV_ALERT:
             keys.append("conversion")
         new = _new_issues(day, keys)

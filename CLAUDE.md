@@ -303,6 +303,19 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   (relevé de 7+7 le 2026-09-11, permis par le retrait de la double analyse : ~2× moins de charge Claude/match →
   ~20-24 matchs/jour restent à/sous l'ancienne consommation). Mémoire `daily-construction-methodology`
   (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
+- **⛔ LE NOMBRE DE MATCHS N'AFFAIBLIT PAS L'ANALYSE/SÉLECTION (garantie, user 2026-09-12)** — décision tranchée,
+  ne pas re-débattre : chaque match a son PROPRE `run_claude` (timeout INDÉPENDANT, `generate_analyses.py`
+  boucle `for … in top`), **aucun budget token/temps PARTAGÉ ni retry réduit** selon le nombre. Les sélecteurs
+  `confidence_pick`/`value_pick` sont **par match** (`pick_from_candidates`), **sans classement inter-matchs** (un
+  pari valide n'est jamais retiré parce qu'il y en a d'autres). À la vague, `--from-programme` **fetch 200 puis
+  filtre aux IDs du programme** → `--top 10` n'est PAS contraignant, **aucun match du programme n'est droppé**.
+  17 matchs = 17 analyses complètes indépendantes. **Vérification PAR MATCH** = `tools/analysis_quality.py`
+  (lancé à chaque vague dans `scan_wave.ps1`) : couverture (0 manqué), profondeur (.md ≥ 2,5 ko + panel),
+  conversion, **et l'audit 4 piliers `_qc_audit` (SCAN/ANALYSE/SÉLECTION/SOURCES) sur CHAQUE match** — un pari
+  JOUÉ+FINAL avec un pilier SÉLECTION/SOURCES ❌ (cote hors bande/hors omap, proba≫implicite, ancre fabriquée/
+  absente, <2 sources) remonte en **alerte privée owner** (dédup/jour). Ligne bilan « Vérification : N/N paris
+  vérifiés ». Selfcheck `_check_final_mechanical_bet_revealed` garde en plus qu'un pari mécanique dont la vague
+  est passée est bien publié. Mémoire `per-match-verification-count-independent`.
 
 ## Autres sous-systèmes
 - **Auth / abonnement** : base users **SQLite** `app/userdb.py` (migration JSON→SQLite auto), API
