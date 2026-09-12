@@ -482,10 +482,12 @@ CSS = """
     body{display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
     .wrap{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
           max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 14px}
-    .botnav{flex:0 0 auto;margin:auto 0 0;align-self:stretch;position:static;width:auto;max-width:none;z-index:60;
-            padding:0 20px calc(16px + env(safe-area-inset-bottom, 0px));
+    .botnav{flex:0 0 auto;margin:auto 0 0;align-self:stretch;position:static;display:block;width:auto;max-width:none;z-index:60;
+            padding:0 14px calc(16px + env(safe-area-inset-bottom, 0px));   /* ⚠️ display:block OBLIGATOIRE : la base
+            `.botnav{display:flex}` réduisait la capsule (enfant flex unique) à son contenu = pilule étriquée au
+            milieu. En bloc, `.botnav-inner` REMPLIT la largeur (padding latéral 14px = léger flottant « Strava »). */
             background:transparent;border:0;box-shadow:none}
-    .botnav-inner{display:flex;gap:2px;max-width:480px;margin:0 auto;padding:8px;border-radius:28px;
+    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px;border-radius:28px;
             border:1px solid rgba(255,255,255,.11);background:rgba(17,19,27,.86);
             box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
