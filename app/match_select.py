@@ -89,12 +89,26 @@ _BIG_TOURNEY_KW = ("world cup", "coupe du monde", "champions league", "ligue des
                    "conference league", "copa america", "copa libertadores", "sudamericana", "euro ")
 
 
+# CONFÉDÉRATIONS MINEURES exclues du pack élite (user 2026-09-12, PROUVÉ) : « CAF/AFC Champions League »
+# matchait le mot-clé générique « champions league » et était FORCÉ dans le slate — or ces compétitions n'ont
+# NI la couverture données NI le marché sharp qui justifient le passe-droit. Mesure sur 876 sidecars : CAF+AFC
+# = 0 pari publié (vs UEFA/Monde 43, CONMEBOL 3). Les exclure ne retire AUCUN pari historique, ôte juste le
+# bruit (ex. 7 qualifs CAF gonflant le slate matin à 17) + les tentatives de vague qui défèrent (no_sharp). Ces
+# matchs peuvent toujours entrer via le top-N normal si leur profondeur de marché les classe (elle ne le fait pas).
+_MINOR_CONFED_KW = ("caf", "afc", "concacaf", "african", "asian")
+
+
 def is_elite_comp(comp: str) -> bool:
-    """PACK ÉLITE = gros tournoi international (UCL/Europa/Conference/Copa Libertadores/Sudamericana/Copa
-    America/Euro/Coupe du Monde, cf. `_BIG_TOURNEY_KW`). Ces compétitions ont la MEILLEURE couverture données
-    (API-Football) et le marché le PLUS SHARP → on les force TOUJOURS dans le slate (jamais cappées par le
-    top-N). Le mécanisme d'analyse et les sélecteurs mécaniques restent INCHANGÉS : on n'élargit QUE le vivier."""
-    return any(k in (comp or "").lower() for k in _BIG_TOURNEY_KW)
+    """PACK ÉLITE = gros tournoi international à DONNÉES RICHES + marché SHARP : UEFA (UCL/Europa/Conference,
+    qualifs incluses) + CONMEBOL (Copa Libertadores/Sudamericana/Copa America) + Euro/Coupe du Monde
+    (`_BIG_TOURNEY_KW`). Forcés TOUJOURS dans le slate (jamais cappés par le top-N). **EXCLUS** : les
+    confédérations MINEURES (CAF/AFC/CONCACAF, `_MINOR_CONFED_KW`) dont la « Champions League » matchait le
+    mot-clé générique sans en avoir la donnée/le sharp (0 pari publié sur tout l'historique). Analyse et
+    sélecteurs mécaniques INCHANGÉS : on n'élargit QUE le vivier."""
+    c = (comp or "").lower()
+    if any(k in c for k in _MINOR_CONFED_KW):     # confédération mineure -> jamais forcée (peut entrer via top-N)
+        return False
+    return any(k in c for k in _BIG_TOURNEY_KW)
 
 
 def _is_covered_comp(comp: str) -> bool:

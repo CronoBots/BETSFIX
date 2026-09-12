@@ -301,7 +301,12 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats
   combinés par jambe). Cap **10+10** (jour+nuit) + pack élite
   (relevé de 7+7 le 2026-09-11, permis par le retrait de la double analyse : ~2× moins de charge Claude/match →
-  ~20-24 matchs/jour restent à/sous l'ancienne consommation). Mémoire `daily-construction-methodology`
+  ~20-24 matchs/jour restent à/sous l'ancienne consommation). **PACK ÉLITE = UEFA + CONMEBOL + Euro/CdM SEULEMENT**
+  (`match_select.is_elite_comp` ; user 2026-09-12) : le mot-clé générique « champions league » forçait AUSSI les
+  qualifs **CAF/AFC/CONCACAF** (ex. 7 qualifs CAF gonflant le slate matin à 17) alors qu'elles n'ont ni la donnée
+  ni le sharp du pack. **Mesuré sur 876 sidecars : CAF+AFC = 0 pari publié** (vs UEFA 43, CONMEBOL 3) → exclues via
+  `_MINOR_CONFED_KW` (0 pari historique retiré). Elles peuvent encore entrer via le top-N si leur profondeur de
+  marché les classe (elle ne le fait pas). Mémoire `daily-construction-methodology`
   (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
 - **⛔ LE NOMBRE DE MATCHS N'AFFAIBLIT PAS L'ANALYSE/SÉLECTION (garantie, user 2026-09-12)** — décision tranchée,
   ne pas re-débattre : chaque match a son PROPRE `run_claude` (timeout INDÉPENDANT, `generate_analyses.py`
