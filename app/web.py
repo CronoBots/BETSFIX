@@ -455,24 +455,27 @@ CSS = """
   @media (max-width:999px){
     /* BARRE « à la Strava » (user 2026-09-12) : capsule FLOTTANTE, détachée des bords, verre dépoli (blur),
        coins pleinement arrondis, filet clair sur tout le pourtour + ombre douce. Elle ne colle plus au bord :
-       elle plane au-dessus du contenu qui défile derrière (le fond html #0b0d12 peint la zone home-indicator).
-       Le décalage bas intègre la safe-area iPhone. Le body réserve sa hauteur via padding-bas (plus bas). */
-    .botnav{position:fixed;top:auto;bottom:calc(9px + env(safe-area-inset-bottom, 0px));
-            left:8px;right:8px;width:auto;max-width:500px;margin:0 auto;
-            gap:2px;padding:6px 6px;border-radius:26px;border:1px solid rgba(255,255,255,.10);
+       elle plane au-dessus du contenu qui défile derrière (le dégradé html transparaît jusqu'au bord bas).
+       PLACEMENT BAS = comme Strava (user 2026-09-12 capture) : la capsule se cale JUSTE au-dessus du
+       home-indicator, pas à +43px. On RETRANCHE une partie de la safe-area au lieu de l'ADDITIONNER :
+       `max(8px, safe-area − 18px)` -> ~16px sur iPhone (safe 34), 8px sans safe-area. Le home-indicator passe
+       juste sous la capsule (ses icônes/labels vivent dans le tiers haut -> jamais masqués). */
+    .botnav{position:fixed;top:auto;bottom:max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
+            left:10px;right:10px;width:auto;max-width:500px;margin:0 auto;
+            gap:2px;padding:8px 8px;border-radius:28px;border:1px solid rgba(255,255,255,.11);
             /* VERRE DÉPOLI (user 2026-09-12 « on voit à travers ») : fond très translucide -> le contenu qui
                défile derrière transparaît, flouté (blur) + saturé. Repli `@supports not` : fond ~opaque là où
                backdrop-filter n'existe pas, pour rester lisible. */
-            background:rgba(17,19,26,.55);
-            -webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);
+            background:rgba(19,21,29,.55);
+            -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
             /* COUCHE GPU (2026-09-10, jank scroll navigateur) : quand la barre Safari redimensionne le viewport
                au scroll, cette barre fixe + son ombre se re-peignaient à chaque frame. translateZ la met
                sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. Absent en PWA. */
             transform:translateZ(0);will-change:transform;
-            box-shadow:0 12px 34px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.05)}
+            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
     /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
-       étroite que la barre pleine largeur (le label garde son comportement de base : il tient déjà à 5 onglets). */
-    .botnav a{min-width:0}
+       étroite que la barre pleine largeur. Padding généreux + coins arrondis = pilule active bien détourée. */
+    .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
     @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
       .botnav{background:rgba(12,14,19,.94)}   /* pas de flou dispo -> fond ~opaque, on garde la lisibilité */
     }
@@ -539,9 +542,22 @@ CSS = """
     .botnav a[data-tab="home"].on,
     .botnav a[data-tab="directs"].on,
     .botnav a[data-tab="stats"].on{
-      background:var(--glow);color:var(--accent);border-radius:18px}
+      /* pilule = accent translucide (--glow) + FILET accent net (le glow seul est trop diffus sur le verre),
+         icône+texte à la couleur d'accent (SVG currentColor). Se détoure proprement du fond dépoli. */
+      background:var(--glow);color:var(--accent);border-radius:16px;
+      box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 38%,transparent)}
     .botnav a.on .lb{font-weight:800}
-    .botnav a.on .ic{transform:scale(1.04)}
+    .botnav a.on .ic{transform:scale(1.05)}
+    /* labels + icônes un poil plus lisibles sur la capsule (repères tactiles) */
+    .botnav a .lb{font-size:9.5px;letter-spacing:.015em}
+    .botnav a .ic{height:25px}
+    /* badge compteur : plus fin, calé sur le coin haut-droit de l'icône, filet couleur-du-verre */
+    .nav-n{top:2px;left:calc(50% + 8px);min-width:15px;height:15px;font-size:10px;line-height:15px;
+           border-color:rgba(19,21,29,.9)}
+  }
+  /* Repli sans color-mix (Safari < 16.4) : filet clair léger (le glow reste), SCOPÉ mobile (desktop intact). */
+  @supports not (color:color-mix(in srgb,red,blue)){
+    @media (max-width:999px){ .botnav a.on{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)} }
   }
   /* 6 onglets -> labels un brin plus compacts pour tenir sur petit écran */
   .botnav a .lb{font-size:9px}
