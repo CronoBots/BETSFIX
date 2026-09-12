@@ -464,29 +464,24 @@ CSS = """
     .botnav{position:fixed;top:auto;bottom:max(12px, calc(env(safe-area-inset-bottom, 0px) - 12px));
             left:20px;right:20px;width:auto;max-width:480px;margin:0 auto;
             gap:2px;padding:8px 8px;border-radius:28px;border:1px solid rgba(255,255,255,.11);
-            /* VERRE DÉPOLI (user 2026-09-12 « on voit à travers ») : fond très translucide -> le contenu qui
-               défile derrière transparaît, flouté (blur) + saturé. Repli `@supports not` : fond ~opaque là où
-               backdrop-filter n'existe pas, pour rester lisible. */
+            background:transparent;   /* le VERRE (fond translucide + flou) est porté par ::before (voir plus bas) */
+            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
+    /* ⚠️ FIX DÉFINITIF « la barre remonte / suit le contenu » (user 2026-09-12) — l'utilisateur a pinpointé :
+       la position dépend de la QUANTITÉ de contenu de l'onglet. Cause : sur iOS/WebKit, `backdrop-filter` (tout
+       comme `transform`) sur un élément `position:fixed` CASSE son placement fixe -> il se comporte comme
+       absolu et dérive avec le scroll/contenu. On DÉPORTE donc le verre (fond translucide + blur + couche GPU)
+       sur un PSEUDO `::before` NON-FIXE (absolu, inset:0) : le filtre n'est plus sur l'élément fixe -> la barre
+       reste ancrée au VIEWPORT sur TOUS les onglets, quel que soit le contenu. Le pseudo garde translateZ
+       (anti-jank navigateur) sans aucune conséquence sur le placement du parent. Marche browser ET PWA. */
+    .botnav::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
             background:rgba(19,21,29,.55);
             -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
-            /* COUCHE GPU (2026-09-10, jank scroll NAVIGATEUR) : quand la barre Safari redimensionne le viewport
-               au scroll, cette barre fixe + son ombre se re-peignaient à chaque frame. translateZ la met
-               sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. NÉCESSAIRE au navigateur
-               SEULEMENT ; en PWA elle est NEUTRALISÉE plus bas (bug de placement, cf. html.pwa). */
-            transform:translateZ(0);will-change:transform;
-            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
-    /* ⚠️ BUG iOS PWA (user 2026-09-12 : « de temps en temps la barre remonte sur Live/Compte ») : sur un onglet
-       à CONTENU COURT (état vide Live, Compte), une barre `position:fixed` PROMUE en couche GPU
-       (`transform`/`will-change`) se fige sur un SNAPSHOT de couche calculé pour la hauteur de l'onglet
-       PRÉCÉDENT -> elle « remonte » au lieu de rester au bas du viewport. Le navigateur (jank scroll) a besoin de
-       la couche ; le PWA standalone NON (pas de barre d'URL). On la RETIRE donc en PWA (`html.pwa` posé par JS)
-       -> le placement fixe redevient relatif au viewport, stable sur tous les onglets. */
-    html.pwa .botnav{transform:none;will-change:auto}
+            transform:translateZ(0)}
     /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
        étroite que la barre pleine largeur. Padding généreux + coins arrondis = pilule active bien détourée. */
     .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
     @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-      .botnav{background:rgba(12,14,19,.94)}   /* pas de flou dispo -> fond ~opaque, on garde la lisibilité */
+      .botnav::before{background:rgba(12,14,19,.94)}   /* pas de flou dispo -> fond ~opaque, on garde la lisibilité */
     }
     /* Le body scrolle -> `.wrap` doit remplir AU MOINS un écran (moins la barre) pour que la chaîne flex:1
        ci-dessous ait de la hauteur à répartir. Sans ça (jour léger), les catégories se tassent en haut et le
