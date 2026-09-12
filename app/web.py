@@ -3947,6 +3947,22 @@ CSS = """
 _CSS_VER = hashlib.md5(CSS.encode("utf-8")).hexdigest()[:10]
 _CSS_LINK = f'<link rel="stylesheet" href="/app.css?v={_CSS_VER}">'
 
+# AUTO-MISE-À-JOUR PWA (user 2026-09-12) : un PWA iOS garde sa SESSION (pas de rechargement complet en
+# basculant d'onglet SPA) -> les correctifs CSS/HTML n'apparaissaient qu'après un redémarrage MANUEL du PWA
+# (fermer depuis le sélecteur d'apps). Ici : la page embarque sa version (`_CSS_VER`, hash du CSS = change à
+# chaque modif UI) ; quand le PWA REDEVIENT VISIBLE (retour d'arrière-plan) ou est restauré du bfcache, il
+# interroge `/appver` (no-store) et se RECHARGE si la version serveur diffère -> le correctif apparaît TOUT
+# SEUL, sans manip. Anti-boucle : après reload, le hash embarqué == serveur -> plus de reload.
+_VERCHECK_JS = (
+    '(function(){var V="' + _CSS_VER + '";var busy=false;'
+    'function chk(){if(busy)return;busy=true;'
+    'fetch("/appver",{cache:"no-store"}).then(function(r){return r.text();}).then(function(v){'
+    'busy=false;v=(v||"").trim();if(v&&v!==V){location.reload();}}).catch(function(){busy=false;});}'
+    'document.addEventListener("visibilitychange",function(){if(!document.hidden)chk();});'
+    'window.addEventListener("pageshow",function(e){if(e.persisted)chk();});'
+    '})();'
+)
+
 # Menu principal groupé par SPORT ; chaque sport a son sous-menu (Matchs / Fiabilité).
 _SPORT_MATCH_URL = {"tennis": "/app", "basket": "/basket", "foot": "/foot"}
 
@@ -4818,7 +4834,7 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 {_CSS_LINK}</head><body class="sp-{e(sport)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}{sub}{body}
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
+</div>{_TOTOP_HTML}{botnav}<script>{_VERCHECK_JS}</script><script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
 
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
@@ -4864,7 +4880,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 {_CSS_LINK}</head><body class="sp-{e(active)}">
 {_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
-</div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
+</div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_VERCHECK_JS}</script><script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
 def bars_split(model, implied) -> dict:
     """Champs des barres RÉPARTIES. model/implied = (home, nul|None, away) par source."""

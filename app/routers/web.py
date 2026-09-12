@@ -787,6 +787,14 @@ async def app_css():
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
+@router.get("/appver", include_in_schema=False)
+async def app_version():
+    """Version courante de l'UI (= hash du CSS, `web._CSS_VER`). Interrogé par le PWA quand il redevient visible :
+    s'il diffère de la version embarquée dans la page, le PWA se recharge -> les correctifs apparaissent seuls,
+    sans redémarrage manuel. `no-store` : jamais mis en cache (sinon le contrôle serait aveugle)."""
+    return Response(web._CSS_VER, media_type="text/plain", headers={"Cache-Control": "no-store"})
+
+
 @router.get("/sw.js", include_in_schema=False)
 async def service_worker():
     """Service worker (racine -> scope « / ») : reçoit les push et affiche la notification."""
