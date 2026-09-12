@@ -89,6 +89,11 @@ def apply_to_sidecar(d: dict) -> bool:
         return False
     if isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code"):
         return False
+    # ANCRE SHARP STRUCTURÉE REQUISE (user 2026-09-12) : pas de `sharp_map` = value non recoupée par un book
+    # sharp (ex. CAF hors couverture Pinnacle) -> pari « à sec ». On ABSTIENT (le match reste analysé/affiché).
+    # Verrou aligné sur le selfcheck `_check_played_bet_sharp_anchor` — cf. [[sharp-anchor-theoddsapi]].
+    if not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+        return False
     c = pick_for_sidecar(d)
     if not c:
         return False

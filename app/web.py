@@ -8264,6 +8264,8 @@ def _settled_wl_today(iso: str, sport: str | None, tier: str | None = None) -> t
         if sp in _bg and sp != sport:
             continue
         for d in analyses.iter_meta(sp):
+            if d.get("roi_void"):        # exclu du ROI/record — comme _settled_bet_result_cards + la vérité selfcheck
+                continue                 # (sinon un pari voidé reste compté dans le record mais pas en carte = divergence)
             dt = d.get("_start_dt")
             ld = to_local(dt) if dt else None
             if ld is None or _sport_date(ld).isoformat() != iso:

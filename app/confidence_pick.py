@@ -162,6 +162,12 @@ def apply_to_sidecar(d: dict) -> bool:
         return False
     if isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"):
         return False                                   # déjà figé -> jamais re-prixé (comme published_bet)
+    # ANCRE SHARP STRUCTURÉE REQUISE (user 2026-09-12) : sans `sharp_map` (proba sharp par code figée au scan),
+    # l'EV/sélection n'est recoupée par AUCUN book sharp -> pari « à sec » (ex. ligues CAF hors couverture
+    # Pinnacle). On N'EN POSE PAS -> abstention. Le match reste ANALYSÉ/affiché ; seule la PUBLICATION du pari
+    # est bloquée. Verrou aligné sur le selfcheck `_check_played_bet_sharp_anchor` (mémoire sharp-anchor-theoddsapi).
+    if not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+        return False
     c = pick_from_candidates(match_candidates(d, require_omap=True))   # PRODUCTION : cote Unibet vérifiée obligatoire
     if not c:
         return False

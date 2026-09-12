@@ -414,7 +414,12 @@ def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
     # SÉLECTION : pari dans sa bande + cote réelle + cohérence proba/cote ; ou abstention (décision valide)
     selection = "✅"
     if rb and rb.get("sel"):
-        tkey = rb.get("tier") or "confiance"
+        # TIER CANONIQUE (fix 2026-09-12) : `rb.get("tier")` est ABSENT sur un `stat_bet` figé par
+        # `backfill_stat_bets`/le règlement (ils ne copient pas tier/kind) -> l'ancien `or "confiance"`
+        # classait TOUT pari value figé en « confiance » et criait « cote HORS bande confiance » à tort
+        # (ex. value @1.56 : légitime en bande value 1.30–2.30). On lit le MÊME tier que les stats/l'app
+        # (`analyses.tier_of` : confidence_bet/value_bet présents, monotone) -> plus de fausse alerte rouge.
+        tkey = A.tier_of(d, rb)
         lo, hi = _BANDS.get(tkey, (1.01, 100.0))
         cote, prob, cprob, code = rb.get("cote"), rb.get("prob"), rb.get("cprob"), rb.get("code")
         if isinstance(cote, (int, float)) and lo - 1e-9 <= cote <= hi + 1e-9:
@@ -466,7 +471,7 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
     lines.append("")
 
     if rb and rb.get("sel"):
-        tier = {"confiance": "CONFIANCE", "value": "VALUE"}.get(rb.get("tier"), (rb.get("tier") or "").upper())
+        tier = {"confiance": "CONFIANCE", "value": "VALUE"}.get(A.tier_of(d, rb), "VALUE")   # tier canonique (cf. _qc_audit)
         prob, cprob = rb.get("prob"), rb.get("cprob")
         conf = ""
         if isinstance(prob, (int, float)):
