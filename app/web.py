@@ -1015,8 +1015,10 @@ CSS = """
        border-color:color-mix(in srgb,var(--st-lost) 40%,transparent)}
   /* 🔔 NOTIFS PAR MATCH (user 2026-09-06) : bouton en haut-GAUCHE, VISIBLE UNIQUEMENT en PWA installée
      (classe `html.pwa` posée par JS). État suivi = doré. Clic géré par bfxMatchBell (stopPropagation). */
-  /* Placé EXACTEMENT comme le badge ✓/✗ (.mc-corner : top:9px;right:10px;26px) — user 2026-09-06. Blanc, visible. */
-  .mc-bell{display:none;position:absolute;top:9px;right:10px;left:auto;z-index:5;width:26px;height:26px;border-radius:50%;
+  /* HAUT-GAUCHE (top:9px;left:10px) — user 2026-09-12 : à DROITE il chevauchait le badge résultat ✓/✗
+     (.mc-corner) ET le badge décompte/live (.mc-badge). La ligue est CENTRÉE avec 44px de padding latéral
+     -> un bouton de 26px calé à gauche (finit à 36px) ne mord jamais sur le texte de la ligue. */
+  .mc-bell{display:none;position:absolute;top:9px;left:10px;right:auto;z-index:5;width:26px;height:26px;border-radius:50%;
        align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.09);
        color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0}
   /* BOUTON « HAUT DE PAGE » (user 2026-09-06) : coin bas-DROITE, au-dessus de la nav, style du site (dégradé
