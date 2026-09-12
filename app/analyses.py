@@ -44,13 +44,17 @@ _ITERMETA_TTL = 2.0          # s : même logique que _FID_SIG_TTL (dossier stabl
 _DIR_SIG_CACHE: list = [0.0, ()]   # [ts_monotone, sig] : cache TRÈS court (anti-scandir répété intra-rendu)
 
 
-def _dir_sig() -> tuple:
+def _dir_sig(fresh: bool = False) -> tuple:
     """Signature (noms + mtimes ns) de TOUS les sidecars — clé d'invalidation des caches agrégés
     (calibration, stats). Cache 2 s : `_dir_sig` était appelé ~7×/rendu (chacun scandir+stat ~460 fichiers
     = tempête de ~3500 stats, ~0,4 s) ; 2 s suffit pour partager UN scandir sur tout un rendu sans risque
-    (les agrégats lag déjà ~15 s via le warmer ; selfcheck lit à part). Un scandir vaut mieux que re-parser N JSON."""
+    (les agrégats lag déjà ~15 s via le warmer ; selfcheck lit à part). Un scandir vaut mieux que re-parser N JSON.
+    `fresh=True` (2026-09-12) : IGNORE le cache 2 s et re-scandir MAINTENANT — indispensable juste APRÈS un
+    règlement (warm_stats_snapshot) : sinon un rendu ayant appelé `_dir_sig` < 2 s avant le règlement laissait
+    la signature PRÉ-règlement en cache -> warm ET stats_full la relisaient -> snapshot JAMAIS rafraîchi
+    (stats périmées 165↔166). Le re-scandir REPEUPLE le cache -> le `stats_full()` qui suit lit la fraîche."""
     now = time.monotonic()
-    if now - _DIR_SIG_CACHE[0] < 2.0:
+    if not fresh and now - _DIR_SIG_CACHE[0] < 2.0:
         return _DIR_SIG_CACHE[1]
     try:
         sig = tuple(sorted((e.name, e.stat().st_mtime_ns) for e in os.scandir(DIR)
@@ -3221,7 +3225,9 @@ def warm_stats_snapshot() -> bool:
     2,5 s qui gèle le process. Best-effort ; ne casse jamais. True si (re)calculé. LECTURE SEULE (source
     intacte)."""
     try:
-        _sh = _sig_hash(_dir_sig())
+        # SIGNATURE FRAÎCHE (fresh=True) : re-scandir MAINTENANT, jamais le cache 2 s (qui pouvait tenir la
+        # signature PRÉ-règlement) -> détecte le changement + repeuple le cache pour le stats_full() qui suit.
+        _sh = _sig_hash(_dir_sig(fresh=True))
         _snap = _load_stats_snapshot()
         if _snap and _snap.get("sig") == _sh:
             return False                           # snapshot déjà à jour -> rien à faire
