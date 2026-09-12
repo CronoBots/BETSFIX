@@ -87,7 +87,18 @@ def postponed_alert() -> dict:
             status = (f or {}).get("status")
             if status in _PP_STATUS:
                 flagged += 1
-                alerts.append(f"• {d.get('name')} ({st[:16]}) → {_PP_STATUS[status]} ({status})")
+                # AUTO-RÉPARATION (à venir) : un pari POSÉ sur un match qui n'aura pas lieu est RETIRÉ ->
+                # abstention (site + ROI corrects). Seulement si le KO n'est pas encore passé (règle #9).
+                _act = ""
+                if ko > now:
+                    _pub = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+                    _rm = False
+                    for _k in ("confidence_bet", "value_bet"):
+                        if isinstance(d.get(_k), dict) and d[_k].get("code"):
+                            d.pop(_k, None); d["abstained"] = True; _rm = True
+                    if _rm:
+                        _act = " → pari RETIRÉ auto (abstention)" + (" ⚠️ carte Telegram à supprimer" if _pub else "")
+                alerts.append(f"• {d.get('name')} ({st[:16]}) → {_PP_STATUS[status]} ({status}){_act}")
                 d["af_pp_alerted"] = status
                 _save(p, d)
     except Exception:
@@ -103,7 +114,8 @@ def postponed_alert() -> dict:
             from app import notify
             notify.owner_alert("Matchs reportés / annulés (API-Football)", "\n".join(alerts),
                                severity="warn",
-                               action="un pari « à venir » porte sur un match qui n'aura peut-être pas lieu — vérifier / retirer.")
+                               action="les paris À VENIR ont été retirés automatiquement (abstention) ; vérifier "
+                                      "et supprimer une éventuelle carte Telegram déjà postée.")
         except Exception:
             pass
     return {"checked": checked, "flagged": flagged}

@@ -172,6 +172,60 @@ def _cote_drift(d: dict, rb: dict | None):
             f"mouvement de marché après le conseil OU cote NON-Unibet à vérifier")
 
 
+def _auto_remediate(d: dict, jsonp: str):
+    """AUTO-RÉPARATION des problèmes SÛRS et DÉTERMINISTES sur un match À VENIR (non commencé, non réglé) —
+    user 2026-09-12 (« réagir automatiquement pour la résolution »). Un pari mécanique posé qui NE VALIDE PLUS
+    est RETIRÉ -> abstention (le match reste analysé/affiché, sans pari) ; le SITE + le ROI se corrigent seuls.
+    Deux causes traitées (les mêmes que les verrous de sélection) :
+      1. ancre sharp ABSENTE ou REJETÉE (`sharp_conflict`) -> pari « à sec » ;
+      2. VRAIE cote Unibet (`omap[code]`) HORS bande du tier -> cote non conforme.
+    ⛔ N'agit QUE si le match n'a pas commencé (règle #9 : un événement commencé/réglé ne s'auto-modifie pas).
+    Écrit le sidecar (atomique). Retourne une description si une action a eu lieu, sinon None. Idempotent."""
+    if not jsonp or d.get("sport") != "foot" or d.get("roi_void"):
+        return None
+    try:
+        if A.is_settled(d):
+            return None
+        st = datetime.fromisoformat(str(d.get("start")).replace("Z", "+00:00")).timestamp()
+        if st <= datetime.now(timezone.utc).timestamp():
+            return None                                # match commencé -> pas d'auto-fix (propagation manuelle)
+    except Exception:
+        return None
+    om = d.get("omap") or {}
+    for _k, _tier in (("confidence_bet", "confiance"), ("value_bet", "value")):
+        b = d.get(_k)
+        if not (isinstance(b, dict) and b.get("code")):
+            continue
+        code, reason = b["code"], None
+        if d.get("sharp_conflict"):
+            reason = "ancre sharp rejetée (favori Pinnacle opposé au marché)"
+        elif not (isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")):
+            reason = "aucune ancre sharp structurée"
+        else:
+            from app import confidence_pick as _CP, value_pick as _VP
+            lo, hi = (_CP.COTE_LO, _CP.COTE_HI) if _k == "confidence_bet" else (_VP.COTE_LO, _VP.COTE_HI)
+            real = om.get(code)
+            if isinstance(real, (int, float)) and not (lo - 1e-9 <= real <= hi + 1e-9):
+                reason = f"vraie cote Unibet {real:.2f} hors bande {_tier} [{lo:g}–{hi:g}]"
+        if not reason:
+            continue
+        _published = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+        d.pop(_k, None)
+        d["abstained"] = True                          # -> retained_bet None -> abstention (site + ROI)
+        try:
+            tmp = jsonp + ".tmp"
+            json.dump(d, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+            os.replace(tmp, jsonp)
+        except OSError:
+            return None
+        nm = d.get("name") or f"{d.get('home')} - {d.get('away')}"
+        note = f"{nm} : pari {_tier} RETIRÉ (à venir — {reason}) → abstention"
+        if _published:
+            note += " ⚠️ (déjà posté sur Telegram : carte à supprimer manuellement)"
+        return note
+    return None
+
+
 def run(date: str | None = None, send_alert: bool = False) -> int:
     prog = _load_programme()
     matches = prog.get("matches") or []
@@ -186,6 +240,7 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     missed_list = []      # matchs dont la vague est passée SANS analyse
     bad_bets = []         # (nom, [soucis]) : pari JOUÉ avec un pilier SÉLECTION/SOURCES ❌ (vérif par match)
     cote_drift = []       # (nom, msg) : pari À VENIR dont la cote figée ≠ vraie cote Unibet -> alerte privée
+    auto_fixed = []       # descriptions des paris À VENIR retirés AUTOMATIQUEMENT (ancre/cote) -> note INFO
     print(f"═══ CONTRÔLE QUALITÉ D'ANALYSE — {day or 'jour courant'} ═══")
     print(f"Programme : {len(matches)} match(s)\n")
     for m in matches:
@@ -193,6 +248,15 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
         home, away = m.get("home", ""), m.get("away", "")
         name = m.get("name") or f"{home} - {away}"
         d, md = _sidecar_for(mid, home, away)
+        # AUTO-RÉPARATION (à venir) AVANT l'audit -> l'audit voit déjà l'abstention corrigée. Uniquement en mode
+        # --alert (production) : le mode preview ne modifie JAMAIS les sidecars.
+        if send_alert and d and md:
+            try:
+                _fx = _auto_remediate(d, md[:-3] + ".json")
+                if _fx:
+                    auto_fixed.append(_fx)
+            except Exception:
+                pass
         is_analysed = bool(d and (d.get("bets") or d.get("shadow") or d.get("abstained") or d.get("stat_bet")))
         ko = _ts(m.get("start"))
         wave_due = ko is not None and now >= (ko - WAVE_LEAD_H * 3600)   # la vague aurait dû tourner
@@ -290,6 +354,20 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     # COTE à vérifier : cote figée ≠ vraie cote Unibet sur un pari à venir (régression cote-estimée ou mouvement).
     for _n, _m in cote_drift:
         alert.append(f"COTE à vérifier — {_n} : {_m}")
+    # AUTO-RÉPARATIONS (à venir) : note INFO séparée « aucune action » (dédupliquée) — le problème est DÉJÀ résolu.
+    if auto_fixed:
+        print("✅ AUTO-RÉSOLU : " + " ; ".join(auto_fixed))
+        if send_alert:
+            from app import notify
+            _new_fx = _new_issues(day, [f"autofix:{a}" for a in auto_fixed])
+            if _new_fx:
+                notify.owner_alert(
+                    "Auto-réparation (paris à venir)",
+                    "\n".join(f"✅ {a}" for a in auto_fixed)
+                    + "\n\nCes paris À VENIR ne validaient plus (ancre sharp ou vraie cote Unibet hors bande) : "
+                      "retirés automatiquement → le site et le ROI affichent l'abstention. Aucune action requise "
+                      "(sauf suppression manuelle d'une carte Telegram si le pari avait déjà été posté).",
+                    severity="info")
     print()
     if alert:
         print("🔴 ALERTE :")
