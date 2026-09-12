@@ -71,7 +71,9 @@ def panel_deployed():
             continue
         if d.get("roi_void"):
             continue
-        k = sb.get("kind")
+        # TIER via `tier_of` (fix 2026-09-12), PAS `sb.get("kind")` (absent sur les stat_bet backfillés ->
+        # tous les value tombaient hors panel = ligne Value VIDE). tier_of : confidence_bet/value_bet -> FR.
+        k = "confidence" if A.tier_of(d) == "confiance" else "value"
         if k in tiers:
             rec = (sb["result"], sb.get("cote") or 0)
             tiers[k]["hist"].append(rec)
@@ -99,7 +101,11 @@ def panel_elite():
         sb = d.get("stat_bet")
         if not (isinstance(sb, dict) and sb.get("result") in ("won", "lost")):
             continue
-        if d.get("roi_void") or sb.get("kind") not in ("confidence", "value"):
+        # NE PLUS filtrer sur `sb.get("kind")` (fix 2026-09-12) : il est ABSENT sur les stat_bet figés par
+        # backfill/règlement (ils ne copient pas `kind`) -> 77/154 paris (dont TOUS les value) étaient
+        # INVISIBLES dans /monitor. Le vrai tier vient de `tier_of` (confidence_bet/value_bet), pas du kind
+        # du stat_bet. Ce panel groupe par élite/domestique (pas par tier) -> on compte tous les paris comptés.
+        if d.get("roi_void") or A.tier_of(d) not in ("confiance", "value"):
             continue
         g = "élite" if is_elite_comp(d.get("comp") or "") else "domestique"
         rec = (sb["result"], sb.get("cote") or 0)
