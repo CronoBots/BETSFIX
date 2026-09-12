@@ -340,11 +340,12 @@ CSS = """
        transform:translateZ(0);backface-visibility:hidden;will-change:transform;
        background:radial-gradient(1100px 640px at 50% -6%,var(--halo),transparent 60%),
                   radial-gradient(820px 520px at 100% 104%,var(--halo),transparent 72%)}
-  /* FILET DE SÉCURITÉ safe-area (user 2026-08-16) : le fond du body (#070708) RECOUVRE le html -> en PWA
-     standalone une ZONE NOIRE apparaissait sous la nav (home-indicator iOS). On peint cette bande, en FIXE,
-     avec la couleur de la nav (#0b0d12), sous la barre (z<nav). */
-  body::after{content:'';position:fixed;left:0;right:0;bottom:0;height:env(safe-area-inset-bottom,0px);
-       background:#0b0d12;z-index:59;pointer-events:none}
+  /* ⛔ Ancienne « bande safe-area » RETIRÉE (user 2026-09-12, menu flottant « Strava ») : elle peignait un
+     rectangle OPAQUE #0b0d12 sur la zone home-indicator (z:59, sous la nav). Quand la barre COLLAIT au bas
+     (bottom:0) c'était un filet utile ; mais la capsule FLOTTE maintenant au-dessus du vide -> cette bande
+     devenait une BANDE NOIRE MORTE sous la barre. Le body étant transparent, le dégradé de `html`/`html::before`
+     (fixe, 100vh) transparaît désormais jusqu'au BORD BAS de l'écran = fond continu « à la Strava », la barre
+     de verre plane par-dessus. (Rien à repeindre : html couvre déjà toute la hauteur, safe-area comprise.) */
   /* Coquille NON-scrollante en COLONNE FLEX,
   hauteur = viewport DYNAMIQUE (100dvh) : le contenu
      scrolle DANS .wrap (flex:1) et la barre du bas est un enfant flex STATIQUE collé au bas. Sur iOS
@@ -364,7 +365,7 @@ CSS = """
           `height:100dvh;overflow:hidden` + scroll interne `.wrap`, qui calait mal en PWA iOS -> zone morte
           sous la barre). La barre est `position:fixed;bottom:0` et le body RÉSERVE sa hauteur via padding-bas. */
        min-height:100svh;overscroll-behavior-y:none;   /* svh STATIQUE (2026-09-10) : dvh recalculait à chaque frame pendant l'animation de la barre Safari = jank navigateur. Écart couvert par le fond fixe 100vh. */
-       padding-bottom:calc(62px + env(safe-area-inset-bottom, 0px));
+       padding-bottom:calc(84px + env(safe-area-inset-bottom, 0px));   /* réserve la capsule flottante « Strava » + son décalage bas */
        font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
@@ -452,20 +453,33 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* BARRE FIXE en bas (recette EXACTE CRYPTONAUTS, user 2026-08-22) : le body scrolle et RÉSERVE la hauteur
-       de la barre via son padding-bas -> la barre `position:fixed;bottom:0` est collée au VRAI bas de l'écran
-       (plus de zone morte), son `padding-bas = 6px + safe-area` peint la zone home-indicator iPhone. */
-    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;
-            padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    /* BARRE « à la Strava » (user 2026-09-12) : capsule FLOTTANTE, détachée des bords, verre dépoli (blur),
+       coins pleinement arrondis, filet clair sur tout le pourtour + ombre douce. Elle ne colle plus au bord :
+       elle plane au-dessus du contenu qui défile derrière (le fond html #0b0d12 peint la zone home-indicator).
+       Le décalage bas intègre la safe-area iPhone. Le body réserve sa hauteur via padding-bas (plus bas). */
+    .botnav{position:fixed;top:auto;bottom:calc(9px + env(safe-area-inset-bottom, 0px));
+            left:8px;right:8px;width:auto;max-width:500px;margin:0 auto;
+            gap:2px;padding:6px 6px;border-radius:26px;border:1px solid rgba(255,255,255,.10);
+            /* VERRE DÉPOLI (user 2026-09-12 « on voit à travers ») : fond très translucide -> le contenu qui
+               défile derrière transparaît, flouté (blur) + saturé. Repli `@supports not` : fond ~opaque là où
+               backdrop-filter n'existe pas, pour rester lisible. */
+            background:rgba(17,19,26,.55);
+            -webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);
             /* COUCHE GPU (2026-09-10, jank scroll navigateur) : quand la barre Safari redimensionne le viewport
-               au scroll, cette barre fixe + son ombre 28px se re-peignaient à chaque frame. translateZ la met
+               au scroll, cette barre fixe + son ombre se re-peignaient à chaque frame. translateZ la met
                sur sa propre couche -> repositionnement/ombre en cache = quasi gratuit. Absent en PWA. */
             transform:translateZ(0);will-change:transform;
-            box-shadow:0 -8px 28px rgba(0,0,0,.45)}
+            box-shadow:0 12px 34px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.05)}
+    /* Cellules à largeur ÉGALE qui peuvent RÉTRÉCIR (min-width:0) -> aucune ne déborde la capsule un peu plus
+       étroite que la barre pleine largeur (le label garde son comportement de base : il tient déjà à 5 onglets). */
+    .botnav a{min-width:0}
+    @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+      .botnav{background:rgba(12,14,19,.94)}   /* pas de flou dispo -> fond ~opaque, on garde la lisibilité */
+    }
     /* Le body scrolle -> `.wrap` doit remplir AU MOINS un écran (moins la barre) pour que la chaîne flex:1
        ci-dessous ait de la hauteur à répartir. Sans ça (jour léger), les catégories se tassent en haut et le
        « 18+ » colle au dernier pari au lieu de descendre près de la barre (user 2026-08-22). */
-    .wrap{min-height:calc(100svh - 62px - env(safe-area-inset-bottom, 0px))}   /* svh statique (cf. body) */
+    .wrap{min-height:calc(100svh - 80px - env(safe-area-inset-bottom, 0px))}   /* svh statique (cf. body) ; 80 = capsule flottante + décalage bas */
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
@@ -478,7 +492,7 @@ CSS = """
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
-  .a2hs{position:fixed;left:10px;right:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:85;
+  .a2hs{position:fixed;left:10px;right:10px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:85;
        max-width:620px;margin:0 auto;display:flex;align-items:center;gap:11px;padding:11px 11px 11px 13px;
        border-radius:16px;border:1px solid rgba(120,170,220,.32);
        background:linear-gradient(180deg,#161b25,#0d1017);box-shadow:0 14px 38px rgba(0,0,0,.6);
@@ -515,6 +529,20 @@ CSS = """
   .botnav a[data-tab="directs"].on,
   .botnav a[data-tab="stats"].on{
     background:linear-gradient(180deg,var(--accent),var(--accent2));color:var(--accent-ink)}
+  /* PASTILLE ACTIVE « à la Strava » (mobile, user 2026-09-12) : sur la capsule flottante, l'onglet ouvert n'est
+     PLUS un pavé plein dégradé mais une PILULE teintée (l'accent en translucide via `--glow`) qui épouse
+     l'icône+label, icône et texte à la COULEUR d'accent (le SVG hérite via currentColor). Placé APRÈS les
+     règles de base pour les surcharger à spécificité égale sur mobile ; le DESKTOP (≥1000px, sidebar) garde
+     son pavé dégradé. */
+  @media (max-width:999px){
+    .botnav a.on,
+    .botnav a[data-tab="home"].on,
+    .botnav a[data-tab="directs"].on,
+    .botnav a[data-tab="stats"].on{
+      background:var(--glow);color:var(--accent);border-radius:18px}
+    .botnav a.on .lb{font-weight:800}
+    .botnav a.on .ic{transform:scale(1.04)}
+  }
   /* 6 onglets -> labels un brin plus compacts pour tenir sur petit écran */
   .botnav a .lb{font-size:9px}
   .botnav a .ic{font-size:22px;height:24px}
