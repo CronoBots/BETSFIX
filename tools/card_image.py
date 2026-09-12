@@ -556,14 +556,83 @@ def _site_card_html(d: dict, *, settled: bool = False) -> str:
 
 
 def _simple_card_html(d: dict) -> str:
-    """ANNONCE d'un prono simple = LA carte du site à l'identique (voir `_site_card_html`)."""
-    return _site_card_html(d, settled=False)
+    """ANNONCE d'un prono simple = image PURPOSE-BUILT (user 2026-09-12 : « les pronos Telegram sont coupés,
+    je préfère une image REFAITE, pas un screenshot du site »). Le rendu du VRAI `.row.mc` standalone se
+    coupait (il dépend du contexte de mise en page du site). Ici : markup AUTONOME `.card.scard` à largeur
+    FIXE (920px) + `_CSS_SIMPLE` — filigrane, ligue, logos+équipes+heure, cadre pari, verdict Confiance/Cote/
+    marché façon site — donc JAMAIS rogné. Données = MÊME contrat que `_site_card_html` (country/comp/pick/
+    conf/cote/logos), zéro screenshot de DOM du site."""
+    from app import web
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _country, _comp = web._cap(str(d.get("country") or "")), web._cap(str(d.get("comp") or ""))
+    if _country and _comp and _country.lower() in _comp.lower():
+        _country = ""
+    _lg = " • ".join(web._noF(p) for p in (_country, _comp) if p).upper()
+    _hh, _ts = _kickoff(d)
+    _pick = _strip_dc_paren(str(d.get("pick") or (d.get("simple") or {}).get("label") or ""))
+    _gloss = str(d.get("gloss") or (d.get("simple") or {}).get("gloss") or "")
+    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'
+    inner = (
+        _wmk
+        + f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="stms">'
+        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
+        f'<div class="stc">{e(_hh)}</div>'
+        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
+        f'</div>'
+        f'<div class="sbet">'
+        f'<div class="spk">{e(_pick)}</div>'
+        + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
+        + _verdict_site_html(d, e)
+        + '</div>')
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
+            f'<body><div class="card scard">{inner}</div></body></html>')   # bord GOLD « à venir » (.card défaut)
 
 
 def _result_simple_card_html(d: dict) -> str:
-    """Carte RÉSULTAT d'un pari SIMPLE = LA carte du site réglée à l'identique (voir `_site_card_html`) :
-    score au centre + « Terminé », bord coloré + badge coin ✓/✗, verdict Confiance + Cote seuls."""
-    return _site_card_html(d, settled=True)
+    """Carte RÉSULTAT d'un pari SIMPLE = même image PURPOSE-BUILT que l'annonce (cf. `_simple_card_html`) :
+    bord coloré won/lost + badge ✓/✗ coin, SCORE au centre + « Terminé », verdict Confiance + Cote seuls."""
+    from app import web
+    def e(x):
+        return _html.escape(re.sub(r"\s*\(F\)", "", str(x)))
+    sp = d.get("simple") or {}
+    mark = sp.get("mark") or ""
+    _rcls = {"won": "won", "lost": "lost", "push": "push", "void": "push"}.get(mark, "push")
+    home, away = str(d.get("home") or ""), str(d.get("away") or "")
+    _country, _comp = web._cap(str(d.get("country") or "")), web._cap(str(d.get("comp") or ""))
+    if _country and _comp and _country.lower() in _comp.lower():
+        _country = ""
+    _lg = " • ".join(web._noF(p) for p in (_country, _comp) if p).upper()
+    _score = str(d.get("score") or "").strip().replace("-", " - ")
+    _center = (f'<span class="rsc"><b>{e(_score)}</b><span class="rfin">Terminé</span></span>'
+               if _score else '<span class="rfin">Terminé</span>')
+    _pick = _strip_dc_paren(str(d.get("pick") or sp.get("label") or ""))
+    _gloss = str(d.get("gloss") or sp.get("gloss") or "")
+    _wmk = f'<div class="swmk" style="background-image:url({_logo_uri()})"></div>'
+    _corner = ""
+    if mark == "won":
+        _corner = ('<div class="scorner won"><svg viewBox="0 0 24 24">'
+                   '<path d="M4.5 12.5l4.5 4.5L19.5 6.5"/></svg></div>')
+    elif mark == "lost":
+        _corner = ('<div class="scorner lost"><svg viewBox="0 0 24 24">'
+                   '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></div>')
+    inner = (
+        _wmk + _corner
+        + f'<div class="slg">{e(_lg)}</div>'
+        f'<div class="stms">'
+        f'<div class="stm">{_team_logo_html(home, d.get("home_logo"), e)}<span class="stn">{e(home)}</span></div>'
+        f'<div class="stc">{_center}</div>'
+        f'<div class="stm">{_team_logo_html(away, d.get("away_logo"), e)}<span class="stn">{e(away)}</span></div>'
+        f'</div>'
+        f'<div class="sbet">'
+        f'<div class="spk">{e(_pick)}</div>'
+        + (f'<div class="sgl">{e(_gloss)}</div>' if _gloss else "")
+        + _verdict_site_html(d, e, settled=True)
+        + '</div>')
+    return (f"<!doctype html><html><head><meta charset=utf-8><style>{_CSS}{_CSS_SIMPLE}</style></head>"
+            f'<body><div class="card scard {_rcls}">{inner}</div></body></html>')
 
 
 _CSS_MIN = """
