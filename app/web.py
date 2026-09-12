@@ -457,19 +457,22 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* ⚠️ APRÈS DE TRÈS NOMBREUX essais (flottant `bottom:nonzéro`, coquille `bottom:0` transparente,
-       app-shell flex) : sur cet iOS standalone, TOUT sauf la recette d'ORIGINE échoue (barre à mi-écran sur
-       onglet court, ou zone morte). SEULE recette fiable = barre `position:fixed; bottom:0` PLEINE LARGEUR,
-       SOLIDE (fond opaque), le body scrolle et RÉSERVE la place (padding-bas). C'est ce qui marchait AVANT la
-       refonte « flottante ». On y revient. Look moderne conservé : coins HAUTS arrondis + filet clair + ombre. */
-    .botnav{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;margin:0;z-index:60;
-            display:flex;gap:2px;
-            padding:9px 16px calc(9px + env(safe-area-inset-bottom, 0px));
-            background:#0f131c;border:0;border-top:1px solid rgba(255,255,255,.07);
-            border-radius:24px 24px 0 0;box-shadow:0 -8px 26px rgba(0,0,0,.45)}
+    /* CAPSULE FLOTTANTE restaurée (user « je l'aimais bcp ») + NOUVELLE technique anti-bug iOS JAMAIS essayée :
+       le SCROLL est déplacé dans `.wrap` (conteneur `position:fixed; inset:0` qui scrolle EN INTERNE) ; le BODY
+       ne scrolle PLUS (`overflow:hidden`, = viewport). Tous les essais précédents gardaient le BODY comme
+       scroller -> un `position:fixed; bottom:nonzéro` s'ancrait au DOCUMENT court et « remontait ». Ici, sans
+       scroll de document, un `position:fixed` s'ancre au VIEWPORT de façon stable sur iOS quel que soit le
+       contenu -> la barre flottante RESTE en bas, même sur un onglet vide. Écarts SYMÉTRIQUES 20px (bas=côtés). */
+    body{overflow:hidden;height:100svh;min-height:0;padding:0}
+    .wrap{position:fixed;top:0;left:0;right:0;bottom:0;max-width:none;margin:0;
+          overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+          padding:calc(8px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px))}
+    .botnav{position:fixed;top:auto;bottom:20px;left:20px;right:20px;width:auto;max-width:480px;margin:0 auto;z-index:60;
+            display:flex;gap:2px;padding:8px;border-radius:28px;
+            border:1px solid rgba(255,255,255,.11);background:rgba(17,19,27,.86);
+            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
     .botnav-inner{display:contents}                  /* pas de capsule interne : la barre EST le conteneur flex */
-    .botnav a{min-width:0;padding:6px 0 4px;border-radius:14px;gap:4px}
-    .wrap{min-height:calc(100svh - 66px - env(safe-area-inset-bottom, 0px))}
+    .botnav a{min-width:0;padding:7px 0 5px;border-radius:16px;gap:4px}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
