@@ -174,8 +174,9 @@ def _cote_drift(d: dict, rb: dict | None):
 
 def _auto_remediate(d: dict, jsonp: str):
     """AUTO-RÉPARATION des problèmes SÛRS et DÉTERMINISTES sur un match À VENIR (non commencé, non réglé) —
-    user 2026-09-12 (« réagir automatiquement pour la résolution »). Un pari mécanique posé qui NE VALIDE PLUS
-    est RETIRÉ -> abstention (le match reste analysé/affiché, sans pari) ; le SITE + le ROI se corrigent seuls.
+    user 2026-09-12 (« réagir automatiquement pour la résolution »). Un pari mécanique posé, NON ENCORE PUBLIÉ,
+    qui NE VALIDE PLUS est RETIRÉ -> abstention (le match reste analysé/affiché) ; SITE + ROI se corrigent seuls.
+    ⛔ Un pari DÉJÀ PUBLIÉ n'est JAMAIS auto-retiré (la cote au conseil tient) -> reste en alerte.
     Deux causes traitées (les mêmes que les verrous de sélection) :
       1. ancre sharp ABSENTE ou REJETÉE (`sharp_conflict`) -> pari « à sec » ;
       2. VRAIE cote Unibet (`omap[code]`) HORS bande du tier -> cote non conforme.
@@ -209,7 +210,11 @@ def _auto_remediate(d: dict, jsonp: str):
                 reason = f"vraie cote Unibet {real:.2f} hors bande {_tier} [{lo:g}–{hi:g}]"
         if not reason:
             continue
-        _published = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+        # ⛔ JAMAIS auto-retirer un pari DÉJÀ PUBLIÉ/ANNONCÉ (user 2026-09-12) : un pari annoncé à une cote
+        # conforme TIENT (la « cote au conseil » est ce que l'abonné a pu jouer). On n'auto-répare QUE les
+        # paris NON encore publiés (fenêtre posé→publié) ; un pari publié non conforme reste une ALERTE.
+        if isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel"):
+            return None
         d.pop(_k, None)
         d["abstained"] = True                          # -> retained_bet None -> abstention (site + ROI)
         try:
@@ -219,10 +224,7 @@ def _auto_remediate(d: dict, jsonp: str):
         except OSError:
             return None
         nm = d.get("name") or f"{d.get('home')} - {d.get('away')}"
-        note = f"{nm} : pari {_tier} RETIRÉ (à venir — {reason}) → abstention"
-        if _published:
-            note += " ⚠️ (déjà posté sur Telegram : carte à supprimer manuellement)"
-        return note
+        return f"{nm} : pari {_tier} RETIRÉ (à venir, NON publié — {reason}) → abstention"
     return None
 
 

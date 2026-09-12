@@ -88,16 +88,19 @@ def postponed_alert() -> dict:
             if status in _PP_STATUS:
                 flagged += 1
                 # AUTO-RÉPARATION (à venir) : un pari POSÉ sur un match qui n'aura pas lieu est RETIRÉ ->
-                # abstention (site + ROI corrects). Seulement si le KO n'est pas encore passé (règle #9).
+                # abstention (site + ROI corrects). Bornes : KO pas encore passé (règle #9) ET pari NON encore
+                # PUBLIÉ (un pari annoncé n'est jamais auto-retiré -> reste en alerte pour décision manuelle).
                 _act = ""
-                if ko > now:
-                    _pub = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+                _pub = isinstance(d.get("published_bet"), dict) and d["published_bet"].get("sel")
+                if ko > now and not _pub:
                     _rm = False
                     for _k in ("confidence_bet", "value_bet"):
                         if isinstance(d.get(_k), dict) and d[_k].get("code"):
                             d.pop(_k, None); d["abstained"] = True; _rm = True
                     if _rm:
-                        _act = " → pari RETIRÉ auto (abstention)" + (" ⚠️ carte Telegram à supprimer" if _pub else "")
+                        _act = " → pari RETIRÉ auto (abstention)"
+                elif _pub:
+                    _act = " ⚠️ (pari PUBLIÉ : à retirer manuellement — match reporté/annulé)"
                 alerts.append(f"• {d.get('name')} ({st[:16]}) → {_PP_STATUS[status]} ({status}){_act}")
                 d["af_pp_alerted"] = status
                 _save(p, d)
