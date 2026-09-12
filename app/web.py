@@ -563,6 +563,23 @@ CSS = """
   /* ICÔNES SVG (audit 2026-09-02) : taille en TOKEN, pas via font-size (un SVG ne suit pas la taille de
      police). 22px = même encombrement optique que les anciens emoji -> aucun décalage de la barre. */
   .botnav a .ic svg{width:22px;height:22px;display:block}
+  /* MENU ICÔNES SEULES (user 2026-09-12 : « retirer le texte, de beaux icônes dans le thème ») — MOBILE.
+     Plus de libellé sous l'icône -> icônes plus GRANDES, centrées, dans le thème (muted au repos, ACCENT +
+     pilule quand actif ; le radar Live reste vert). Le libellé reste en `aria-label` (accessibilité intacte).
+     Scopé mobile : la SIDEBAR desktop garde ses libellés (icône + texte en ligne). Placé APRÈS les règles de
+     base pour les surcharger. */
+  @media (max-width:999px){
+    .botnav .lb{display:none}                       /* plus de texte dans la barre du bas */
+    .botnav a{padding:11px 0;gap:0}                 /* icône centrée, cible tactile confortable */
+    .botnav a .ic{height:auto}
+    .botnav a .ic svg{width:26px;height:26px;stroke-width:1.9}   /* icônes plus grandes, trait fin élégant */
+    .botnav a:not(.on){color:var(--muted)}          /* repos : gris discret */
+    .botnav a.on .ic{transform:scale(1.1)}          /* actif : icône accent (pilule) légèrement grossie */
+    .nav-radar{width:34px;height:34px}              /* Live : radar vert un cran plus grand, cohérent */
+    .nr-dot{width:21px;height:21px}
+    .nav-radar::before,.nr-ring,.nr-ring2{width:34px;height:34px;margin:-17px 0 0 -17px}
+    .nav-n{top:0;left:calc(50% + 9px)}              /* badge compteur recalé sur l'icône plus grande */
+  }
   /* Pictos issus de app/icons.py (ex-emoji) : 1em -> ils prennent la taille de police du contexte, comme
      l'emoji qu'ils remplacent. Défini ICI (feuille toujours servie) EN PLUS de l'injection faite par
      icons.apply : double filet, pour qu'un picto ne puisse JAMAIS s'afficher sans dimension. */
