@@ -2740,6 +2740,24 @@ CSS = """
   .mcx-ev-i{font-size:12.5px}
   .mcx-ev-p{font-weight:600}
   .mcx-foot{margin-top:8px;font-size:10px;color:#6f8098;text-align:center;font-style:italic}
+  /* TEST LIVE (track fantôme, app.live_pick) — styles GLOBAUX (les 2 zones live/terminés les partagent ;
+     avant, ils vivaient dans le <style> de la zone live -> zone « terminés » en texte brut quand aucun match
+     live, bug user 2026-09-13). */
+  .lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}
+  .lph-reco{font-size:12px;color:#cfe0f0;margin:2px 2px 6px}
+  .lph-reco b{color:#34d27b}
+  .lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}
+  .lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+  .lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}
+  .lph-min{font-size:11px;color:#7f8794;white-space:nowrap}
+  .lph-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;
+       border-top:1px dashed #1c2733}
+  .lph-row:first-of-type{border-top:none}
+  .lph-sel{font-size:12.5px;color:#cfe0f0}
+  .lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}
+  .lph-m b{color:#34d27b}
+  .lph-none{font-size:11.5px;color:#6f8098;font-style:italic}
+  .lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -11631,19 +11649,12 @@ def _live_phantom_zone(sport: str) -> str:
         cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
                      f'<span class="lph-min">{_sc}{_mn}</span></div>'
                      f'{"".join(rows)}</div>')
-    style = ('<style>.lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}'
-             '.lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}'
-             '.lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}'
-             '.lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}'
-             '.lph-min{font-size:11px;color:#7f8794;white-space:nowrap}'
-             '.lph-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;'
-             'border-top:1px dashed #1c2733}.lph-row:first-of-type{border-top:none}'
-             '.lph-sel{font-size:12.5px;color:#cfe0f0}.lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}'
-             '.lph-m b{color:#34d27b}.lph-none{font-size:11.5px;color:#6f8098;font-style:italic}</style>')
+    # styles `.lph-*` -> CSS GLOBAL (sinon la zone « terminés » perdait la mise en forme quand la zone live
+    # était vide et n'émettait pas son <style> — bug user 2026-09-13 : cartes en texte brut le soir).
     note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
             'croisées aux cotes Unibet en direct, sur <b>TOUS</b> les matchs en direct (même sans pari joué). '
             'Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans rapport avec Confiance/Value.</div>')
-    return _zone("lph", "Test live", "test", len(matches), style + note + "".join(cards),
+    return _zone("lph", "Test live", "test", len(matches), note + "".join(cards),
                  zk="live-phantom", collapsible=True, open_=True)
 
 
@@ -11677,9 +11688,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
         head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
         cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
                      f'<span class="lph-min">terminé {_h.escape(m.get("final", ""))}</span></div>{"".join(rows)}</div>')
-    style = ('<style>.lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}'
-             '.lph-reco{font-size:12px;color:#cfe0f0;margin:2px 2px 6px}'
-             '.lph-reco b{color:#34d27b}</style>')
+    # styles `.lph-*`/`.lphr-*`/`.lph-reco` -> CSS GLOBAL (toujours présents, même quand la zone live est vide).
     # BILAN HONNÊTE = track record CANONIQUE (1 pari INDÉPENDANT/match, tout l'historique) — le seul taux qui
     # veut dire qqch. Le brut won/tot ci-dessous compte des lignes CORRÉLÉES du même match (Under 3.5/4.5/5.5…)
     # -> gonflé, à ne PAS lire comme un taux de paris. On affiche les DEUX, clairement distincts.
@@ -11696,7 +11705,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
-    return _zone("lphs", "Test live — terminés", "test", len(matches), style + note + "".join(cards),
+    return _zone("lphs", "Test live — terminés", "test", len(matches), note + "".join(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
 
