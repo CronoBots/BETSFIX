@@ -297,7 +297,10 @@ CSS = """
     --border:#2a2a31;--border2:#3b3b44;--text:#f4f5f7;--muted:#9a9aa6;--dim:#8b8b95;
     /* Fond PREMIUM des cartes/panneaux = le MÊME dégradé bleuté que le panneau stats (.spf-cv), user 2026-09-10.
        Opaque (pas de translucide -> pas de halo de page changeant au dépli, cf. note 2026-08-16). */
-    --card-grad:linear-gradient(180deg,#1b2536,#141c2a);
+    /* Fond carte premium = SOLIDE (pas un dégradé) : un dégradé vertical se REDISTRIBUE quand la carte se
+       déplie et grandit -> la luminosité du fond « change » au dépli (retour user récurrent 2026-07-21 /
+       2026-08-16 / 2026-09-13). Solide -> STRICTEMENT identique plié/déplié. Teinte proche de l'ancien haut. */
+    --card-bg:#1a2332;
     /* ACCENT principal — UN SEUL endroit à changer pour reskin (cf. candidats en bas) */
     --accent:#22b8ff;--accent2:#1496f0;--accent-ink:#001321;--glow:rgba(34,184,255,.28);
     --halo:rgba(34,184,255,.09);
@@ -997,7 +1000,7 @@ CSS = """
   /* Fond UNI (plus de dégradé étirable) : sinon, quand la carte se déplie et grandit, le dégradé se
      redistribue et « la lumière du fond change » (retour user 2026-07-21). Uni -> identique plié/déplié. */
   .row.pick{border-color:rgba(34,184,255,.60);
-            background:var(--card-grad);   /* fond PREMIUM bleuté = panneau stats (user 2026-09-10) ; opaque -> stable au dépli */
+            background:var(--card-bg);   /* fond PREMIUM bleuté SOLIDE -> luminosité STABLE au dépli (plus de dégradé) */
             /* GLOW 18px : occupe la marge latérale (16px) et se fond au bord de l'écran. Le halo peut aller
                DANS la marge grâce au clip élargi de #panels (avant il était coupé net au bord de la carte). */
             box-shadow:0 0 18px rgba(34,184,255,.22)}
