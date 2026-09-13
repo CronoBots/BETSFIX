@@ -161,7 +161,9 @@ STATS_INJECT_ON = True
 MODEL_VERSION = 3         # v3 (2026-09-13) = v2 (tempo+tirs+surcote-fin) + TAUX DE BASE pré-match (omap O/U)
 _XG_PER_SOT = 0.32        # xG-proxy par tir CADRÉ (ordre de grandeur usuel)
 _XG_PER_OFF = 0.04        # xG-proxy par tir NON cadré
-_STATS_RATE_TTL = 90.0
+_STATS_RATE_TTL = 180.0   # cache stats live 3 min (user 2026-09-14 « trop d'appels ») : les tirs/corners montent
+#                           lentement -> 3 min de latence n'affecte quasi pas le modèle mais DIVISE PAR ~2 les
+#                           appels API-Football (~1200/j -> ~600/j sur une journée chargée). Ajustable si besoin.
 _STATS_RATE_CACHE: dict = {}   # mid -> (ts, rate90|None)
 _FIXID_CACHE: dict = {}        # mid -> fixture_id API-Football (semi-statique)
 
