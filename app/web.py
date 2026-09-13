@@ -4340,8 +4340,10 @@ _SPA_JS = (
     "window.scrollTo(0,0);});});"
     # (handlers data-info/data-dvg/data-exp/.mc : déplacés dans _CARDS_JS, partagé avec layout)
     # rafraîchissement auto des COTES/SCORES live : on ré-interroge le panneau actif toutes les
-    # 45 s, UNIQUEMENT s'il contient un direct (.live) ET qu'aucun accordéon n'est ouvert
-    # (on ne coupe pas une lecture). Le scroll est préservé. Pas de direct = aucun appel réseau.
+    # 20 s (abaissé de 45 s le 2026-09-13, user « scores en retard » — le score vient d'API-Football via
+    # /fixtures?live=all, ne le figeons plus 45 s à l'écran), UNIQUEMENT s'il contient un direct (.live) ET
+    # qu'aucun accordéon n'est ouvert (on ne coupe pas une lecture). Le scroll est préservé, pas de direct =
+    # aucun appel réseau (donc l'accélération ne touche QUE les panneaux avec un match en cours).
     "function fresh(){var c=P.children,i,p=null;"
     "for(i=0;i<c.length;i++)if(c[i].classList.contains('on')){p=c[i];break;}"
     "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
@@ -4362,7 +4364,7 @@ _SPA_JS = (
     "p.innerHTML=h;p.setAttribute('data-ts',''+Date.now());if(window._mcInit)window._mcInit(p);window.scrollTo(0,y);})"
     ".catch(function(){});}"
     # (traceur d'activité window._bfxAct posé par _COUNTDOWN_JS, chargé avant -> partagé par tous les timers.)
-    "setInterval(fresh,45000);"
+    "setInterval(fresh,20000);"
     # iOS PWA : au 1er paint, le viewport/safe-area n'est pas encore stable -> la barre fixe (bottom:0) se cale
     # trop haut avec une bande morte dessous, jusqu'au 1er changement d'onglet (qui force un reflow). On force CE
     # reflow juste après l'ouverture : nudge de scroll + bascule display de #panels (change la hauteur -> iOS

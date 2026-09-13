@@ -291,7 +291,11 @@ async def _acquire_listview(sport: str, path: str, client=None) -> dict:
 _ODDS_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: (o1, ox, o2)})
 _LIVE_STATE_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: liveData}) — score + horloge EN DIRECT
 _META_CACHE: dict = {}   # sport -> (timestamp, {clé_noms: {circuit, comp, start}}) — Unibet path/group/heure
-_ODDS_TTL = 25           # s : cotes Unibet rafraîchies au plus toutes les 25 s (gratuit, mais lean)
+_ODDS_TTL = 12           # s : cotes + SCORE live rafraîchis au plus toutes les 12 s. Abaissé 25 -> 12 le
+#                          2026-09-13 (user « scores en retard ») : le score vient d'API-Football (`/fixtures?
+#                          live=all`, cache 12 s) mais restait figé jusqu'à 25 s ici. À 12 s il colle au cache
+#                          API-Football (pas d'appel en plus : la source est capée à 12 s de son côté). Le listView
+#                          Unibet re-sollicité un peu plus souvent = gratuit. Stale-while-revalidate -> jamais bloquant.
 _ODDS_REFRESHING: set = set()   # sports avec un rafraîchissement live DÉJÀ en vol (anti-doublon de fetch)
 
 # LIVE « COLLANT » : mémoire du DERNIER instant où un score live a été vu pour un match. Sert à ne PAS
