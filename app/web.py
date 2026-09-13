@@ -2758,8 +2758,24 @@ CSS = """
   .lph-m b{color:#34d27b}
   .lph-none{font-size:11.5px;color:#6f8098;font-style:italic}
   .lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}
-  /* pronos conseillés SOUS le cadre de match (carte .row.mc mc-prem, même style que Confiance/Value live) */
-  .lph-picks{padding:2px 16px 13px}
+  /* pronos conseillés SOUS le cadre de match (carte .row.mc mc-prem, même style que Confiance/Value live) —
+     item PREMIUM : pastille de statut + label NEUTRE (plus de mur vert/rouge) + meta avec EV en pastille. */
+  .lph-picks{padding:3px 15px 12px}
+  .lph-p{padding:7px 0;border-top:1px solid rgba(255,255,255,.05)}
+  .lph-p:first-child{border-top:none}
+  .lph-p-h{display:flex;align-items:flex-start;gap:9px}
+  .lph-dot{flex:none;width:17px;height:17px;border-radius:50%;margin-top:1px;display:inline-flex;
+       align-items:center;justify-content:center;font-size:10px;font-weight:900;line-height:1}
+  .lph-dot-w{background:rgba(52,210,123,.16);color:#34d27b}
+  .lph-dot-l{background:rgba(255,107,107,.15);color:#ff6b6b}
+  .lph-dot-n{background:rgba(224,179,65,.15);color:#e0b341}
+  .lph-dot-live{background:rgba(34,184,255,.16);color:#22b8ff}
+  .lph-p-sel{font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32}
+  .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:4px 0 0 26px;font-size:11px;color:#8aa0b6}
+  .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:1px 7px}
+  .lph-p-cote b{color:#cfe0f0;font-weight:700}
+  .lph-p-min{color:#6f8098}
+  .lph-p.lph-none{color:#6f8098;font-style:italic;font-size:11.5px}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -11633,6 +11649,15 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     return rows
 
 
+def _lph_pick(sel_html: str, dot_cls: str, dot_char: str, meta_html: str) -> str:
+    """Item PREMIUM d'un prono conseillé : pastille de statut (✓/✗/•) + libellé NEUTRE + ligne meta
+    (EV en pastille · cote · minute / proba). Remplace l'ancienne ligne au label tout colorié."""
+    return (f'<div class="lph-p"><div class="lph-p-h">'
+            f'<span class="lph-dot {dot_cls}">{dot_char}</span>'
+            f'<span class="lph-p-sel">{sel_html}</span></div>'
+            f'<div class="lph-p-m">{meta_html}</div></div>')
+
+
 def _phantom_match_card(home: str, away: str, comp: str, center_html: str, badge: str,
                         rows_html: str, state_cls: str = "") -> str:
     """Carte de match au MÊME STYLE que les cartes Confiance/Value en direct (`.row.mc mc-prem` : logos +
@@ -11667,13 +11692,14 @@ def _live_phantom_zone(sport: str) -> str:
         for p in m.get("picks") or []:
             sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
             cote = analyses.fmt_cote(p["odds"]) or "?"
-            rows.append(f'<div class="lph-row"><span class="lph-sel">{sel}</span>'
-                        f'<span class="lph-m">{p["prob"]*100:.0f}% modèle · cote {cote} · '
-                        f'EV <b>+{p["ev"]*100:.0f}%</b></span></div>')
+            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
+                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
+                    f'<span>{p["prob"]*100:.0f}% modèle</span>')
+            rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
         if not rows:                                    # match suivi mais rien à proposer à cet instant
             msg = ("⏳ Données live en cours…" if not m.get("score")
                    else "Aucune value live à cet instant.")
-            rows.append(f'<div class="lph-row lph-none">{msg}</div>')
+            rows.append(f'<div class="lph-p lph-none">{msg}</div>')
         # CENTRE de la carte = score + horloge live (comme les cartes Confiance/Value en direct)
         _sc = (m.get("score") or "").strip()
         if _sc:
@@ -11714,12 +11740,14 @@ def _live_phantom_settled_zone(sport: str) -> str:
             tot_n += 1
             r = p.get("result")
             won_n += 1 if r == "won" else 0
-            badge = "✅" if r == "won" else ("➖" if r == "push" else "❌")
-            cls = "lphr-w" if r == "won" else ("lphr-n" if r == "push" else "lphr-l")
+            dot_cls, dot_char = (("lph-dot-w", "✓") if r == "won"
+                                 else ("lph-dot-n", "–") if r == "push" else ("lph-dot-l", "✗"))
             sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
             cote = analyses.fmt_cote(p["odds"]) or "?"
-            rows.append(f'<div class="lph-row"><span class="lph-sel {cls}">{badge} {sel}</span>'
-                        f'<span class="lph-m">cote {cote} · EV +{p["ev"]*100:.0f}% · dès {p.get("minute","?")}\'</span></div>')
+            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
+                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
+                    f'<span class="lph-p-min">dès {p.get("minute", "?")}\'</span>')
+            rows.append(_lph_pick(sel, dot_cls, dot_char, meta))
         _fin = (m.get("final") or "").strip()
         center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
                   f'<span class="tm-fin">Terminé</span></span>')
