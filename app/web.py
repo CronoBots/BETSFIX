@@ -469,21 +469,23 @@ CSS = """
        fixed : le body est un FLEX COLONNE de hauteur viewport EXACTE, le contenu scrolle DANS `.wrap`, et la barre
        est un ITEM EN FLUX poussé tout en bas par `margin-top:auto`. Structurellement, la barre NE PEUT PLUS
        flotter au milieu (elle n'est pas positionnée ; le body fait pile 100svh -> son dernier enfant est au bord
-       bas). La barre est TRANSPARENTE (icônes sur le fond d'app, cf. `.botnav-inner`). Zéro fixed = zéro bug iOS. */
+       bas). Le FLOTTANT vient du padding de `.botnav` autour de la capsule `.botnav-inner`. Zéro fixed = zéro bug iOS. */
     body{display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
     .wrap{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
           max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 14px}
     .botnav{flex:0 0 auto;margin:auto 0 0;align-self:stretch;position:static;display:block;width:auto;max-width:none;z-index:60;
-            padding:0 14px calc(16px + env(safe-area-inset-bottom, 0px));   /* ⚠️ display:block OBLIGATOIRE : la base
+            padding:0 16px calc(16px + env(safe-area-inset-bottom, 0px));   /* ⚠️ display:block OBLIGATOIRE : la base
             `.botnav{display:flex}` réduisait la capsule (enfant flex unique) à son contenu = pilule étriquée au
-            milieu. En bloc, `.botnav-inner` REMPLIT la largeur (padding latéral 14px = léger flottant « Strava »). */
+            milieu. En bloc, la capsule `.botnav-inner` prend la largeur ; padding 16px latéral + bas = le FLOTTANT. */
             background:transparent;border:0;box-shadow:none}
-    /* TRANSPARENTE « à la Strava » (user 2026-09-13, « il y a un fond derrière la barre, avant c'était mieux ») :
-       PLUS de capsule à fond solide/bordure/ombre. Les icônes flottent DIRECTEMENT sur le fond d'app (dégradé
-       html::before fixe 100vh + lueur basse) qui remonte en continu jusqu'au bord bas -> « l'app va jusqu'en bas
-       comme Strava », plus de bande/panneau sous les onglets. Reste juste le layout flex (répartition + espacement). */
-    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:4px 6px 0;
-            background:transparent;border:0;box-shadow:none;border-radius:0}
+    /* CAPSULE FLOTTANTE « à la Strava » (user 2026-09-13, capture de référence) : une PILULE arrondie translucide
+       qui FLOTTE — marges latérales (padding 16px de `.botnav`) + gap bas (padding-bas de `.botnav`) -> le dégradé
+       d'app passe AUTOUR et EN DESSOUS jusqu'au bord bas (comme la carte Strava sous sa pilule). Fond translucide
+       CONTENU dans la pilule (PAS une bande pleine largeur = le « fond derrière la barre » que le user refusait).
+       ⚠️ On reste en app-shell FLEX (`.botnav` en flux, 0 position:fixed) -> aucun retour du bug « menu mi-écran ». */
+    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px 10px;border-radius:30px;
+            background:rgba(24,27,36,.82);border:1px solid rgba(255,255,255,.09);
+            box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
