@@ -322,7 +322,13 @@ CSS = """
      les onglets, quelle que soit la longueur de la page (user 2026-08-22 : Résultats/Accueil, pages longues,
      avaient un fond dilué car le dégradé était sur le body dimensionné au contenu). PAS d'overflow:hidden
      (le body doit scroller, modèle CRYPTONAUTS). */
-  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;color-scheme:dark;background:var(--bg)}
+  /* FOND D'APP JUSQU'AU BORD BAS (user 2026-09-13, « l'app doit aller jusqu'en bas au lieu de la zone opaque
+     sous le menu ») : `html` était un APLAT PLAT #080d15 -> tout le bas (derrière/sous la capsule flottante, là
+     où il n'y a plus de carte) apparaissait comme une bande opaque morte. On pose un VRAI dégradé bleu qui monte
+     du bas DIRECTEMENT sur le fond `html` (garanti peint : `body` est transparent au-dessus ; `html` ne scrolle
+     pas -> zéro jank, PWA-safe). Le bas s'allume comme l'app, en continu jusqu'au bord, autour et sous le menu. */
+  html{-webkit-text-size-adjust:100%;overscroll-behavior:none;color-scheme:dark;
+       background:radial-gradient(1000px 560px at 50% 102%,rgba(34,184,255,.16),rgba(34,184,255,.05) 42%,transparent 72%),var(--bg)}
   /* HALOS en pseudo-élément FIXE au VIEWPORT (user 2026-09-04) : fond STRICTEMENT IDENTIQUE sur tous les
      onglets, quelle que soit la hauteur de page. Avant, les halos étaient sur le fond `html` en
      `background-attachment:scroll` (défaut) -> ancrés à la HAUTEUR DE PAGE (différente par onglet) -> le halo
