@@ -11587,6 +11587,50 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     return rows
 
 
+def _live_phantom_zone(sport: str) -> str:
+    """Zone EXPÉRIMENTALE « Test live » (onglet Live) : suggestions du track FANTÔME live (app.live_pick) —
+    proba modèle Poisson × cote Unibet en direct − 1 = EV, sur les matchs en cours. NON PUBLIÉ, HORS ROI/stats
+    (aucun abonné pour l'instant → visible pour le owner ; à gater/éteindre via live_pick.SHOW_ON_SITE quand il
+    y aura des abonnés). '' si aucune suggestion courante ou flag off. Pur affichage (lecture seule)."""
+    try:
+        from app import live_pick
+        if not live_pick.SHOW_ON_SITE or sport != "foot":
+            return ""
+        matches = live_pick.current_all(sport)
+    except Exception:
+        return ""
+    if not matches:
+        return ""
+    import html as _h
+    cards = []
+    for m in matches:
+        rows = []
+        for p in m["picks"]:
+            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
+            cote = analyses.fmt_cote(p["odds"]) or "?"
+            rows.append(f'<div class="lph-row"><span class="lph-sel">{sel}</span>'
+                        f'<span class="lph-m">{p["prob"]*100:.0f}% modèle · cote {cote} · '
+                        f'EV <b>+{p["ev"]*100:.0f}%</b></span></div>')
+        head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
+        cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
+                     f'<span class="lph-min">{_h.escape(m.get("score", ""))} · {m.get("minute", "?")}\'</span></div>'
+                     f'{"".join(rows)}</div>')
+    style = ('<style>.lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}'
+             '.lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}'
+             '.lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}'
+             '.lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}'
+             '.lph-min{font-size:11px;color:#7f8794;white-space:nowrap}'
+             '.lph-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;'
+             'border-top:1px dashed #1c2733}.lph-row:first-of-type{border-top:none}'
+             '.lph-sel{font-size:12.5px;color:#cfe0f0}.lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}'
+             '.lph-m b{color:#34d27b}</style>')
+    note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
+            'croisées aux cotes Unibet en direct. Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans '
+            'rapport avec Confiance/Value.</div>')
+    return _zone("lph", "Test live", "test", len(matches), style + note + "".join(cards),
+                 zk="live-phantom", collapsible=True, open_=True)
+
+
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
     """Onglet « Directs » : matchs EN DIRECT groupés par TYPE de pari (Combiné · Paris joués · Provisoires).
     SÉLECTEUR DE SPORT en tête (demande user 2026-07-28, comme Pronos) : cliquer un sport recharge le panneau
@@ -11665,7 +11709,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                 c["_livetab"] = True
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    if not (_play or _prov or _combo or _safe_combo or _upcoming_all):
+    # TEST LIVE (track fantôme, owner) : zone EXPÉRIMENTALE calculée à part. Incluse dans le test de vacuité
+    # pour qu'un match en cours SANS pari Confiance/Value (donc absent de `_play`) mais AVEC une suggestion live
+    # affiche quand même la zone (sinon on tomberait sur « Aucun match en direct »).
+    _phantom = _live_phantom_zone(_cur)
+    if not (_play or _prov or _combo or _safe_combo or _upcoming_all or _phantom):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -11707,6 +11755,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             out.append(_zone("prog", _upc_title, "", len(_upcoming_all),
                              _join_cards([_sport_row(c) for c in _upcoming_all]),
                              zk="live-upc", collapsible=False))
+        if _phantom:                                    # TEST live (fantôme) — en DERNIER, badgé « test »
+            out.append(_phantom)
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).

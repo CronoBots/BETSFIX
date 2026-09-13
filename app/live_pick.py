@@ -32,6 +32,11 @@ import time
 from app import analyses
 
 LIVE_PICK_ON = True
+# AFFICHAGE SUR LE SITE (onglet Live) : le user est le SEUL utilisateur pour l'instant (aucun abonné) et veut
+# voir les suggestions live directement sur le site, pas seulement sur /monitor. Clairement badgé « TEST / non
+# publié ». ⚠️ À REMETTRE À False (ou gater par rôle owner) le jour où il y a de vrais abonnés — ce n'est PAS un
+# produit validé (edge non prouvé). Reste toujours HORS Telegram/push et HORS stats/ROI Confiance-Value.
+SHOW_ON_SITE = True
 
 # --- GATES (départ NON backtesté — à tuner sur les données collectées ; cf. docstring : aucun backtest
 #     possible). Forward, fantôme, jamais publié. -----------------------------------------------------------
@@ -224,6 +229,55 @@ def observe_match(d: dict) -> int:
     if added:
         _save(rec)
     return added
+
+
+# --- suggestions COURANTES (affichage seul, sans écriture ni throttle) ------------------------------------
+def current_picks(d: dict, top: int = 3) -> list[dict]:
+    """Suggestions live ACTUELLES d'un match EN COURS (mêmes marchés/gates que observe_match, mais SANS
+    écriture ni throttle) — pour l'AFFICHAGE. Triées par EV décroissant, `top` max. [] si pas de live/catalogue.
+    100 % lecture des caches (0 réseau). N'écrit rien : ne peut pas contaminer le store ni les stats."""
+    if not LIVE_PICK_ON or d.get("sport") != "foot":
+        return []
+    from app import match_select
+    home, away = d.get("home", ""), d.get("away", "")
+    ld = match_select.live_state_for("foot", home, away)
+    sc = (ld or {}).get("score") or {}
+    hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
+    minute = match_select.live_minute(ld)
+    if hs is None or as_ is None or minute is None or minute < MINUTE_LOG_MIN:
+        return []
+    catalog = analyses.live_catalog(d.get("id"))
+    if not catalog:
+        return []
+    picks = [p for p in price_catalog(catalog, home, away, hs, as_, minute)
+             if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]
+    picks.sort(key=lambda p: p["ev"], reverse=True)
+    return picks[:max(1, top)]
+
+
+def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
+    """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] des matchs EN COURS ayant au
+    moins une suggestion live actuelle. Lecture seule (caches + sidecars mémoïsés)."""
+    out = []
+    for pth in glob.glob(os.path.join(analyses.DIR, f"{sport}_*.json")):
+        try:
+            d = analyses._meta_load(pth)
+        except Exception:
+            continue
+        if not d or analyses.status_of(d) != "inprogress":
+            continue
+        picks = current_picks(d, top=top)
+        if not picks:
+            continue
+        from app import match_select
+        ld = match_select.live_state_for(sport, d.get("home", ""), d.get("away", ""))
+        sc = (ld or {}).get("score") or {}
+        out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
+                    "minute": match_select.live_minute(ld),
+                    "score": f'{analyses._as_int(sc.get("home"))}-{analyses._as_int(sc.get("away"))}',
+                    "picks": picks})
+    out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
+    return out
 
 
 # --- règlement (au score FINAL) ---------------------------------------------------------------------------
