@@ -496,6 +496,19 @@ CSS = """
     #pn-home.on #day-content{flex:1 0 auto;display:flex;flex-direction:column}
     #pn-home.on .dash-today{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
   }
+  /* PWA INSTALLÉE — onglet PEU REMPLI : le document doit remplir la hauteur PHYSIQUE de l'écran (user 2026-09-13 :
+     « sur les onglets avec peu de contenu, la barre remonte et une bande vide apparaît en bas »). CAUSE : en PWA
+     iOS (`display:fullscreen`), `100svh` est calculé TROP COURT -> sur contenu court le document est plus petit
+     que l'écran ; la barre `position:fixed` s'ancre alors à ce document court (elle remonte) et le fond ne
+     descend pas jusqu'au bord (bande noire). Sur contenu LONG, le document dépasse l'écran -> déjà OK (validé
+     user). FIX ciblé, ne change RIEN d'autre : en PWA (`html.pwa`, fiable même en fullscreen), on force
+     body/.wrap à `100dvh` = plein écran EXACT en PWA (pas de barre d'outils) -> le document remplit toujours
+     l'écran physique, même onglet vide -> barre au vrai bas, plus de bande. Le navigateur reste en `svh` (correct,
+     pas de jank). */
+  @media (max-width:999px){
+    html.pwa body{min-height:100dvh}
+    html.pwa .wrap{min-height:calc(100dvh - 80px - env(safe-area-inset-bottom, 0px))}
+  }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
   .a2hs{position:fixed;left:10px;right:10px;bottom:calc(86px + env(safe-area-inset-bottom));z-index:85;
