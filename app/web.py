@@ -11672,9 +11672,25 @@ def _live_phantom_settled_zone(sport: str) -> str:
         head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
         cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
                      f'<span class="lph-min">terminé {_h.escape(m.get("final", ""))}</span></div>{"".join(rows)}</div>')
-    style = ('<style>.lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}</style>')
-    note = (f'<div class="lph-note">Résultat des suggestions live À LA FIN du match (fantôme). '
-            f'<b>{won_n}/{tot_n}</b> passées sur les matchs récents affichés.</div>')
+    style = ('<style>.lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}'
+             '.lph-reco{font-size:12px;color:#cfe0f0;margin:2px 2px 6px}'
+             '.lph-reco b{color:#34d27b}</style>')
+    # BILAN HONNÊTE = track record CANONIQUE (1 pari INDÉPENDANT/match, tout l'historique) — le seul taux qui
+    # veut dire qqch. Le brut won/tot ci-dessous compte des lignes CORRÉLÉES du même match (Under 3.5/4.5/5.5…)
+    # -> gonflé, à ne PAS lire comme un taux de paris. On affiche les DEUX, clairement distincts.
+    reco = ""
+    try:
+        from app import live_pick as _lp
+        _c = (_lp.summary() or {}).get("canonical", {})
+        if _c.get("n"):
+            reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
+                    f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
+                    f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
+    except Exception:
+        reco = ""
+    note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
+            f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
+            f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
     return _zone("lphs", "Test live — terminés", "test", len(matches), style + note + "".join(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
