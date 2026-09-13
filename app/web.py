@@ -11711,13 +11711,32 @@ def _live_phantom_settled_zone(sport: str) -> str:
     reco = ""
     try:
         from app import live_pick as _lp
-        _c = (_lp.summary() or {}).get("canonical", {})
+        _s = _lp.summary() or {}
+        _c = _s.get("canonical", {})
         if _c.get("n"):
             reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
                     f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
                     f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
+        # PAR FAMILLE (pick canonique) : quel type de marché tient ?
+        _fam = _s.get("by_family") or {}
+        if _fam:
+            _fr = "".join(
+                f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
+                f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
+                for f, r in _fam.items())
+            reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par famille</span>'
+                     f'<span class="lph-min">pick canonique</span></div>{_fr}</div>')
+        # CALIBRATION : proba annoncée par le modèle vs réalisé (tous snapshots) -> révèle sur/sous-confiance.
+        _cal = _s.get("calibration") or []
+        if _cal:
+            _cr = "".join(
+                f'<div class="lph-row"><span class="lph-sel">{c["bucket"]}</span>'
+                f'<span class="lph-m">modèle {c["model"]}% → réalisé <b>{c["real"]}%</b> · n={c["n"]}</span></div>'
+                for c in _cal)
+            reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Calibration modèle</span>'
+                     f'<span class="lph-min">proba vs réel</span></div>{_cr}</div>')
     except Exception:
-        reco = ""
+        reco = reco or ""
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
