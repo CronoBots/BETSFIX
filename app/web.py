@@ -476,7 +476,9 @@ CSS = """
        viewport et remonte quand le contenu est court). C'était la VRAIE cause (hier la capsule avait blur +
        translateZ + will-change). Fond translucide SOLIDE (lisible sans flou). Écart 16px identique bas + côtés. */
     .botnav{position:fixed;top:auto;left:16px;right:16px;bottom:16px;width:auto;max-width:none;margin:0;z-index:60;
-            display:flex;gap:2px;padding:8px 10px;border-radius:30px;
+            display:flex;gap:2px;padding:5px 10px;border-radius:999px;   /* PILULE PLEINE (coins semi-circulaires
+            = épouse les bords arrondis de l'écran, user 2026-09-13) + hauteur RÉDUITE (padding 8->5 ici + 11->7
+            sur `.botnav a` plus bas). */
             background:rgba(24,27,36,.9);border:1px solid rgba(255,255,255,.09);
             box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
@@ -573,9 +575,9 @@ CSS = """
      base pour les surcharger. */
   @media (max-width:999px){
     .botnav .lb{display:none}                       /* plus de texte dans la barre du bas */
-    .botnav a{padding:11px 0;gap:0}                 /* icône centrée, cible tactile confortable */
+    .botnav a{padding:7px 0;gap:0}                  /* icône centrée ; padding réduit 11->7 = barre moins haute (user 2026-09-13) */
     .botnav a .ic{height:auto}
-    .botnav a .ic svg{width:26px;height:26px;stroke-width:1.9}   /* icônes plus grandes, trait fin élégant */
+    .botnav a .ic svg{width:25px;height:25px;stroke-width:1.9}   /* icônes ~inchangées (26->25), trait fin élégant */
     .botnav a:not(.on){color:var(--muted)}          /* repos : gris discret */
     .botnav a.on .ic{transform:scale(1.1)}          /* actif : icône accent (pilule) légèrement grossie */
     .nav-radar{width:34px;height:34px}              /* Live : radar vert un cran plus grand, cohérent */
