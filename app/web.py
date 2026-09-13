@@ -2758,6 +2758,8 @@ CSS = """
   .lph-m b{color:#34d27b}
   .lph-none{font-size:11.5px;color:#6f8098;font-style:italic}
   .lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}
+  /* pronos conseillés SOUS le cadre de match (carte .row.mc mc-prem, même style que Confiance/Value live) */
+  .lph-picks{padding:2px 16px 13px}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -11631,6 +11633,19 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     return rows
 
 
+def _phantom_match_card(home: str, away: str, comp: str, center_html: str, badge: str,
+                        rows_html: str, state_cls: str = "") -> str:
+    """Carte de match au MÊME STYLE que les cartes Confiance/Value en direct (`.row.mc mc-prem` : logos +
+    équipes + score/minute au centre + ligue + badge d'état) mais avec les PRONOS CONSEILLÉS listés en dessous
+    (user 2026-09-13). Non dépliable (pas de `.mc-body`). Pur affichage."""
+    teams = _teams_vs_html(home, away, center_html)
+    head = (f'<div class="mc-head"><div class="mc-main">'
+            f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr">'
+            f'<span class="mc-comp">{html.escape(str(comp or ""))}</span>{badge}</div>'
+            f'<div class="mc-teams">{teams}</div></div></div>')
+    return f'<div class="row pick mc mc-prem{state_cls}">{head}<div class="lph-picks">{rows_html}</div></div>'
+
+
 def _live_phantom_zone(sport: str) -> str:
     """Zone EXPÉRIMENTALE « Test live » (onglet Live) : suggestions du track FANTÔME live (app.live_pick) —
     proba modèle Poisson × cote Unibet en direct − 1 = EV, sur les matchs en cours. NON PUBLIÉ, HORS ROI/stats
@@ -11659,12 +11674,16 @@ def _live_phantom_zone(sport: str) -> str:
             msg = ("⏳ Données live en cours…" if not m.get("score")
                    else "Aucune value live à cet instant.")
             rows.append(f'<div class="lph-row lph-none">{msg}</div>')
-        head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
-        _sc = _h.escape(m.get("score") or "en direct")
-        _mn = f' · {m["minute"]}\'' if m.get("minute") is not None else ""
-        cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
-                     f'<span class="lph-min">{_sc}{_mn}</span></div>'
-                     f'{"".join(rows)}</div>')
+        # CENTRE de la carte = score + horloge live (comme les cartes Confiance/Value en direct)
+        _sc = (m.get("score") or "").strip()
+        if _sc:
+            center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
+                      + _live_clock_html("foot", m.get("home", ""), m.get("away", "")) + '</span>')
+        else:
+            center = '<span class="tm-live"><b>en direct</b></span>'
+        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
+                                         center, '<span class="b live">● en direct</span>',
+                                         "".join(rows), state_cls=" mc-r-live"))
     # styles `.lph-*` -> CSS GLOBAL (sinon la zone « terminés » perdait la mise en forme quand la zone live
     # était vide et n'émettait pas son <style> — bug user 2026-09-13 : cartes en texte brut le soir).
     note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
@@ -11701,9 +11720,11 @@ def _live_phantom_settled_zone(sport: str) -> str:
             cote = analyses.fmt_cote(p["odds"]) or "?"
             rows.append(f'<div class="lph-row"><span class="lph-sel {cls}">{badge} {sel}</span>'
                         f'<span class="lph-m">cote {cote} · EV +{p["ev"]*100:.0f}% · dès {p.get("minute","?")}\'</span></div>')
-        head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
-        cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
-                     f'<span class="lph-min">terminé {_h.escape(m.get("final", ""))}</span></div>{"".join(rows)}</div>')
+        _fin = (m.get("final") or "").strip()
+        center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
+                  f'<span class="tm-fin">Terminé</span></span>')
+        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
+                                         center, "", "".join(rows)))
     # styles `.lph-*`/`.lphr-*`/`.lph-reco` -> CSS GLOBAL (toujours présents, même quand la zone live est vide).
     # BILAN HONNÊTE = track record CANONIQUE (1 pari INDÉPENDANT/match, tout l'historique) — le seul taux qui
     # veut dire qqch. Le brut won/tot ci-dessous compte des lignes CORRÉLÉES du même match (Under 3.5/4.5/5.5…)
