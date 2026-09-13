@@ -276,6 +276,46 @@ def build_html() -> str:
             cells += f'<td>{"–" if not m else f"""n{m["n"]}·{m["winrate"]}%"""}</td>'
         h.append(f'<tr><td><b>{r["market"]}</b></td><td>{r["total"]}</td>{cells}</tr>')
     h.append('</table>')
+    # D — track FANTÔME live (expérimental, jamais publié)
+    try:
+        from app import live_pick
+        lv = live_pick.summary()
+    except Exception:
+        lv = None
+    if lv is not None:
+        g = lv.get("gates", {})
+        cano = lv.get("canonical", {})
+        h.append('<h2>🔴 Live fantôme <span class="muted">(EXPÉRIMENTAL — jamais publié)</span></h2>'
+                 '<p class="sub">Suggestions LIVE loggées mais NON publiées (proba modèle × cote live − 1 = EV, '
+                 f'marchés fiables). Aucun backtest possible (cotes live jamais persistées) → mesure 100 % forward. '
+                 f'Gates : EV≥{int(g.get("ev_min",0)*100)}% · proba≥{int(g.get("prob_min",0)*100)}% · '
+                 f'log dès {g.get("minute_log_min","?")}\' · pick titre = 1er qualifiant ≥{g.get("minute_canon_min","?")}\'. '
+                 f'{lv.get("matches",0)} match(s) suivis · {lv.get("snaps_total",0)} snapshot(s) '
+                 f'({lv.get("snaps_pending",0)} en attente de règlement).</p>')
+        if not cano.get("n"):
+            h.append('<p class="muted">Aucun pick canonique réglé pour l\'instant — le track démarre vide et se '
+                     'remplira au fil des matchs en direct.</p>')
+        else:
+            h.append('<table><tr><th>Vue</th><th>n</th><th>réuss</th><th>ROI</th><th>cote moy</th>'
+                     '<th>EV moy</th><th>min moy</th></tr>')
+            for lbl, r in (("Pick canonique (1/match)", cano), ("Tous snapshots réglés", lv.get("all_settled", {}))):
+                h.append(f'<tr><td><b>{lbl}</b></td><td>{r.get("n",0)}</td><td>{r.get("winrate",0)}%</td>'
+                         f'<td>{_pill(r.get("roi",0),3,0)}</td><td>{r.get("avg_cote",0)}</td>'
+                         f'<td>{r.get("avg_ev",0)}%</td><td>{r.get("avg_min",0)}\'</td></tr>')
+            for fam, r in (lv.get("by_family") or {}).items():
+                h.append(f'<tr><td class="muted">↳ {fam}</td><td>{r.get("n",0)}</td><td>{r.get("winrate",0)}%</td>'
+                         f'<td>{_pill(r.get("roi",0),3,0)}</td><td>{r.get("avg_cote",0)}</td>'
+                         f'<td>{r.get("avg_ev",0)}%</td><td>{r.get("avg_min",0)}\'</td></tr>')
+            h.append('</table>')
+            cal = lv.get("calibration") or []
+            if cal:
+                h.append('<p class="sub" style="margin-top:8px">Calibration (déciles de proba MODÈLE vs réalisé ; '
+                         'snapshots d\'un même match corrélés → indicatif).</p>'
+                         '<table><tr><th>Proba modèle</th><th>n</th><th>modèle moy</th><th>réalisé</th></tr>')
+                for c in cal:
+                    h.append(f'<tr><td><b>{c["bucket"]}</b></td><td>{c["n"]}</td>'
+                             f'<td>{c["model"]}%</td><td>{c["real"]}%</td></tr>')
+                h.append('</table>')
     css = ("<style>body{font-family:system-ui,-apple-system,sans-serif;background:#0b0f14;color:#e6edf3;"
            "margin:0;padding:16px;max-width:900px}h1{font-size:22px;margin:0 0 2px}h2{font-size:16px;"
            "margin:22px 0 6px;color:#9fb6cf}.sub{color:#7f8794;font-size:12px;margin:0 0 8px}"

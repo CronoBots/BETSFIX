@@ -72,6 +72,15 @@ async def _combo_warm_loop():
                 # EN COURS : cote LIVE de TOUS les marchés (barre « Chance live ») -> catalogue Bet Builder,
                 # hors event loop. Couvre simples ET combinés, tous sports.
                 await asyncio.to_thread(analyses.warm_live_catalog, d.get("id"))
+                # TRACK FANTÔME LIVE (EXPÉRIMENTAL, jamais publié) : logge la meilleure suggestion live du
+                # match (proba modèle × cote live − 1 = EV) dans un store SÉPARÉ, hors event loop. Gaté sur
+                # le leader de règlement (une SEULE instance logge -> pas de doublon). Foot uniquement.
+                if os.path.basename(p).startswith("foot_") and _become_settle_leader():
+                    try:
+                        from app import live_pick
+                        await asyncio.to_thread(live_pick.observe_match, d)
+                    except Exception as _exc:
+                        log.debug("live phantom observe: %s", _exc)
                 combo = (d or {}).get("combo") or {}
                 if combo.get("legs") and not combo.get("result"):
                     if any(l.get("oid") for l in combo["legs"]):
@@ -123,6 +132,13 @@ async def _settle_loop():
                 na = await settle_analyst.settle_analyses()
                 if na:
                     log.info("analyses réglées : %s", na)
+                try:
+                    from app import live_pick
+                    ns = await asyncio.to_thread(live_pick.settle_all)
+                    if ns:
+                        log.info("track fantôme live réglé : %s match(s)", ns)
+                except Exception as exc:
+                    log.debug("live phantom settle: %s", exc)
             except Exception as exc:
                 log.warning("settle analyses error: %s", exc)
             try:

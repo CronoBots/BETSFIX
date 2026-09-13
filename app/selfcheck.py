@@ -1154,6 +1154,21 @@ def _check_final_mechanical_bet_revealed(rows) -> dict:
             "items": bad}
 
 
+def _check_live_shadow_isolated(rows) -> dict:
+    """ISOLATION du track fantôme LIVE (app.live_pick, EXPÉRIMENTAL, jamais publié) : ses snapshots vivent
+    dans un store SÉPARÉ (data/live_shadow/) et ne doivent JAMAIS toucher un sidecar de match — sinon ils
+    fuiraient dans le ROI/la calibration. On vérifie qu'aucun sidecar n'a acquis de clé `live_shadow`.
+    0 = isolation intacte (attendu). 100 % lecture seule."""
+    bad = [f"{d.get('home', '?')}–{d.get('away', '?')}" for _s, d in rows if "live_shadow" in (d or {})]
+    return {"key": "live_shadow_isolated",
+            "level": "error" if bad else "ok",
+            "title": "Track fantôme live isolé (zéro contamination des sidecars)",
+            "detail": (f"{len(bad)} sidecar(s) portent une clé live_shadow -> le track fantôme fuit dans le "
+                       f"ROI/la calibration (à corriger)." if bad
+                       else "0 — les snapshots live vivent hors des sidecars (store séparé) : ROI/calibration intacts."),
+            "items": bad[:20]}
+
+
 def run(persist: bool = False) -> dict:
     """Lance TOUS les contrôles. `persist=True` met à jour le filigrane de monotonicité (à réserver au
     run quotidien de confiance). Renvoie {status, ts, counts, checks:[...]}. Ne lève jamais."""
@@ -1190,6 +1205,7 @@ def run(persist: bool = False) -> dict:
         _check_played_bet_sharp_anchor(rows),
         _check_final_mechanical_bet_revealed(rows),
         _check_stats_snapshot_drift(),
+        _check_live_shadow_isolated(rows),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
