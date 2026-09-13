@@ -51,20 +51,26 @@ MINUTE_LOG_MIN = 15      # ne rien logger avant la 15e minute (bruit d'ouverture
 MINUTE_CANON_MIN = 45    # « pick canonique » (métrique-titre, 1/match) = 1er qualifiant à/après cette minute
 LOG_GAP_MIN = 5          # throttle : re-log d'un MÊME pari espacé d'au moins N minutes de match
 
-# Marchés FIABLES autorisés (allowlist, PAS le banlist confiance qui exclut BTTS). Familles = `market_of`.
+# TOUS LES MARCHÉS MODÉLISABLES (user 2026-09-13 « tous les types de marché peuvent être pris en compte ») :
+# buts (résultat/DC/handicap/totaux/BTTS) + ÉVÉNEMENTS COMPTÉS (corners/cartons/tirs/tirs cadrés) — ces derniers
+# pricés grâce aux compteurs live API-Football (`_live_vals`). On garde bannis les marchés VRAIMENT non-
+# modélisables (props JOUEUR, score exact, 1er but/buteur, mi-temps/périodes). Réversible : ALL_MARKETS_ON.
+ALL_MARKETS_ON = True
 _ALLOW_FAMILIES = frozenset({
     "Vainqueur", "Double chance", "Handicap",
     "Total Over", "Total Under", "Total équipe", "Les 2 marquent",
 })
+_ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés"})   # activés si ALL_MARKETS_ON
 
-# BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés
-# exotiques en total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %,
-# ou « 3-Way Handicap (2-0) » -> Handicap p=1.00). On les rejette AVANT toute classification. « marquent » (BTTS)
-# n'est PAS touché (on ne bannit que « marque au moins » / buteur / props / scoreline / mi-temps / événements).
+# BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés en
+# total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %). On les
+# rejette AVANT classification. Corners/cartons/tirs NE sont PLUS bannis (désormais pricés via compteurs live) —
+# on ne bannit que les VRAIS non-modélisables : props JOUEUR (marque/buteur/passe/arrêts), mi-temps/périodes,
+# scoreline, score exact, hors-jeu, coup franc. « marquent » (BTTS) épargné.
 _BAN_TEXT_RE = re.compile(
-    r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist"
-    r"|carton|corner|\btirs?\b|cadr|arr[eê]t|hors-?jeu|coup\s+franc"
-    r"|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode|3-?way|\(\s*\d+\s*-\s*\d+\s*\)",
+    r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist|arr[eê]t"
+    r"|hors-?jeu|coup\s+franc|remplac|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode"
+    r"|3-?way|\(\s*\d+\s*-\s*\d+\s*\)",
     re.I)
 
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
@@ -160,20 +166,22 @@ _STATS_RATE_CACHE: dict = {}   # mid -> (ts, rate90|None)
 _FIXID_CACHE: dict = {}        # mid -> fixture_id API-Football (semi-statique)
 
 
-def _stats_rate90(mid, home, away, ko, minute, allow_fetch: bool = False) -> float | None:
-    """goals/90 estimé par la PRESSION DE TIRS live (xG-proxy des tirs cadrés/non cadrés des 2 équipes),
-    ramené à 90'. None si indispo/flag off. Caché 90 s/match ; fixture id caché en permanence (quota).
-    `allow_fetch` : SEUL le fond (observe loop, hors event loop) déclenche l'appel API ; l'AFFICHAGE lit le
-    cache uniquement (jamais d'appel réseau bloquant dans le rendu — le fond garde le cache chaud toutes les ~25 s)."""
-    if not STATS_INJECT_ON or not mid or minute is None or minute < 1:
+_AF_STATS_CACHE: dict = {}     # mid -> (ts, stats{home,away}|None) : stats live brutes API-Football, cachées 90 s
+
+
+def _af_live_stats(mid, home, away, ko, allow_fetch: bool = False):
+    """Stats live BRUTES API-Football ({home,away: shots_on/shots_total/corners/yellow/red…}). Cachées 90 s/match
+    ; fixture id caché en permanence (quota). SEUL le fond (observe loop, hors event loop) fetch (`allow_fetch`) ;
+    l'AFFICHAGE lit le cache (jamais d'appel réseau bloquant dans le rendu). None si indispo."""
+    if not mid:
         return None
     import time as _t
-    hit = _STATS_RATE_CACHE.get(mid)
+    hit = _AF_STATS_CACHE.get(mid)
     if hit and (_t.time() - hit[0]) < _STATS_RATE_TTL:
         return hit[1]
     if not allow_fetch:
-        return None                                        # rendu : pas d'appel réseau -> repli tempo-buts seul
-    rate = None
+        return None
+    ss = None
     try:
         from app import apifootball as _AF
         if _AF.configured() and home and away and ko:
@@ -183,21 +191,48 @@ def _stats_rate90(mid, home, away, ko, minute, allow_fetch: bool = False) -> flo
                     f = _AF.resolve_fixture(cl, home, away, ko)
                     fid = _FIXID_CACHE[mid] = (f or {}).get("id") or 0
                 if fid:
-                    ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or {}
-
-                    def _g(side, k):
-                        v = (ss.get(side) or {}).get(k)
-                        return v if isinstance(v, (int, float)) else 0
-                    sot = _g("home", "shots_on") + _g("away", "shots_on")
-                    tot = _g("home", "shots_total") + _g("away", "shots_total")
-                    if tot > 0:                            # au moins des tirs comptés -> signal exploitable
-                        off = max(0, tot - sot)
-                        xg = sot * _XG_PER_SOT + off * _XG_PER_OFF
-                        rate = xg / max(0.05, minute / 90.0)   # xG-proxy accumulé -> ramené à /90
+                    ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or None
     except Exception:
-        rate = None
-    _STATS_RATE_CACHE[mid] = (_t.time(), rate)
-    return rate
+        ss = None
+    _AF_STATS_CACHE[mid] = (_t.time(), ss)
+    return ss
+
+
+def _stats_rate90(mid, home, away, ko, minute, allow_fetch: bool = False) -> float | None:
+    """goals/90 estimé par la PRESSION DE TIRS live (xG-proxy tirs cadrés/non cadrés des 2 équipes), ramené à 90'.
+    None si indispo/flag off."""
+    if not STATS_INJECT_ON or not mid or minute is None or minute < 1:
+        return None
+    ss = _af_live_stats(mid, home, away, ko, allow_fetch)
+    if not ss:
+        return None
+
+    def _g(side, k):
+        v = (ss.get(side) or {}).get(k)
+        return v if isinstance(v, (int, float)) else 0
+    sot = _g("home", "shots_on") + _g("away", "shots_on")
+    tot = _g("home", "shots_total") + _g("away", "shots_total")
+    if tot <= 0:
+        return None
+    off = max(0, tot - sot)
+    return (sot * _XG_PER_SOT + off * _XG_PER_OFF) / max(0.05, minute / 90.0)
+
+
+def _live_vals(mid, home, away, ko, allow_fetch: bool = False):
+    """Compteurs live {corners_h/a, cards_h/a, sot_h/a, shots_h/a} depuis les stats API-Football -> pricer les
+    marchés d'ÉVÉNEMENTS COMPTÉS (corners/cartons/tirs). None si indispo (-> ces marchés restent non pricés)."""
+    ss = _af_live_stats(mid, home, away, ko, allow_fetch)
+    if not ss:
+        return None
+
+    def _g(side, k):
+        v = (ss.get(side) or {}).get(k)
+        return int(v) if isinstance(v, (int, float)) else 0
+    return {"corners_h": _g("home", "corners"), "corners_a": _g("away", "corners"),
+            "cards_h": _g("home", "yellow") + _g("home", "red"),
+            "cards_a": _g("away", "yellow") + _g("away", "red"),
+            "sot_h": _g("home", "shots_on"), "sot_a": _g("away", "shots_on"),
+            "shots_h": _g("home", "shots_total"), "shots_a": _g("away", "shots_total")}
 
 
 def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False,
@@ -292,6 +327,10 @@ def _family(info: dict, wside, text: str) -> str:
             return "Total équipe" if side in ("HOME", "AWAY") else "Total Over"
         if dirn == "UNDER":
             return "Total équipe" if side in ("HOME", "AWAY") else "Total Under"
+    # ÉVÉNEMENTS COMPTÉS (corners/cartons/tirs/tirs cadrés) — totaux match/équipe Plus/Moins (pricés via
+    # compteurs live). Handicaps/mi-temps de ces métriques EXCLUS (dir OVER/UNDER + scope match uniquement).
+    if metric in ("corners", "cards", "sot", "shots") and scope == "match" and dirn in ("OVER", "UNDER"):
+        return {"corners": "Corners", "cards": "Cartons", "sot": "Tirs cadrés", "shots": "Tirs"}[metric]
     if analyses._is_signed_handicap(text) and metric in ("goals", "special"):
         return "Handicap"
     return "Autre"
@@ -310,6 +349,7 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
     out: list[dict] = []
     seen: set[str] = set()
     g90 = _match_goals90(hs, as_, minute, mid, home, away, ko, allow_fetch, pre_g90)   # prior marché + tempo + tirs
+    vals = _live_vals(mid, home, away, ko, allow_fetch) if ALL_MARKETS_ON else None    # compteurs live (corners/cartons/tirs)
     for e in (catalog or []):
         text = (e.get("text") or "").strip()
         od = e.get("odds")
@@ -317,19 +357,19 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
             continue
         if not (isinstance(od, (int, float)) and od > 1):
             continue
-        if _BAN_TEXT_RE.search(text):                  # props/scoreline/événements mal-parsés en buts -> jetés
+        if _BAN_TEXT_RE.search(text):                  # props/scoreline/mi-temps -> jetés
             continue
         info = analyses._leg_metric({"sel": text}, home, away)
         wside = analyses._winner_side(text, "", home, away, "foot")
         if wside is None:                              # DC par NOM (catalogue sans jeton « 1X ») -> résolue ici
             wside = _dc_pair(text, home, away)
         fam = _family(info, wside, text)
-        if fam not in _ALLOW_FAMILIES:
+        if fam not in _ALLOW_FAMILIES and not (ALL_MARKETS_ON and fam in _ALLOW_COUNTED):
             continue
         # Déjà tranché par le direct (total franchi / BTTS acquis) = plus une OPPORTUNITÉ de pari live -> skip.
-        if analyses._live_locked("foot", text, "", info, hs, as_, None) in ("won", "lost"):
+        if analyses._live_locked("foot", text, "", info, hs, as_, vals) in ("won", "lost"):
             continue
-        prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, None, goals90=g90)
+        prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, vals, goals90=g90)
         if prob is None:
             continue
         seen.add(text)

@@ -98,6 +98,26 @@ def test_stats_injection_raises_rate_on_shot_pressure(monkeypatch):
     assert hot > base, "la pression de tirs doit relever le taux de buts attendu"
 
 
+def test_all_markets_counted_events(monkeypatch):
+    """« Tous les marchés » (user) : corners/cartons/tirs pricés via les compteurs live API-Football ; les props
+    JOUEUR restent bannis (pas de +6500 % garbage)."""
+    monkeypatch.setattr(lp, "ALL_MARKETS_ON", True)
+    monkeypatch.setitem(lp._AF_STATS_CACHE, "X",
+                        (9e18, {"home": {"corners": 4, "shots_total": 8, "shots_on": 3, "yellow": 1, "red": 0},
+                                "away": {"corners": 3, "shots_total": 6, "shots_on": 2, "yellow": 2, "red": 0}}))
+    cat = [{"id": 1, "text": "Nombre total de corners Plus de 9.5", "odds": 1.90},
+           {"id": 2, "text": "Total de cartons Plus de 4.5", "odds": 2.0},
+           {"id": 3, "text": "Pascal Gross - Marque au moins 2 buts", "odds": 41.0}]   # prop -> banni
+    rows = lp.price_catalog(cat, "A", "B", 1, 0, 60, mid="X", ko="2026-09-13T18:00:00Z", allow_fetch=True)
+    fams = {r["family"] for r in rows}
+    assert "Corners" in fams and "Cartons" in fams          # événements comptés pricés
+    assert not any("marque au moins" in r["sel"].lower() for r in rows)   # prop joueur banni
+    # compteurs indispo (cache vide) -> corners non pricés (repli : pas de garbage)
+    lp._AF_STATS_CACHE.clear()
+    rows2 = lp.price_catalog(cat, "A", "B", 1, 0, 60, mid="Y", ko="2026-09-13T18:00:00Z", allow_fetch=False)
+    assert not any(r["family"] in ("Corners", "Cartons") for r in rows2)
+
+
 def test_late_game_uplift(monkeypatch):
     """Optim 3 : surcote de fin de match (buts plus fréquents tard) -> facteur 1.0 avant LATE_FROM, croissant
     jusqu'à ~1+LATE_UPLIFT à 90'. Corrige la sur-confiance des Unders tardifs."""
