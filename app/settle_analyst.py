@@ -453,8 +453,15 @@ def code_from_pick(pick: str, sport: str, home: str, away: str) -> str:
     t_side = t.split("(")[0]
     # Jetons du nom : mots >= 4 lettres ; REPLI sur >= 2 si aucun (équipes à sigle court : TPS, VPS,
     # PSG…) -> sinon le côté HOME/AWAY reste indéterminé et le handicap/1X2 ne se règle jamais.
-    names = lambda s: ([w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 4]
-                       or [w for w in re.findall(r"[a-zà-ÿ]+", (s or "").lower()) if len(w) >= 2])
+    def names(s):
+        low = (s or "").lower()
+        toks = [w for w in re.findall(r"[a-zà-ÿ]+", low) if len(w) >= 4]
+        # + SIGLES en MAJUSCULES du nom original (PSV, PSG, RCL…) : le pari les utilise souvent SEULS
+        #   (« PSV moins de 4.5 buts ») alors que le nom Unibet est « PSV Eindhoven » -> sans ça le total
+        #   d'ÉQUIPE était mal codé en total de MATCH (cote fausse, fausse value — bug user 2026-09-13).
+        caps = [w.lower() for w in re.findall(r"\b[A-Z]{3,4}\b", s or "")]
+        toks = toks + [c for c in caps if c not in toks]
+        return toks or [w for w in re.findall(r"[a-zà-ÿ]+", low) if len(w) >= 2]
     h_all, a_all = names(home), names(away)
     # Désambiguïsation : ignore les jetons COMMUNS aux deux camps (ex. « Ironi » dans
     # « Elitzur Ironi Netanya » vs « Ironi Ness Ziona », ou « Maria » dans « Maria Sakkari »
