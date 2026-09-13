@@ -4,7 +4,7 @@
 Backtest (données PROPRES, sans paris de période) sur la population VALUE = les matchs foot SANS pari de
 confiance (la Confiance 93% est PRIORITAIRE, cf. app.confidence_pick — 1 pari/match). Profil B retenu (user,
 2026-08-29) — le plus rentable ET robuste hors-échantillon :
-    TOUS marchés (sauf bans) · confiance BRUTE ≥ 58 · cote 1.40-2.30 · EV ≥ +5 % (vrai edge : proba > cote
+    TOUS marchés (sauf bans) · confiance BRUTE ≥ 66 · cote 1.30-2.30 · EV ≥ +5 % (vrai edge : proba > cote
     implicite) · départage = cote la plus HAUTE
   -> 75 % de réussite, ROI +21,9 %, cote moyenne 1.63, généralise (train +21 % / test/août +12,5 %). En
   pratique : Total Under/Over/équipe + Handicap + DC (le gate EV+cote écarte le junk cartons/tirs).
@@ -60,7 +60,7 @@ def resolve_result(d: dict, code: str) -> str | None:
 
 
 def pick_from_candidates(cands: list[dict]) -> dict | None:
-    """Profil value B : prob ≥ PROB_MIN (68 depuis 2026-09-01, ex-58), cote COTE_LO..COTE_HI (1.40-2.30),
+    """Profil value B : prob ≥ PROB_MIN (66 depuis 2026-09-12, ex-58/68), cote COTE_LO..COTE_HI (1.30-2.30),
     EV ≥ EV_MIN (+5 %) -> la cote la plus HAUTE (départage prob).
     C'est le pari à EDGE : la value la plus grasse parmi les paris fiables. `cands` déjà sans bans. None si rien.
     Dernier départage = `code` (alphabétique) : à cote ET prob ÉGALES, `max()` renvoyait le 1er rencontré

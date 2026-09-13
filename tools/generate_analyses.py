@@ -4093,21 +4093,28 @@ async def main():
                         _shadow = _parse_calib(analysis, sport, m.get("home", ""), m.get("away", ""))
                         if _shadow:
                             _o = (meta.get("odds") if meta else None) or (None, None, None)
-                            # VRAIES COTES UNIBET même sur une ABSTENTION (fix user 2026-08-31) : la fiche
-                            # minimale d'abstention n'écrivait PAS `omap` -> la DC la plus sûre d'un match
-                            # abstenu (ex. un favori net) était privée de vraie cote et donc EXCLUE du vivier
-                            # LARGE du combiné (« la DC la plus sûre de CHAQUE match »). On capte l'omap ici
-                            # aussi : cache process, sinon re-fetch synchrone borné (fiable). Best-effort.
-                            _ab_omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
-                            if not _ab_omap and sport == "foot":
+                            # VRAIE COTE UNIBET même sur une ABSTENTION (fix user 2026-08-31) : la fiche minimale
+                            # d'abstention n'écrivait PAS `omap` -> la DC la plus sûre d'un match abstenu était
+                            # privée de vraie cote (exclue du vivier combiné). SURTOUT (fix 2026-09-13) : le garde-
+                            # fou anti-abstention-fantôme ci-dessous peut RATTRAPER+PUBLIER un pari sur cet omap ->
+                            # il doit être la VRAIE cote DU MOMENT, jamais une figée du matin (sinon on republie une
+                            # cote périmée via le rattrapage = bug Palmeiras, cf. _write_sidecar 2026-09-12). Donc
+                            # MÊME ORDRE que _write_sidecar : re-fetch Kambi FRAIS d'abord (foot), cache process en
+                            # repli seulement. Best-effort, borné, non bloquant.
+                            _ab_omap = {}
+                            if sport == "foot":
                                 try:
                                     import httpx as _h2
                                     _r2 = _h2.get(f"{UNIBET_B}/betoffer/event/{m['id']}.json",
                                                   params=UNIBET_PARAMS, headers=UA, timeout=15)
                                     _ab_omap = _unibet_odds_map((_r2.json() or {}).get("betOffers"),
                                                                 m.get("home", ""), m.get("away", "")) or {}
+                                    if _ab_omap:
+                                        _UNIBET_OMAP[str(m.get("id"))] = _ab_omap
                                 except Exception:
                                     _ab_omap = {}
+                            if not _ab_omap:
+                                _ab_omap = _UNIBET_OMAP.get(str(m.get("id"))) or {}
                             _ab_side = {"sport": sport, "id": str(fid), "sofa_id": str(sofa_id or ""),
                                         "home": m.get("home", ""), "away": m.get("away", ""),
                                         "name": m.get("name", ""), "comp": m.get("comp", ""),
@@ -4154,7 +4161,7 @@ async def main():
                                                           + (1 if _ab_side.get("h2h") else 0))
                             # 🛡️ INVARIANT ANTI-ABSTENTION-FANTÔME (user 2026-09-09) : une abstention n'est
                             # LÉGITIME que si les sélecteurs mécaniques ne produisent RIEN sur les ghosts + omap
-                            # FINAUX. Or ce chemin (re)capte un omap FRAIS (l.4326-4335, refetch Unibet inclus)
+                            # FINAUX. Or ce chemin (re)capte un omap FRAIS (Kambi re-fetch d'abord, ci-dessus)
                             # qui peut COMPLÉTER une cote absente quand `apply_to_sidecar` a tourné plus tôt (bug
                             # mesuré : ~1-3 paris Confiance GAGNANTS/jour laissés en abstention car l'omap était
                             # incomplet à l'instant de sélection — 09-04 Genoa, 09-05 Forest, 09-08 x3, 09-09 x3).

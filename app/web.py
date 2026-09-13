@@ -464,15 +464,6 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* ⚠️ FLOTTANT FIABLE (fix régression user 2026-09-12 : la capsule flottait À MI-ÉCRAN sur l'onglet Accueil).
-       PREUVE terrain : sur cet iOS, un `position:fixed` à `bottom` NON NUL (ex. bottom:20px) NE s'ancre PAS au
-       bas de l'écran (il remonte) — MÊME en frère de `.wrap`, MÊME avec le body en overflow:hidden. SEUL
-       `bottom:0` s'ancre de façon fiable (c'est pourquoi la barre PLEINE LARGEUR bottom:0 marchait). Donc :
-       - `.botnav` = COQUILLE `position:fixed; bottom:0` pleine largeur (ANCRAGE BÉTON, identique à la barre qui
-         marchait), TRANSPARENTE, `pointer-events:none`. Son `padding-bas` (20px + safe) crée le FLOTTANT.
-       - `.botnav-inner` = CAPSULE VISIBLE (fond translucide solide, coins 28, ombre), remontée par le padding,
-         `max-width:480; margin:0 auto`. AUCUN backdrop-filter/transform (casse le `fixed` iOS).
-       Retour au SCROLL NORMAL du body (l'ancienne bidouille `.wrap` en position:fixed est ANNULÉE). */
     /* APP-SHELL FLEX (fix DÉFINITIF régression « menu à mi-écran » — 3 tentatives fixed échouées) : sur cet iOS,
        un `position:fixed` (même bottom:0, même hors scroll-container) NE tient PAS de façon fiable. On ARRÊTE le
        fixed : le body est un FLEX COLONNE de hauteur viewport EXACTE, le contenu scrolle DANS `.wrap`, et la barre
@@ -4688,7 +4679,7 @@ _TOTOP_JS = (
     "document.addEventListener('click',onTap,true);"      # CAPTURE : rien ne peut l'avaler
     "document.addEventListener('touchend',onTap,true);"   # PWA iOS : le tap sur bouton fixe
     # visibilité : candidats CHEAP (pas de scan complet à chaque scroll)
-    "function cy(){var y=wy(),c=[document.scrollingElement,document.body,document.getElementById('panels'),"
+    "function cy(){var y=wy(),c=[document.scrollingElement,document.body,document.querySelector('.wrap'),document.getElementById('panels'),"
     "document.querySelector('#panels .panel.on')],i;for(i=0;i<c.length;i++){if(c[i]&&c[i].scrollTop>y)y=c[i].scrollTop;}return y;}"
     "function upd(){var b=document.getElementById('bfx-totop');if(b)b.classList.toggle('show',cy()>300);}"
     "window.addEventListener('scroll',upd,{passive:true,capture:true});"
