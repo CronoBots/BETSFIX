@@ -11694,7 +11694,8 @@ def _live_phantom_zone(sport: str) -> str:
             cote = analyses.fmt_cote(p["odds"]) or "?"
             meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
                     f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
-                    f'<span>{p["prob"]*100:.0f}% modèle</span>')
+                    f'<span>{p["prob"]*100:.0f}% modèle</span>'
+                    f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
             rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
         if not rows:                                    # match suivi mais rien à proposer à cet instant
             msg = ("⏳ Données live en cours…" if not m.get("score")
@@ -11708,7 +11709,7 @@ def _live_phantom_zone(sport: str) -> str:
         else:
             center = '<span class="tm-live"><b>en direct</b></span>'
         cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                                         center, '<span class="b live">● en direct</span>',
+                                         center, "",   # badge « en direct » retiré (score+horloge le disent déjà)
                                          "".join(rows), state_cls=" mc-r-live"))
     # styles `.lph-*` -> CSS GLOBAL (sinon la zone « terminés » perdait la mise en forme quand la zone live
     # était vide et n'émettait pas son <style> — bug user 2026-09-13 : cartes en texte brut le soir).

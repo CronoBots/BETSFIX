@@ -300,8 +300,18 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
         score = f"{hs}-{as_}" if (hs is not None and as_ is not None) else ""
+        picks = current_picks(d, top=top)
+        # 1re minute où CHAQUE suggestion a été proposée (loggée) -> « dès X' » même en live. Depuis le store.
+        rec = _load(sport, d.get("id")) or {}
+        first = {}
+        for s in rec.get("snaps", []):
+            k, mn = s.get("sel"), s.get("minute")
+            if k is not None and isinstance(mn, int) and (k not in first or mn < first[k]):
+                first[k] = mn
+        for p in picks:
+            p["first_min"] = first.get(p.get("sel"), minute)   # repli = minute courante (pas encore loggé)
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
-                    "minute": minute, "score": score, "picks": current_picks(d, top=top)})
+                    "minute": minute, "score": score, "picks": picks})
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
     return out
 
