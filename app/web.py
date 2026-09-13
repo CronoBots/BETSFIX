@@ -470,29 +470,33 @@ CSS = """
      vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
      sous la barre. */
   @media (max-width:999px){
-    /* APP-SHELL FLEX (fix DÉFINITIF régression « menu à mi-écran » — 3 tentatives fixed échouées) : sur cet iOS,
-       un `position:fixed` (même bottom:0, même hors scroll-container) NE tient PAS de façon fiable. On ARRÊTE le
-       fixed : le body est un FLEX COLONNE de hauteur viewport EXACTE, le contenu scrolle DANS `.wrap`, et la barre
-       est un ITEM EN FLUX poussé tout en bas par `margin-top:auto`. Structurellement, la barre NE PEUT PLUS
-       flotter au milieu (elle n'est pas positionnée ; le body fait pile 100svh -> son dernier enfant est au bord
-       bas). Le FLOTTANT vient du padding de `.botnav` autour de la capsule `.botnav-inner`. Zéro fixed = zéro bug iOS. */
-    body{display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
-    .wrap{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-          max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 14px}
-    .botnav{flex:0 0 auto;margin:auto 0 0;align-self:stretch;position:static;display:block;width:auto;max-width:none;z-index:60;
+    /* MENU EN SURIMPRESSION « à la Strava » (user 2026-09-13 : « l'app doit être VISIBLE DERRIÈRE la barre,
+       jusqu'en bas de l'écran »). Le body est un FLEX COLONNE de hauteur viewport EXACTE (ne scrolle pas), le
+       contenu remplit TOUTE la hauteur et scrolle DANS `.wrap` -> les cartes défilent DERRIÈRE la capsule
+       translucide jusqu'au bord bas. La barre est en `position:absolute; bottom:0` DANS le body : comme le body
+       fait pile 100svh et NE bouge pas (overflow:hidden), l'ancrage est DÉTERMINISTE -> ce n'est PAS un
+       `position:fixed` (qui, lui, flottait à mi-écran sur cet iOS = bug historique). Le padding-bas de `.wrap`
+       réserve la hauteur de la barre pour que le DERNIER item puisse défiler AU-DESSUS de la capsule. */
+    body{position:relative;display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
+    .wrap{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+          max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px calc(98px + env(safe-area-inset-bottom, 0px))}
+    .botnav{position:absolute;left:0;right:0;bottom:0;display:block;width:auto;max-width:none;z-index:60;pointer-events:none;
             padding:0 16px calc(16px + env(safe-area-inset-bottom, 0px));   /* ⚠️ display:block OBLIGATOIRE : la base
             `.botnav{display:flex}` réduisait la capsule (enfant flex unique) à son contenu = pilule étriquée au
-            milieu. En bloc, la capsule `.botnav-inner` prend la largeur ; padding 16px latéral + bas = le FLOTTANT. */
+            milieu. `pointer-events:none` sur la coquille transparente -> les taps/scroll passent au contenu derrière ;
+            la capsule `.botnav-inner` les réactive. Padding 16px latéral + bas = le FLOTTANT autour de la capsule. */
             background:transparent;border:0;box-shadow:none}
-    /* CAPSULE FLOTTANTE « à la Strava » (user 2026-09-13, capture de référence) : une PILULE arrondie translucide
-       qui FLOTTE — marges latérales (padding 16px de `.botnav`) + gap bas (padding-bas de `.botnav`) -> le dégradé
-       d'app passe AUTOUR et EN DESSOUS jusqu'au bord bas (comme la carte Strava sous sa pilule). Fond translucide
-       CONTENU dans la pilule (PAS une bande pleine largeur = le « fond derrière la barre » que le user refusait).
-       ⚠️ On reste en app-shell FLEX (`.botnav` en flux, 0 position:fixed) -> aucun retour du bug « menu mi-écran ». */
-    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px 10px;border-radius:30px;
+    /* CAPSULE FLOTTANTE « à la Strava » (user 2026-09-13, capture de référence) : PILULE arrondie translucide qui
+       FLOTTE — marges latérales + gap bas (padding de `.botnav`). Fond translucide CONTENU dans la pilule -> on
+       VOIT le contenu de l'app défiler DERRIÈRE/à travers (surimpression) et le dégradé autour, jusqu'au bord bas.
+       `pointer-events:auto` : la pilule (re)capture les taps (la coquille `.botnav` les laisse passer au contenu). */
+    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px 10px;border-radius:30px;pointer-events:auto;
             background:rgba(24,27,36,.82);border:1px solid rgba(255,255,255,.09);
             box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
+    /* Bandeau « Installer » ouvert (navigateur, non-standalone) : il flotte au-dessus de la barre -> on réserve
+       assez de padding-bas dans .wrap pour que le dernier contenu passe au-dessus de la barre ET du bandeau. */
+    body.a2hs-open .wrap{padding-bottom:calc(178px + env(safe-area-inset-bottom, 0px))}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
