@@ -11610,15 +11610,21 @@ def _live_phantom_zone(sport: str) -> str:
     cards = []
     for m in matches:
         rows = []
-        for p in m["picks"]:
+        for p in m.get("picks") or []:
             sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
             cote = analyses.fmt_cote(p["odds"]) or "?"
             rows.append(f'<div class="lph-row"><span class="lph-sel">{sel}</span>'
                         f'<span class="lph-m">{p["prob"]*100:.0f}% modèle · cote {cote} · '
                         f'EV <b>+{p["ev"]*100:.0f}%</b></span></div>')
+        if not rows:                                    # match suivi mais rien à proposer à cet instant
+            msg = ("⏳ Données live en cours…" if not m.get("score")
+                   else "Aucune value live à cet instant.")
+            rows.append(f'<div class="lph-row lph-none">{msg}</div>')
         head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
+        _sc = _h.escape(m.get("score") or "en direct")
+        _mn = f' · {m["minute"]}\'' if m.get("minute") is not None else ""
         cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
-                     f'<span class="lph-min">{_h.escape(m.get("score", ""))} · {m.get("minute", "?")}\'</span></div>'
+                     f'<span class="lph-min">{_sc}{_mn}</span></div>'
                      f'{"".join(rows)}</div>')
     style = ('<style>.lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}'
              '.lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}'
@@ -11628,7 +11634,7 @@ def _live_phantom_zone(sport: str) -> str:
              '.lph-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;'
              'border-top:1px dashed #1c2733}.lph-row:first-of-type{border-top:none}'
              '.lph-sel{font-size:12.5px;color:#cfe0f0}.lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}'
-             '.lph-m b{color:#34d27b}</style>')
+             '.lph-m b{color:#34d27b}.lph-none{font-size:11.5px;color:#6f8098;font-style:italic}</style>')
     note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
             'croisées aux cotes Unibet en direct. Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans '
             'rapport avec Confiance/Value.</div>')
@@ -11760,8 +11766,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             out.append(_zone("prog", _upc_title, "", len(_upcoming_all),
                              _join_cards([_sport_row(c) for c in _upcoming_all]),
                              zk="live-upc", collapsible=False))
-        if _phantom:                                    # TEST live (fantôme) — en DERNIER, badgé « test »
-            out.append(_phantom)
+        if _phantom:                                    # TEST live (fantôme) — EN TÊTE (owner, visible d'emblée),
+            out.insert(0, _phantom)                     # badgé « test / non publié » ; à retirer aux abonnés
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).

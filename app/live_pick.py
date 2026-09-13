@@ -256,8 +256,11 @@ def current_picks(d: dict, top: int = 3) -> list[dict]:
 
 
 def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
-    """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] des matchs EN COURS ayant au
-    moins une suggestion live actuelle. Lecture seule (caches + sidecars mémoïsés)."""
+    """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] de TOUS les matchs EN COURS
+    pour lesquels on a la donnée live (score + minute + catalogue de cotes). `picks` PEUT être vide (aucune
+    value live à cet instant) -> la zone reste PERSISTANTE (ne clignote plus quand rien ne qualifie
+    momentanément). Lecture seule (caches + sidecars mémoïsés). Matchs sans donnée live = exclus (rien à dire)."""
+    from app import match_select
     out = []
     for pth in glob.glob(os.path.join(analyses.DIR, f"{sport}_*.json")):
         try:
@@ -266,16 +269,19 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
             continue
         if not d or analyses.status_of(d) != "inprogress":
             continue
-        picks = current_picks(d, top=top)
-        if not picks:
+        # INCLUSION gatée sur le CATALOGUE de cotes live (signal FIABLE = match live + pricable). Le score/
+        # minute (`liveData` Unibet) est FLAKY (parfois None un instant) -> on ne l'exige PAS pour l'inclusion,
+        # sinon la zone CLIGNOTE (disparaît quand le score saute). Sans score, `current_picks` renvoie [] et on
+        # affiche un placeholder « données en cours » -> la zone reste PERSISTANTE tant que le match est en direct.
+        if not analyses.live_catalog(d.get("id")):
             continue
-        from app import match_select
         ld = match_select.live_state_for(sport, d.get("home", ""), d.get("away", ""))
         sc = (ld or {}).get("score") or {}
+        hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
+        minute = match_select.live_minute(ld)
+        score = f"{hs}-{as_}" if (hs is not None and as_ is not None) else ""
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
-                    "minute": match_select.live_minute(ld),
-                    "score": f'{analyses._as_int(sc.get("home"))}-{analyses._as_int(sc.get("away"))}',
-                    "picks": picks})
+                    "minute": minute, "score": score, "picks": current_picks(d, top=top)})
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
     return out
 
