@@ -93,6 +93,8 @@ def apply_to_sidecar(d: dict) -> bool:
     Idempotent : ne réécrit PAS un value_bet déjà posé. Retourne True si posé."""
     if d.get("sport") != "foot":
         return False
+    if d.get("_removed_wrong_code"):                    # value retirée (marché/cote erronés) -> jamais ré-ajoutée
+        return False
     if isinstance(d.get("value_bet"), dict) and d["value_bet"].get("code"):
         return False
     # ANCRE SHARP STRUCTURÉE REQUISE (user 2026-09-12) : pas de `sharp_map` = value non recoupée par un book

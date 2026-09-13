@@ -168,6 +168,8 @@ def apply_to_sidecar(d: dict) -> bool:
     Idempotent : ne réécrit PAS un confidence_bet déjà posé (gel du prix envoyé). Retourne True si (re)posé."""
     if not CONFIDENCE_PICK_ON or d.get("sport") != "foot":
         return False
+    if d.get("_removed_wrong_code"):                    # pari retiré (marché/cote erronés) -> jamais ré-ajouté
+        return False
     if isinstance(d.get("confidence_bet"), dict) and d["confidence_bet"].get("code"):
         return False                                   # déjà figé -> jamais re-prixé (comme published_bet)
     # ANCRE SHARP STRUCTURÉE REQUISE (user 2026-09-12) : sans `sharp_map` (proba sharp par code figée au scan),
