@@ -508,16 +508,19 @@ CSS = """
     #pn-home.on #day-content{flex:1 0 auto;display:flex;flex-direction:column}
     #pn-home.on .dash-today{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
   }
-  /* PWA INSTALLÉE (standalone) — REMPLIR TOUT L'ÉCRAN JUSQU'AU BORD BAS (user 2026-09-13 : « la version PWA doit
-     remplir l'app jusqu'en bas et le menu doit être dans le bas »). BUG iOS : en standalone, `height:100svh` est
-     calculé PLUS COURT que l'écran physique -> le body ne descendait pas jusqu'au bas = grande bande NOIRE en bas
-     + menu (ancré au bas du body) qui remontait. Le navigateur (Safari), lui, est CORRECT en `svh` (validé user)
-     -> on NE touche PAS au cas navigateur. En standalone SEULEMENT, on ancre le shell au VRAI viewport via
-     `position:fixed; inset:0` (insensible au bug d'unité `svh`/`dvh`) -> body = plein écran exact, `.wrap` le
-     remplit, `.botnav` (absolute bottom:0) se cale au vrai bord bas. Ce n'est PAS le `position:fixed` du menu
-     (bug mi-écran) : ici c'est le CONTENEUR ancré aux 4 bords, déterministe. */
-  @media (max-width:999px) and (display-mode:standalone){
-    body{position:fixed;inset:0;height:auto;min-height:0}
+  /* PWA INSTALLÉE — REMPLIR TOUT L'ÉCRAN JUSQU'AU BORD BAS (user 2026-09-13 : « la version PWA doit remplir l'app
+     jusqu'en bas et le menu doit être dans le bas »). BUG iOS : en app installée, `height:100svh` est calculé PLUS
+     COURT que l'écran physique -> le body ne descend pas jusqu'au bas = grande bande NOIRE en bas + menu (ancré au
+     bas du body) qui remonte. Le navigateur (Safari) est CORRECT en `svh` (validé user) -> on NE touche PAS au cas
+     navigateur. On ancre le shell au VRAI viewport via `position:fixed; inset:0` (insensible au bug d'unité svh/dvh)
+     -> body = plein écran exact, `.wrap` le remplit, `.botnav` (absolute bottom:0) se cale au vrai bord bas. Ce
+     n'est PAS le `position:fixed` du MENU (bug mi-écran) : ici c'est le CONTENEUR ancré aux 4 bords, déterministe.
+     ⚠️⚠️ GATE = classe `html.pwa` (posée par JS `pwa()`, cf. _BELL_JS), PAS `@media (display-mode:standalone)` :
+     le manifeste demande `display:fullscreen` -> l'app se lance en FULLSCREEN, donc le media `standalone` NE
+     MATCHE PAS sur iOS (c'était le bug : correctif jamais appliqué, bande noire persistante). `html.pwa` couvre
+     standalone + fullscreen + minimal-ui + navigator.standalone = fiable sur iOS. */
+  @media (max-width:999px){
+    html.pwa body{position:fixed;inset:0;height:auto;min-height:0}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
