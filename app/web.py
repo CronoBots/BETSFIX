@@ -3037,6 +3037,14 @@ CSS = """
        -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
        mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%)}
   .daycal-track::-webkit-scrollbar{display:none}
+  /* Fondu CONSCIENT du scroll (user 2026-09-13) : au bout DROIT (= Aujourd'hui, vue par défaut) pas de flou à
+     droite ; au bout GAUCHE pas de flou à gauche ; si tout tient sans scroll, aucun flou. Classes dc-start/
+     dc-end posées par le JS `updEdges`. */
+  .daycal-track.dc-end{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 100%);
+       mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 100%)}
+  .daycal-track.dc-start{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
+       mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
+  .daycal-track.dc-start.dc-end{-webkit-mask-image:none;mask-image:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:1px;
        min-width:46px;padding:7px 6px 6px;border:1px solid var(--border);border-radius:13px;
   }
@@ -4789,11 +4797,15 @@ _DAYCAL_JS = (
     # sur aujourd'hui (`_dcReady`). Sinon, à l'ouverture de l'onglet Programme, updGoto tournait AVANT ctr() ->
     # cellule AUJ. transitoirement hors-vue -> bouton affiché puis caché = flash. On l'autorise après stabilisation.
     "g.classList.toggle('show',show&&window._dcReady===true);}"
-    "function onScroll(){updMo();updGoto();}"
+    # FONDU des bords selon la position de scroll : dc-start au tout début, dc-end au tout à droite (Aujourd'hui).
+    "function updEdges(){var tr=document.querySelector('#daycal .daycal-track');if(!tr)return;"
+    "var s=tr.scrollLeft,mx=tr.scrollWidth-tr.clientWidth;"
+    "tr.classList.toggle('dc-start',s<=2);tr.classList.toggle('dc-end',s>=mx-2);}"
+    "function onScroll(){updMo();updGoto();updEdges();}"
     "function bind(){var tr=document.querySelector('#daycal .daycal-track');"
     "if(tr&&!tr._mb){tr._mb=1;tr.addEventListener('scroll',onScroll,{passive:true});}}"
-    "function sync(){window._dcReady=false;ctr();bind();updMo();updGoto();"
-    "setTimeout(function(){window._dcReady=true;updGoto();},420);}"
+    "function sync(){window._dcReady=false;ctr();bind();updMo();updGoto();updEdges();"
+    "setTimeout(function(){window._dcReady=true;updGoto();updEdges();},420);}"
     # EXPOSÉ GLOBALEMENT (user 2026-08-19) : le SPA rappelle `_daycalSync` à chaque affichage/chargement du
     # panneau Programme -> le calendrier se REPLACE À DROITE (aujourd'hui) même après un swap d'onglet ou un
     # rechargement de panneau (sinon il se ré-affichait tout à gauche « sans raison »). rAF -> après layout.
