@@ -461,43 +461,29 @@ CSS = """
           display:flex;gap:4px;
           padding:7px 10px calc(7px + env(safe-area-inset-bottom));
           background:#0b0d12;border-top:1px solid rgba(34,184,255,.22)}   /* filet bleu DISCRET */
-  /* WRAPPER interne (user 2026-09-12) : `display:contents` par défaut -> il DISPARAÎT de la mise en page (les
-     <a> se comportent comme enfants directs de .botnav) donc DESKTOP/socle inchangés. En MOBILE il devient la
-     CAPSULE flottante (voir plus bas) tandis que `.botnav` n'est plus qu'une COQUILLE fixe ancrée `bottom:0`. */
+  /* WRAPPER interne : `display:contents` PARTOUT -> il disparaît de la mise en page (les <a> sont enfants
+     directs de `.botnav`). En MOBILE c'est `.botnav` LUI-MÊME qui est la capsule flottante `position:fixed`
+     (voir plus bas) ; en DESKTOP `.botnav` est la sidebar. Le wrapper reste neutre dans les deux cas. */
   .botnav-inner{display:contents}
-  /* MOBILE (<1000px) : placement EXACTEMENT comme CRYPTONAUTS (demande user 2026-08-02, projet voisin qui
-     marche parfaitement en app installée) — barre FIXE en bas, padding bas = 6px + safe-area, ombre portée
-     vers le haut, et le contenu (.wrap) RÉSERVE la place. Fond html=#0b0d12 (déjà posé) remplit la zone home
-     sous la barre. */
+  /* MOBILE (<1000px) : la barre est une CAPSULE FLOTTANTE `position:fixed` détachée des bords (voir plus bas). */
   @media (max-width:999px){
-    /* MENU EN SURIMPRESSION « à la Strava » (user 2026-09-13 : « l'app doit être VISIBLE DERRIÈRE la barre,
-       jusqu'en bas de l'écran »). Le body est un FLEX COLONNE de hauteur viewport EXACTE (ne scrolle pas), le
-       contenu remplit TOUTE la hauteur et scrolle DANS `.wrap` -> les cartes défilent DERRIÈRE la capsule
-       translucide jusqu'au bord bas. La barre est en `position:absolute; bottom:0` DANS le body : comme le body
-       fait pile 100svh et NE bouge pas (overflow:hidden), l'ancrage est DÉTERMINISTE -> ce n'est PAS un
-       `position:fixed` (qui, lui, flottait à mi-écran sur cet iOS = bug historique). Le padding-bas de `.wrap`
-       réserve la hauteur de la barre pour que le DERNIER item puisse défiler AU-DESSUS de la capsule. */
-    body{position:relative;display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
-    .wrap{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-          max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px calc(98px + env(safe-area-inset-bottom, 0px))}
-    .botnav{position:absolute;left:0;right:0;bottom:0;display:block;width:auto;max-width:none;z-index:60;pointer-events:none;
-            padding:0 16px 16px;   /* ⚠️ display:block OBLIGATOIRE : la base `.botnav{display:flex}` réduisait la
-            capsule (enfant flex unique) à son contenu = pilule étriquée au milieu. `pointer-events:none` sur la
-            coquille transparente -> les taps/scroll passent au contenu derrière ; la capsule `.botnav-inner` les
-            réactive. ⚠️ ÉCART SYMÉTRIQUE (user 2026-09-13) : padding 16px identique en bas ET sur les côtés (PAS
-            de `+ env(safe-area-inset-bottom)`, qui donnait un écart bas ~50px ≠ 16px côtés en PWA installée). */
-            background:transparent;border:0;box-shadow:none}
-    /* CAPSULE FLOTTANTE « à la Strava » (user 2026-09-13, capture de référence) : PILULE arrondie translucide qui
-       FLOTTE — marges latérales + gap bas (padding de `.botnav`). Fond translucide CONTENU dans la pilule -> on
-       VOIT le contenu de l'app défiler DERRIÈRE/à travers (surimpression) et le dégradé autour, jusqu'au bord bas.
-       `pointer-events:auto` : la pilule (re)capture les taps (la coquille `.botnav` les laisse passer au contenu). */
-    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px 10px;border-radius:30px;pointer-events:auto;
-            background:rgba(24,27,36,.82);border:1px solid rgba(255,255,255,.09);
-            box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
+    /* BARRE « à la Strava » — CAPSULE FLOTTANTE `position:fixed` (LE modèle d'hier, qui remplissait le bas
+       correctement en PWA iOS). Le body scrolle NORMALEMENT (base : `min-height:100svh` + `padding-bottom` qui
+       RÉSERVE la place) ; le fond d'app (`html`) remplit l'écran jusqu'au bord bas ; la capsule PLANE par-dessus
+       et le contenu défile DERRIÈRE elle. ⚠️ FIX « la barre remonte sur les onglets vides » (user 2026-09-13 =
+       LE seul défaut restant d'hier) : ZÉRO `backdrop-filter`, `transform`, `will-change` sur cette barre fixe —
+       sur iOS ces 3 propriétés CASSENT le `position:fixed` (la barre s'ancre alors au DOCUMENT au lieu du
+       viewport et remonte quand le contenu est court). C'était la VRAIE cause (hier la capsule avait blur +
+       translateZ + will-change). Fond translucide SOLIDE (lisible sans flou). Écart 16px identique bas + côtés. */
+    .botnav{position:fixed;top:auto;left:16px;right:16px;bottom:16px;width:auto;max-width:none;margin:0;z-index:60;
+            display:flex;gap:2px;padding:8px 10px;border-radius:30px;
+            background:rgba(24,27,36,.9);border:1px solid rgba(255,255,255,.09);
+            box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
-    /* Bandeau « Installer » ouvert (navigateur, non-standalone) : il flotte au-dessus de la barre -> on réserve
-       assez de padding-bas dans .wrap pour que le dernier contenu passe au-dessus de la barre ET du bandeau. */
-    body.a2hs-open .wrap{padding-bottom:calc(178px + env(safe-area-inset-bottom, 0px))}
+    /* Le body scrolle -> `.wrap` remplit AU MOINS un écran (moins la barre) : (1) la chaîne flex:1 du Pronos a de
+       la hauteur à répartir ; (2) le contenu est TOUJOURS >= viewport -> l'onglet vide ne laisse pas la barre
+       fixe « flotter » plus haut (le défaut d'hier), même si l'ancrage iOS retombe sur le document. */
+    .wrap{min-height:calc(100svh - 80px - env(safe-area-inset-bottom, 0px))}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
        .dash-zones (space-between). `flex:1 0 auto` = grandit pour remplir, ne rétrécit jamais (jour chargé =
@@ -507,20 +493,6 @@ CSS = """
     #pn-home.on{display:flex;flex-direction:column}
     #pn-home.on #day-content{flex:1 0 auto;display:flex;flex-direction:column}
     #pn-home.on .dash-today{flex:1 0 auto;display:flex;flex-direction:column;justify-content:space-between}
-  }
-  /* PWA INSTALLÉE — REMPLIR TOUT L'ÉCRAN JUSQU'AU BORD BAS (user 2026-09-13 : « la version PWA doit remplir l'app
-     jusqu'en bas et le menu doit être dans le bas »). BUG iOS : en app installée, `height:100svh` est calculé PLUS
-     COURT que l'écran physique -> le body ne descend pas jusqu'au bas = grande bande NOIRE en bas + menu (ancré au
-     bas du body) qui remonte. Le navigateur (Safari) est CORRECT en `svh` (validé user) -> on NE touche PAS au cas
-     navigateur. On ancre le shell au VRAI viewport via `position:fixed; inset:0` (insensible au bug d'unité svh/dvh)
-     -> body = plein écran exact, `.wrap` le remplit, `.botnav` (absolute bottom:0) se cale au vrai bord bas. Ce
-     n'est PAS le `position:fixed` du MENU (bug mi-écran) : ici c'est le CONTENEUR ancré aux 4 bords, déterministe.
-     ⚠️⚠️ GATE = classe `html.pwa` (posée par JS `pwa()`, cf. _BELL_JS), PAS `@media (display-mode:standalone)` :
-     le manifeste demande `display:fullscreen` -> l'app se lance en FULLSCREEN, donc le media `standalone` NE
-     MATCHE PAS sur iOS (c'était le bug : correctif jamais appliqué, bande noire persistante). `html.pwa` couvre
-     standalone + fullscreen + minimal-ui + navigator.standalone = fiable sur iOS. */
-  @media (max-width:999px){
-    html.pwa body{position:fixed;inset:0;height:auto;min-height:0}
   }
   /* Bannière « Ajouter à l'écran d'accueil » (PWA) : incite à installer en plein écran -> plus de barre
      de navigateur = vraie sensation d'app. Montrée seulement HORS standalone (JS). */
