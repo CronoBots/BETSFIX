@@ -69,6 +69,16 @@ _BAN_TEXT_RE = re.compile(
 
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
 
+# Caches courts (monotonic) pour l'AFFICHAGE (l'onglet Live rend + auto-refresh 20 s) : les données ne bougent
+# qu'au rythme de l'observe loop (25 s) / du règlement (10 min) -> un cache ~10-15 s est transparent et évite de
+# recalculer à chaque rendu (perf : current_all globait 900 sidecars = ~184 ms/rendu).
+_CURRENT_ALL_CACHE: dict = {}
+_CURRENT_ALL_TTL = 10.0
+_SUMMARY_CACHE: dict = {}
+_SUMMARY_TTL = 15.0
+_SETTLED_CACHE: dict = {}
+_SETTLED_TTL = 15.0
+
 # OPTIMISATION 1 (2026-09-13) : taux de buts SPÉCIFIQUE au match au lieu du taux-ligue fixe (2,7/90). La
 # calibration mesurée montrait le Poisson à taux-ligue SUR-confiant sur les probas hautes (Unders dans les
 # matchs ouverts) et SOUS-confiant sur les probas basses. On mélange (Bayes) le taux-ligue (a priori) avec le
@@ -280,14 +290,30 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
     pour lesquels on a la donnée live (score + minute + catalogue de cotes). `picks` PEUT être vide (aucune
     value live à cet instant) -> la zone reste PERSISTANTE (ne clignote plus quand rien ne qualifie
     momentanément). Lecture seule (caches + sidecars mémoïsés). Matchs sans donnée live = exclus (rien à dire)."""
+    import time as _t
+    _now_m = _t.monotonic()
+    _hit = _CURRENT_ALL_CACHE.get(sport)
+    if _hit and (_now_m - _hit[0]) < _CURRENT_ALL_TTL:
+        return _hit[1]                                 # cache court -> l'onglet Live ne recalcule pas à chaque rendu
     from app import match_select
+    import datetime as _dt
+    try:
+        _now = _dt.datetime.now(_dt.timezone.utc)
+    except Exception:
+        _now = None
     out = []
-    for pth in glob.glob(os.path.join(analyses.DIR, f"{sport}_*.json")):
-        try:
-            d = analyses._meta_load(pth)
-        except Exception:
-            continue
-        if not d or analyses.status_of(d) != "inprogress":
+    # PERF (user 2026-09-13 « test live lent à s'afficher ») : on itère `iter_meta` (cache 2 s PARTAGÉ avec tout
+    # le rendu) au lieu de globber+charger les ~900 sidecars nous-mêmes (184 ms/rendu), + PRÉ-FILTRE par heure de
+    # coup d'envoi (fenêtre ~3 h) -> status_of/live-cache seulement sur les rares matchs plausiblement en cours.
+    for d in analyses.iter_meta(sport):
+        sdt = d.get("_start_dt")
+        if _now is not None and sdt is not None:
+            try:
+                if not (_dt.timedelta(0) <= (_now - sdt) <= _dt.timedelta(hours=3)):
+                    continue
+            except Exception:
+                pass
+        if analyses.status_of(d) != "inprogress":
             continue
         # INCLUSION gatée sur le CATALOGUE de cotes live (signal FIABLE = match live + pricable). Le score/
         # minute (`liveData` Unibet) est FLAKY (parfois None un instant) -> on ne l'exige PAS pour l'inclusion,
@@ -313,6 +339,7 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
                     "minute": minute, "score": score, "picks": picks})
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
+    _CURRENT_ALL_CACHE[sport] = (_now_m, out)
     return out
 
 
@@ -379,7 +406,13 @@ def settle_all() -> int:
 def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list[dict]:
     """Pour l'affichage « Test live — terminés » : matchs RÉGLÉS récents (≤ `hours`) avec, par match, les
     suggestions DISTINCTES (dédupées par libellé) et leur résultat won/lost/push -> répond à « ce qui avait
-    été proposé est-il passé ? ». Plus récents d'abord, `limit` max. Lecture seule."""
+    été proposé est-il passé ? ». Plus récents d'abord, `limit` max. Lecture seule (cache court ~15 s)."""
+    import time as _t
+    _now_m = _t.monotonic()
+    _k = (sport, hours, limit)
+    _hit = _SETTLED_CACHE.get(_k)
+    if _hit and (_now_m - _hit[0]) < _SETTLED_TTL:
+        return _hit[1]
     import datetime as _dt
     try:
         now = _dt.datetime.now(_dt.timezone.utc)
@@ -411,6 +444,7 @@ def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list
         out.append({"home": rec.get("home", ""), "away": rec.get("away", ""), "comp": rec.get("comp", ""),
                     "final": rec.get("final", ""), "start": st, "picks": list(seen.values())})
     out.sort(key=lambda m: m.get("start") or "", reverse=True)
+    _SETTLED_CACHE[_k] = (_now_m, out[:limit])
     return out[:limit]
 
 
@@ -419,7 +453,12 @@ def summary() -> dict:
     """Métriques du track fantôme LIVE (EXPÉRIMENTAL, non publié). Métrique-titre = UN pick CANONIQUE par
     match (1er qualifiant réglé ≥ MINUTE_CANON_MIN, indépendant entre matchs). Calibration = TOUS les
     snapshots réglés won/lost, en déciles de proba modèle (attention : plusieurs snapshots d'un même match
-    sont corrélés -> la calibration est indicative, pas un test d'indépendance)."""
+    sont corrélés -> la calibration est indicative, pas un test d'indépendance). Cache court ~15 s."""
+    import time as _t
+    _now_m = _t.monotonic()
+    _hit = _SUMMARY_CACHE.get("all")
+    if _hit and (_now_m - _hit[0]) < _SUMMARY_TTL:
+        return _hit[1]
     canon, allsnaps = [], []
     matches = pending = 0
     for rec in _iter_records():
@@ -464,7 +503,7 @@ def summary() -> dict:
     for s in canon:
         by_fam.setdefault(s.get("family", "?"), []).append(s)
 
-    return {
+    _res = {
         "matches": matches, "snaps_total": len(allsnaps) + pending, "snaps_pending": pending,
         "canonical": _roi(canon),
         "all_settled": _roi([s for s in allsnaps if s["result"] in ("won", "lost", "push")]),
@@ -474,6 +513,8 @@ def summary() -> dict:
                   "minute_log_min": MINUTE_LOG_MIN, "minute_canon_min": MINUTE_CANON_MIN,
                   "log_gap_min": LOG_GAP_MIN},
     }
+    _SUMMARY_CACHE["all"] = (_now_m, _res)
+    return _res
 
 
 if __name__ == "__main__":

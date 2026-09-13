@@ -7745,6 +7745,13 @@ _ZONE_ICON = {
              '<line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/></svg>'),
     "indic": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
               'stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.2 8.4A2 2 0 006.5 21h11a2 2 0 001.7-3.6L14 9V3"/></svg>'),
+    # « test live » (fantôme, expérimental) : FIOLE de labo (test/mesure) avec trait de liquide -> distinct.
+    "lph": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round"><path d="M8 3h8"/><path d="M9 3v6l-3.6 8.4A2 2 0 007.2 21h9.6a2 2 0 001.8-3.6L15 9V3"/>'
+            '<path d="M7 16h10"/></svg>'),
+    "lphs": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+             'stroke-linejoin="round"><path d="M8 3h8"/><path d="M9 3v6l-3.6 8.4A2 2 0 007.2 21h9.6a2 2 0 001.8-3.6L15 9V3"/>'
+             '<path d="M7 16h10"/></svg>'),
 }
 
 
@@ -11722,7 +11729,7 @@ def _live_phantom_zone(sport: str) -> str:
     note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
             'croisées aux cotes Unibet en direct, sur <b>TOUS</b> les matchs en direct (même sans pari joué). '
             'Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans rapport avec Confiance/Value.</div>')
-    return _zone("lph", "Test live", "test", len(matches), note + "".join(cards),
+    return _zone("lph", "Test live", "en direct", len(matches), note + "".join(cards),
                  zk="live-phantom", collapsible=True, open_=True)
 
 
@@ -11796,7 +11803,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
-    return _zone("lphs", "Test live — terminés", "test", len(matches), note + "".join(cards),
+    return _zone("lphs", "Test live — terminés", "", len(matches), note + "".join(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
 
