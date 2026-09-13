@@ -11724,12 +11724,9 @@ def _live_phantom_zone(sport: str) -> str:
         cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
                                          center, "",   # badge « en direct » retiré (score+horloge le disent déjà)
                                          "".join(rows), state_cls=" mc-r-live"))
-    # styles `.lph-*` -> CSS GLOBAL (sinon la zone « terminés » perdait la mise en forme quand la zone live
-    # était vide et n'émettait pas son <style> — bug user 2026-09-13 : cartes en texte brut le soir).
-    note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
-            'croisées aux cotes Unibet en direct, sur <b>TOUS</b> les matchs en direct (même sans pari joué). '
-            'Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans rapport avec Confiance/Value.</div>')
-    return _zone("lph", "Test live", "en direct", len(matches), note + "".join(cards),
+    # Cartes SÉPARÉES comme Confiance/Value (via `_join_cards` = `.mc-sep`) ; PLUS de description sous la zone
+    # (user 2026-09-13 : catégorie épurée comme les autres).
+    return _zone("lph", "Test live", "en direct", len(matches), _join_cards(cards),
                  zk="live-phantom", collapsible=True, open_=True)
 
 
@@ -11803,7 +11800,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
-    return _zone("lphs", "Test live — terminés", "", len(matches), note + "".join(cards),
+    return _zone("lphs", "Test live — terminés", "", len(matches), note + _join_cards(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
 
