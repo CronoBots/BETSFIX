@@ -326,6 +326,9 @@ def observe_match(d: dict) -> int:
     rec = _load("foot", mid) or {"sport": "foot", "match_id": mid, "home": home, "away": away,
                                  "comp": d.get("comp", ""), "start": d.get("start"),
                                  "snaps": [], "settled": False}
+    # taux de tirs live utilisé (xG-proxy /90) — LOGGÉ dans chaque snapshot pour pouvoir BACKTESTER l'effet des
+    # tirs plus tard (le cache est déjà chaud : price_catalog l'a rempli). None si stats indispo.
+    srate = _stats_rate90(mid, home, away, d.get("start"), minute)
     added = 0
     for p in qual:
         last = max((s["minute"] for s in rec["snaps"] if s.get("sel") == p["sel"]), default=None)
@@ -336,6 +339,7 @@ def observe_match(d: dict) -> int:
             "sel": p["sel"], "family": p["family"], "wside": p["wside"], "info": p["info"],
             "prob": round(p["prob"], 4), "odds": round(p["odds"], 3), "ev": round(p["ev"], 4),
             "result": None, "mv": MODEL_VERSION,       # version du modèle -> mesurer le nouveau modèle proprement
+            "srate": round(srate, 3) if isinstance(srate, (int, float)) else None,   # tirs live (backtest futur)
         })
         added += 1
     if added:
