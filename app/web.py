@@ -11726,7 +11726,7 @@ def _live_phantom_zone(sport: str) -> str:
                                          "".join(rows), state_cls=" mc-r-live"))
     # Cartes SÉPARÉES comme Confiance/Value (via `_join_cards` = `.mc-sep`) ; PLUS de description sous la zone
     # (user 2026-09-13 : catégorie épurée comme les autres).
-    return _zone("lph", "Test live", "en direct", len(matches), _join_cards(cards),
+    return _zone("lph", "Signal Live", "en direct", len(matches), _join_cards(cards),
                  zk="live-phantom", collapsible=True, open_=True)
 
 
@@ -11800,7 +11800,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
-    return _zone("lphs", "Test live — terminés", "", len(matches), note + _join_cards(cards),
+    return _zone("lphs", "Signal Live — terminés", "", len(matches), note + _join_cards(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
 
