@@ -94,6 +94,11 @@ _GOALS90_PRIOR_W = 1.0    # poids de l'a priori (taux-ligue), en « matchs compl
 # au rythme de buts. ⚠️ xG live d'API-Football ÉCARTÉ (calculé ~post-match, peu fiable) -> on part des TIRS.
 # Quota protégé : fixture id caché en permanence par match + taux caché 90 s/match. Réversible : STATS_INJECT_ON.
 STATS_INJECT_ON = True
+# Version du MODÈLE qui produit les suggestions : v2 = tempo (optim 1) + pression de tirs (optim 2), depuis
+# 2026-09-13. Estampillée sur chaque snapshot (`mv`) -> on mesure la calibration du NOUVEAU modèle SÉPARÉMENT
+# des vieux snapshots (v1 = taux-ligue), sinon la calibration reste polluée des semaines. Incrémenter à chaque
+# changement de modèle qui invalide la calibration passée.
+MODEL_VERSION = 2
 _XG_PER_SOT = 0.32        # xG-proxy par tir CADRÉ (ordre de grandeur usuel)
 _XG_PER_OFF = 0.04        # xG-proxy par tir NON cadré
 _STATS_RATE_TTL = 90.0
@@ -311,7 +316,7 @@ def observe_match(d: dict) -> int:
             "minute": minute, "score": f"{hs}-{as_}", "hs": hs, "as": as_,
             "sel": p["sel"], "family": p["family"], "wside": p["wside"], "info": p["info"],
             "prob": round(p["prob"], 4), "odds": round(p["odds"], 3), "ev": round(p["ev"], 4),
-            "result": None,
+            "result": None, "mv": MODEL_VERSION,       # version du modèle -> mesurer le nouveau modèle proprement
         })
         added += 1
     if added:
@@ -543,30 +548,42 @@ def summary() -> dict:
                 "avg_ev": round(100.0 * sum(s["ev"] for s in rows) / n, 2) if n else 0.0,
                 "avg_min": round(sum(s["minute"] for s in rows) / n, 1) if n else 0.0}
 
-    buckets: dict[int, list] = {}
-    for s in allsnaps:
-        if s["result"] not in ("won", "lost"):
-            continue
-        b = min(9, int(s.get("prob", 0) * 10))
-        buckets.setdefault(b, [0, 0, 0.0])
-        buckets[b][0] += 1
-        buckets[b][1] += 1 if s["result"] == "won" else 0
-        buckets[b][2] += s.get("prob", 0.0)
-    calib = [{"bucket": f"{b*10}-{b*10+10}%", "n": v[0],
-              "model": round(100.0 * v[2] / v[0], 1) if v[0] else 0.0,
-              "real": round(100.0 * v[1] / v[0], 1) if v[0] else 0.0}
-             for b, v in sorted(buckets.items())]
+    def _calib(snaps):
+        buckets: dict[int, list] = {}
+        for s in snaps:
+            if s["result"] not in ("won", "lost"):
+                continue
+            b = min(9, int(s.get("prob", 0) * 10))
+            buckets.setdefault(b, [0, 0, 0.0])
+            buckets[b][0] += 1
+            buckets[b][1] += 1 if s["result"] == "won" else 0
+            buckets[b][2] += s.get("prob", 0.0)
+        return [{"bucket": f"{b*10}-{b*10+10}%", "n": v[0],
+                 "model": round(100.0 * v[2] / v[0], 1) if v[0] else 0.0,
+                 "real": round(100.0 * v[1] / v[0], 1) if v[0] else 0.0}
+                for b, v in sorted(buckets.items())]
 
     by_fam: dict[str, list] = {}
     for s in canon:
         by_fam.setdefault(s.get("family", "?"), []).append(s)
 
+    # MODÈLE COURANT (v2 = tempo+tirs) mesuré À PART des vieux snapshots (v1 = taux-ligue) -> calibration non
+    # polluée. `mv` absent = legacy v1.
+    _cur = [s for s in allsnaps if s.get("mv", 1) >= MODEL_VERSION]
+    _cur_canon = [c for c in canon if c.get("mv", 1) >= MODEL_VERSION]
+    _by_mv: dict = {}
+    for s in allsnaps:
+        _by_mv[s.get("mv", 1)] = _by_mv.get(s.get("mv", 1), 0) + 1
+
     _res = {
         "matches": matches, "snaps_total": len(allsnaps) + pending, "snaps_pending": pending,
+        "settled_by_model": _by_mv, "model_version": MODEL_VERSION,
         "canonical": _roi(canon),
         "all_settled": _roi([s for s in allsnaps if s["result"] in ("won", "lost", "push")]),
         "by_family": {fam: _roi(rows) for fam, rows in sorted(by_fam.items())},
-        "calibration": calib,
+        "calibration": _calib(allsnaps),
+        # mesure du NOUVEAU modèle SEULEMENT (démarre à ~0, se remplit au fil des matchs post-optim) :
+        "current_model": {"n_settled": len(_cur), "canonical": _roi(_cur_canon), "calibration": _calib(_cur)},
         "gates": {"ev_min": EV_MIN, "ev_max": EV_MAX, "prob_min": PROB_MIN, "prob_max": PROB_MAX,
                   "minute_log_min": MINUTE_LOG_MIN, "minute_canon_min": MINUTE_CANON_MIN,
                   "log_gap_min": LOG_GAP_MIN},
