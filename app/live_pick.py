@@ -69,6 +69,25 @@ _BAN_TEXT_RE = re.compile(
 
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
 
+# OPTIMISATION 1 (2026-09-13) : taux de buts SPÉCIFIQUE au match au lieu du taux-ligue fixe (2,7/90). La
+# calibration mesurée montrait le Poisson à taux-ligue SUR-confiant sur les probas hautes (Unders dans les
+# matchs ouverts) et SOUS-confiant sur les probas basses. On mélange (Bayes) le taux-ligue (a priori) avec le
+# rythme RÉALISÉ du match (buts / temps écoulé) -> un match qui s'emballe projette plus de buts restants
+# (Unders moins probables), un match fermé en projette moins. ZÉRO appel API en plus (score+minute déjà là).
+# Réversible : TEMPO_BLEND_ON. À VALIDER par la calibration une fois assez de données.
+TEMPO_BLEND_ON = True
+_GOALS90_PRIOR_W = 1.0    # poids de l'a priori (taux-ligue), en « matchs complets » (Bayes). Plus haut = plus lisse.
+
+
+def _match_goals90(hs, as_, minute) -> float | None:
+    """Taux de buts/90 propre au match = mélange bayésien taux-ligue (a priori) + rythme réalisé. None si
+    TEMPO_BLEND_ON=False (-> le modèle retombe sur le taux-ligue). f = fraction de match écoulée."""
+    if not TEMPO_BLEND_ON:
+        return None
+    f = max(0.05, min(1.0, (minute or 0) / 90.0))
+    goals = (analyses._as_int(hs) or 0) + (analyses._as_int(as_) or 0)
+    return (goals + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
+
 
 # --- store séparé (append-only par match) -----------------------------------------------------------------
 def _store_path(sport: str, mid) -> str:
@@ -160,6 +179,7 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
     prob (0-1), odds, ev}] pour les marchés modélisables NON encore verrouillés. Lecture pure (0 réseau)."""
     out: list[dict] = []
     seen: set[str] = set()
+    g90 = _match_goals90(hs, as_, minute)              # taux/90 propre au match (None si TEMPO_BLEND_ON=False)
     for e in (catalog or []):
         text = (e.get("text") or "").strip()
         od = e.get("odds")
@@ -179,7 +199,7 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
         # Déjà tranché par le direct (total franchi / BTTS acquis) = plus une OPPORTUNITÉ de pari live -> skip.
         if analyses._live_locked("foot", text, "", info, hs, as_, None) in ("won", "lost"):
             continue
-        prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, None)
+        prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, None, goals90=g90)
         if prob is None:
             continue
         seen.add(text)

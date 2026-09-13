@@ -1794,21 +1794,24 @@ def _winner_pct(side: str, win_odds) -> float | None:
     return None
 
 
-def _foot_goals_pct(info: dict, hs: int, as_: int, minute) -> float | None:
+def _foot_goals_pct(info: dict, hs: int, as_: int, minute, goals90: float | None = None) -> float | None:
     """Proba MODÈLE (Poisson à temps décroissant) d'un total de buts Plus/Moins (match entier ou équipe)
-    foot, vu le score et la minute. None si la jambe n'est pas un total de buts exploitable."""
+    foot, vu le score et la minute. None si la jambe n'est pas un total de buts exploitable.
+    `goals90` : taux de buts/90 à utiliser (défaut = taux-ligue `_FOOT_GOALS_90` -> comportement inchangé ;
+    un appelant peut passer un taux SPÉCIFIQUE au match, ex. track fantôme live)."""
     if info.get("metric") != "goals" or info.get("scope") != "match":
         return None
     line, dirn, side = info.get("line"), info.get("dir"), info.get("side")
     if line is None or dirn not in ("OVER", "UNDER"):
         return None
+    g90 = goals90 if goals90 else _FOOT_GOALS_90
     rem = _foot_remaining(minute)
     if side in ("HOME", "AWAY"):
         cur = hs if side == "HOME" else as_
-        lam = (_FOOT_GOALS_90 / 2.0) * rem
+        lam = (g90 / 2.0) * rem
     else:
         cur = hs + as_
-        lam = _FOOT_GOALS_90 * rem
+        lam = g90 * rem
     if cur > line:
         p_over = 1.0
     else:
@@ -1817,11 +1820,11 @@ def _foot_goals_pct(info: dict, hs: int, as_: int, minute) -> float | None:
     return p_over if dirn == "OVER" else 1.0 - p_over
 
 
-def _foot_btts_pct(sel: str, hs: int, as_: int, minute) -> float:
+def _foot_btts_pct(sel: str, hs: int, as_: int, minute, goals90: float | None = None) -> float:
     """Proba MODÈLE que « les deux équipes marquent » (Oui/Non) vu le score et la minute (chaque équipe
-    doit finir avec >= 1 but ; côté déjà marqué = verrouillé à 1)."""
+    doit finir avec >= 1 but ; côté déjà marqué = verrouillé à 1). `goals90` : taux/90 (défaut taux-ligue)."""
     yes = not re.search(r"\bnon\b", (sel or "").lower())
-    lam = (_FOOT_GOALS_90 / 2.0) * _foot_remaining(minute)
+    lam = ((goals90 if goals90 else _FOOT_GOALS_90) / 2.0) * _foot_remaining(minute)
     ph = 1.0 if hs >= 1 else _poisson_sf(1, lam)
     pa = 1.0 if as_ >= 1 else _poisson_sf(1, lam)
     both = ph * pa
@@ -1858,9 +1861,10 @@ def _foot_margin_dist(hs: int, as_: int, lam: float, cap: int = 8) -> dict:
     return dist
 
 
-def _foot_result_pct(wside: str, hs: int, as_: int, rem: float) -> float | None:
-    """Proba MODÈLE (score + temps restant) d'un résultat foot : home/draw/away ou double chance 1X/12/X2."""
-    dist = _foot_margin_dist(hs, as_, (_FOOT_GOALS_90 / 2.0) * rem)
+def _foot_result_pct(wside: str, hs: int, as_: int, rem: float, goals90: float | None = None) -> float | None:
+    """Proba MODÈLE (score + temps restant) d'un résultat foot : home/draw/away ou double chance 1X/12/X2.
+    `goals90` : taux de buts/90 (défaut taux-ligue -> inchangé ; un match-rate spécifique peut être passé)."""
+    dist = _foot_margin_dist(hs, as_, ((goals90 if goals90 else _FOOT_GOALS_90) / 2.0) * rem)
     ph = sum(p for m, p in dist.items() if m > 0)
     pd = dist.get(0, 0.0)
     pa = sum(p for m, p in dist.items() if m < 0)
@@ -1872,12 +1876,13 @@ def _foot_result_pct(wside: str, hs: int, as_: int, rem: float) -> float | None:
             "1X": ph + pd, "12": ph + pa, "X2": pd + pa}.get(wside)
 
 
-def _foot_hcap_pct(info: dict, hs: int, as_: int, rem: float) -> float | None:
-    """Proba MODÈLE d'un handicap BUTS (mêmes règles que `_eval_leg` HCAP), vu le score + temps restant."""
+def _foot_hcap_pct(info: dict, hs: int, as_: int, rem: float, goals90: float | None = None) -> float | None:
+    """Proba MODÈLE d'un handicap BUTS (mêmes règles que `_eval_leg` HCAP), vu le score + temps restant.
+    `goals90` : taux de buts/90 (défaut taux-ligue -> inchangé)."""
     ln, side = info.get("line"), info.get("side")
     if ln is None or side not in ("HOME", "AWAY"):
         return None
-    dist = _foot_margin_dist(hs, as_, (_FOOT_GOALS_90 / 2.0) * rem)
+    dist = _foot_margin_dist(hs, as_, ((goals90 if goals90 else _FOOT_GOALS_90) / 2.0) * rem)
     L, over = abs(ln), ln < 0
     p = tot = 0.0
     for m, pr in dist.items():
@@ -1962,7 +1967,8 @@ def _basket_model_pct(sel, code, info, wside, hs, as_, frac) -> float | None:
     return None
 
 
-def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac=None) -> float | None:
+def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac=None,
+                    goals90: float | None = None) -> float | None:
     """Notre proba MODÈLE (statistique du direct) que le pari passe, ou None si non modélisable. Foot :
     BTTS / résultat / handicap buts / totaux buts / totaux comptés (Poisson). Basket : vainqueur / handicap
     / total de points (approx. normale, via `game_frac`). Tennis : non modélisé (fusion cote+analyse)."""
@@ -1984,9 +1990,9 @@ def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_f
         return None
     rem = _foot_remaining(minute)
     if _is_btts(sel, code):
-        return _foot_btts_pct(sel, hs, as_, minute)
+        return _foot_btts_pct(sel, hs, as_, minute, goals90=goals90)
     if wside is not None:
-        return _foot_result_pct(wside, hs, as_, rem)
+        return _foot_result_pct(wside, hs, as_, rem, goals90=goals90)
     # Handicap BUTS : en foot, un handicap non qualifié (ni corner/carton/tir) = handicap de buts. `_leg_metric`
     # le classe parfois « special » sans lire la ligne signée -> on la relit ici (métrique buts par défaut).
     if (info.get("handicap") or _is_signed_handicap(sel)) and info.get("metric") in ("goals", "special"):
@@ -1994,9 +2000,9 @@ def _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_f
         if ln is None:
             ln = _signed_line(sel)
         if ln is not None and info.get("side") in ("HOME", "AWAY"):
-            return _foot_hcap_pct({**info, "line": ln}, hs, as_, rem)
+            return _foot_hcap_pct({**info, "line": ln}, hs, as_, rem, goals90=goals90)
     if info.get("metric") == "goals":
-        g = _foot_goals_pct(info, hs, as_, minute)
+        g = _foot_goals_pct(info, hs, as_, minute, goals90=goals90)
         if g is not None:
             return g
     return _foot_count_pct(info, vals, rem)

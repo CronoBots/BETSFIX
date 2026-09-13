@@ -85,6 +85,7 @@ def test_observe_settle_summary_end_to_end(tmp_path, monkeypatch):
     """Chaîne complète : observe (log) -> settle (score final) -> summary, dans un store isolé temporaire."""
     monkeypatch.setattr(lp, "_STORE", str(tmp_path))
     monkeypatch.setattr(lp, "MINUTE_LOG_MIN", 10)
+    monkeypatch.setattr(lp, "TEMPO_BLEND_ON", False)   # test des MÉCANIQUES (pas du tuning modèle) -> taux-ligue fixe
     from app import match_select
     monkeypatch.setattr(match_select, "live_state_for",
                         lambda sport, h, a: {"score": {"home": 1, "away": 0},
