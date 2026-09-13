@@ -88,15 +88,72 @@ _SETTLED_TTL = 15.0
 TEMPO_BLEND_ON = True
 _GOALS90_PRIOR_W = 1.0    # poids de l'a priori (taux-ligue), en « matchs complets » (Bayes). Plus haut = plus lisse.
 
+# OPTIMISATION 2 (2026-09-13, user « injecter pour optimiser au max ») : PRESSION DE TIRS live d'API-Football.
+# Les buts sont un signal RARE/bruité ; les TIRS (cadrés surtout) sont un signal DENSE de l'intensité offensive
+# réelle -> meilleur estimateur du taux de buts que le score seul. On les convertit en xG-proxy et on les mélange
+# au rythme de buts. ⚠️ xG live d'API-Football ÉCARTÉ (calculé ~post-match, peu fiable) -> on part des TIRS.
+# Quota protégé : fixture id caché en permanence par match + taux caché 90 s/match. Réversible : STATS_INJECT_ON.
+STATS_INJECT_ON = True
+_XG_PER_SOT = 0.32        # xG-proxy par tir CADRÉ (ordre de grandeur usuel)
+_XG_PER_OFF = 0.04        # xG-proxy par tir NON cadré
+_STATS_RATE_TTL = 90.0
+_STATS_RATE_CACHE: dict = {}   # mid -> (ts, rate90|None)
+_FIXID_CACHE: dict = {}        # mid -> fixture_id API-Football (semi-statique)
 
-def _match_goals90(hs, as_, minute) -> float | None:
-    """Taux de buts/90 propre au match = mélange bayésien taux-ligue (a priori) + rythme réalisé. None si
-    TEMPO_BLEND_ON=False (-> le modèle retombe sur le taux-ligue). f = fraction de match écoulée."""
+
+def _stats_rate90(mid, home, away, ko, minute, allow_fetch: bool = False) -> float | None:
+    """goals/90 estimé par la PRESSION DE TIRS live (xG-proxy des tirs cadrés/non cadrés des 2 équipes),
+    ramené à 90'. None si indispo/flag off. Caché 90 s/match ; fixture id caché en permanence (quota).
+    `allow_fetch` : SEUL le fond (observe loop, hors event loop) déclenche l'appel API ; l'AFFICHAGE lit le
+    cache uniquement (jamais d'appel réseau bloquant dans le rendu — le fond garde le cache chaud toutes les ~25 s)."""
+    if not STATS_INJECT_ON or not mid or minute is None or minute < 1:
+        return None
+    import time as _t
+    hit = _STATS_RATE_CACHE.get(mid)
+    if hit and (_t.time() - hit[0]) < _STATS_RATE_TTL:
+        return hit[1]
+    if not allow_fetch:
+        return None                                        # rendu : pas d'appel réseau -> repli tempo-buts seul
+    rate = None
+    try:
+        from app import apifootball as _AF
+        if _AF.configured() and home and away and ko:
+            with _AF._client() as cl:
+                fid = _FIXID_CACHE.get(mid)
+                if fid is None:
+                    f = _AF.resolve_fixture(cl, home, away, ko)
+                    fid = _FIXID_CACHE[mid] = (f or {}).get("id") or 0
+                if fid:
+                    ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or {}
+
+                    def _g(side, k):
+                        v = (ss.get(side) or {}).get(k)
+                        return v if isinstance(v, (int, float)) else 0
+                    sot = _g("home", "shots_on") + _g("away", "shots_on")
+                    tot = _g("home", "shots_total") + _g("away", "shots_total")
+                    if tot > 0:                            # au moins des tirs comptés -> signal exploitable
+                        off = max(0, tot - sot)
+                        xg = sot * _XG_PER_SOT + off * _XG_PER_OFF
+                        rate = xg / max(0.05, minute / 90.0)   # xG-proxy accumulé -> ramené à /90
+    except Exception:
+        rate = None
+    _STATS_RATE_CACHE[mid] = (_t.time(), rate)
+    return rate
+
+
+def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False) -> float | None:
+    """Taux de buts/90 propre au match = mélange bayésien taux-ligue (a priori) + observé. `observé` = buts
+    RÉELS, enrichis (si dispo) de la PRESSION DE TIRS live (xG-proxy) -> signal plus dense/prédictif. None si
+    TEMPO_BLEND_ON=False. f = fraction de match écoulée. `allow_fetch` : cf. _stats_rate90 (fond only)."""
     if not TEMPO_BLEND_ON:
         return None
     f = max(0.05, min(1.0, (minute or 0) / 90.0))
     goals = (analyses._as_int(hs) or 0) + (analyses._as_int(as_) or 0)
-    return (goals + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
+    obs = float(goals)
+    sr = _stats_rate90(mid, home, away, ko, minute, allow_fetch)   # xG-proxy /90 (None si indispo)
+    if sr is not None:
+        obs = 0.5 * goals + 0.5 * (sr * f)                 # buts réels + xG-proxy accumulé (moitié-moitié)
+    return (obs + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
 
 
 # --- store séparé (append-only par match) -----------------------------------------------------------------
@@ -184,12 +241,13 @@ def _info_lite(info: dict) -> dict:
             if info.get(k) is not None}
 
 
-def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute) -> list[dict]:
+def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute,
+                  mid=None, ko=None, allow_fetch: bool = False) -> list[dict]:
     """Croise chaque marché FIABLE du catalogue live avec le modèle : renvoie [{sel, family, wside, info,
     prob (0-1), odds, ev}] pour les marchés modélisables NON encore verrouillés. Lecture pure (0 réseau)."""
     out: list[dict] = []
     seen: set[str] = set()
-    g90 = _match_goals90(hs, as_, minute)              # taux/90 propre au match (None si TEMPO_BLEND_ON=False)
+    g90 = _match_goals90(hs, as_, minute, mid, home, away, ko, allow_fetch)   # taux/90 (tempo + tirs live)
     for e in (catalog or []):
         text = (e.get("text") or "").strip()
         od = e.get("odds")
@@ -237,7 +295,7 @@ def observe_match(d: dict) -> int:
     catalog = analyses.live_catalog(mid)
     if not catalog:
         return 0
-    qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute)
+    qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"), allow_fetch=True)
             if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]
     if not qual:
         return 0
@@ -279,7 +337,7 @@ def current_picks(d: dict, top: int = 3) -> list[dict]:
     catalog = analyses.live_catalog(d.get("id"))
     if not catalog:
         return []
-    picks = [p for p in price_catalog(catalog, home, away, hs, as_, minute)
+    picks = [p for p in price_catalog(catalog, home, away, hs, as_, minute, d.get("id"), d.get("start"))
              if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]
     picks.sort(key=lambda p: p["ev"], reverse=True)
     return picks[:max(1, top)]

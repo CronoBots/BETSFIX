@@ -81,6 +81,23 @@ def test_settle_snap_totaux_buts():
     assert lp._settle_snap(snap, 2, 2) == "lost"    # 4 buts > 3.5
 
 
+def test_stats_injection_raises_rate_on_shot_pressure(monkeypatch):
+    """Optim 2 : la PRESSION DE TIRS live (xG-proxy) doit RELEVER le taux de buts attendu d'un match 0-0 très
+    ouvert -> Unders moins probables. Sans stats -> repli tempo-buts seul. L'affichage ne fetch jamais (cache)."""
+    monkeypatch.setattr(lp, "TEMPO_BLEND_ON", True)
+    monkeypatch.setattr(lp, "STATS_INJECT_ON", True)
+    # AFFICHAGE (allow_fetch=False) + cache vide -> _stats_rate90 RÉEL renvoie None (aucun appel réseau) — d'abord,
+    # AVANT de monkeypatcher la fonction.
+    lp._STATS_RATE_CACHE.clear()
+    assert lp._stats_rate90("Y", "A", "B", "2026-09-13T18:00:00Z", 60, allow_fetch=False) is None
+    # blend : sans stats (None) vs grosse pression de tirs
+    monkeypatch.setattr(lp, "_stats_rate90", lambda *a, **k: None)
+    base = lp._match_goals90(0, 0, 60, mid="X", allow_fetch=True)
+    monkeypatch.setattr(lp, "_stats_rate90", lambda *a, **k: 4.5)           # grosse pression de tirs
+    hot = lp._match_goals90(0, 0, 60, mid="X", allow_fetch=True)
+    assert hot > base, "la pression de tirs doit relever le taux de buts attendu"
+
+
 def test_observe_settle_summary_end_to_end(tmp_path, monkeypatch):
     """Chaîne complète : observe (log) -> settle (score final) -> summary, dans un store isolé temporaire."""
     monkeypatch.setattr(lp, "_STORE", str(tmp_path))
