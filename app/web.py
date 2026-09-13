@@ -5490,7 +5490,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # réussite restent affichés PAR onglet (Confiance/Value). _avantage_block conservé (dormant), non appelé.
     # SIGNAUX LIVE (stats complètes) déplacés du Live vers STATS (user 2026-09-13) : track record + par famille +
     # calibration + détail des matchs terminés. EXPÉRIMENTAL, hors ROI (ne touche pas les stats Confiance/Value).
-    _sig = _live_phantom_settled_zone("foot", title="Signaux Live")
+    _sig = _live_phantom_settled_zone("foot", title="Signaux Live", open_=True)   # ouvert dans Stats (trouvable)
     return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>{_sig}') if _foot else ""
 
 
@@ -11714,8 +11714,12 @@ def _live_phantom_zone(sport: str) -> str:
                     f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
             rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
         if not rows:                                    # match suivi mais rien à proposer à cet instant
-            msg = ("⏳ Données live en cours…" if not m.get("score")
-                   else "Aucune value live à cet instant.")
+            if not m.get("has_catalog"):
+                msg = "⏳ Cotes live en cours de chargement…"
+            elif not m.get("score"):
+                msg = "⏳ Données live en cours…"
+            else:
+                msg = "Aucune value live à cet instant."
             rows.append(f'<div class="lph-p lph-none">{msg}</div>')
         # CENTRE de la carte = score + horloge live (comme les cartes Confiance/Value en direct)
         _sc = (m.get("score") or "").strip()
@@ -11733,7 +11737,7 @@ def _live_phantom_zone(sport: str) -> str:
                  zk="live-phantom", collapsible=True, open_=True)
 
 
-def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — terminés") -> str:
+def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — terminés", open_: bool = False) -> str:
     """« Test live — terminés » : pour les matchs RÉGLÉS récents, les suggestions live proposées et si elles
     sont PASSÉES à la fin (✅/❌/➖). Répond à « ce qui avait été proposé est-il passé ? ». Fantôme, non publié,
     hors ROI/stats. '' si rien ou flag off. Repliable, fermé par défaut (peut s'allonger)."""
@@ -11804,7 +11808,7 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — termin
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
     return _zone("lphs", title, "", len(matches), note + _join_cards(cards),
-                 zk="live-phantom-done", collapsible=True, open_=False)
+                 zk="live-phantom-done", collapsible=True, open_=open_)
 
 
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:

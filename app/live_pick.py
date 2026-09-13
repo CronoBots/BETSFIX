@@ -442,12 +442,11 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
                 pass
         if analyses.status_of(d) != "inprogress":
             continue
-        # INCLUSION gatée sur le CATALOGUE de cotes live (signal FIABLE = match live + pricable). Le score/
-        # minute (`liveData` Unibet) est FLAKY (parfois None un instant) -> on ne l'exige PAS pour l'inclusion,
-        # sinon la zone CLIGNOTE (disparaît quand le score saute). Sans score, `current_picks` renvoie [] et on
-        # affiche un placeholder « données en cours » -> la zone reste PERSISTANTE tant que le match est en direct.
-        if not analyses.live_catalog(d.get("id")):
-            continue
+        # INCLUSION = tout match EN COURS (dans la fenêtre) — on n'exige PLUS le catalogue de cotes live
+        # (user 2026-09-13 « Signaux Live apparaît bien plus tard ») : le catalogue met ~25 s à se réchauffer
+        # (boucle de fond) -> attendre le faisait apparaître en retard. Le match s'affiche TOUT DE SUITE ; sans
+        # catalogue, `current_picks` renvoie [] -> placeholder « ⏳ cotes live en cours… » et les pronos se
+        # remplissent dès que le catalogue est chaud. Reste persistant tant que le match est en direct.
         ld = match_select.live_state_for(sport, d.get("home", ""), d.get("away", ""))
         sc = (ld or {}).get("score") or {}
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
@@ -464,7 +463,8 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
         for p in picks:
             p["first_min"] = first.get(p.get("sel"), minute)   # repli = minute courante (pas encore loggé)
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
-                    "minute": minute, "score": score, "picks": picks})
+                    "minute": minute, "score": score, "picks": picks,
+                    "has_catalog": bool(analyses.live_catalog(d.get("id")))})   # cotes live chaudes ou non
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
     _CURRENT_ALL_CACHE[sport] = (_now_m, out)
     return out
