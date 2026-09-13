@@ -340,9 +340,48 @@ def settle_all() -> int:
                 continue
             s["result"] = _settle_snap(s, fh, fa)
         rec["settled"] = True
+        rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
         _save(rec)
         n += 1
     return n
+
+
+def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list[dict]:
+    """Pour l'affichage « Test live — terminés » : matchs RÉGLÉS récents (≤ `hours`) avec, par match, les
+    suggestions DISTINCTES (dédupées par libellé) et leur résultat won/lost/push -> répond à « ce qui avait
+    été proposé est-il passé ? ». Plus récents d'abord, `limit` max. Lecture seule."""
+    import datetime as _dt
+    try:
+        now = _dt.datetime.now(_dt.timezone.utc)
+    except Exception:
+        now = None
+    out = []
+    for rec in _iter_records():
+        if rec.get("sport") != sport or not rec.get("settled"):
+            continue
+        st = rec.get("start")
+        if now and st:
+            try:
+                dtv = _dt.datetime.fromisoformat(str(st).replace("Z", "+00:00"))
+                if (now - dtv) > _dt.timedelta(hours=hours):
+                    continue
+            except Exception:
+                pass
+        seen = {}
+        for s in rec.get("snaps", []):
+            if s.get("result") not in ("won", "lost", "push"):
+                continue
+            k = s.get("sel")
+            if k not in seen:                          # 1re occurrence (minute la plus basse = 1re proposition)
+                seen[k] = {"sel": k, "family": s.get("family"), "result": s["result"],
+                           "odds": s.get("odds"), "prob": s.get("prob"), "ev": s.get("ev"),
+                           "minute": s.get("minute")}
+        if not seen:
+            continue
+        out.append({"home": rec.get("home", ""), "away": rec.get("away", ""), "comp": rec.get("comp", ""),
+                    "final": rec.get("final", ""), "start": st, "picks": list(seen.values())})
+    out.sort(key=lambda m: m.get("start") or "", reverse=True)
+    return out[:limit]
 
 
 # --- agrégation pour /monitor -----------------------------------------------------------------------------

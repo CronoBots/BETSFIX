@@ -11636,10 +11636,47 @@ def _live_phantom_zone(sport: str) -> str:
              '.lph-sel{font-size:12.5px;color:#cfe0f0}.lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}'
              '.lph-m b{color:#34d27b}.lph-none{font-size:11.5px;color:#6f8098;font-style:italic}</style>')
     note = ('<div class="lph-note">🔬 <b>TEST — non publié.</b> Suggestions du modèle live (Poisson score+minute) '
-            'croisées aux cotes Unibet en direct. Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans '
-            'rapport avec Confiance/Value.</div>')
+            'croisées aux cotes Unibet en direct, sur <b>TOUS</b> les matchs en direct (même sans pari joué). '
+            'Expérimental, mesuré en fantôme — <b>hors ROI/stats</b>, sans rapport avec Confiance/Value.</div>')
     return _zone("lph", "Test live", "test", len(matches), style + note + "".join(cards),
                  zk="live-phantom", collapsible=True, open_=True)
+
+
+def _live_phantom_settled_zone(sport: str) -> str:
+    """« Test live — terminés » : pour les matchs RÉGLÉS récents, les suggestions live proposées et si elles
+    sont PASSÉES à la fin (✅/❌/➖). Répond à « ce qui avait été proposé est-il passé ? ». Fantôme, non publié,
+    hors ROI/stats. '' si rien ou flag off. Repliable, fermé par défaut (peut s'allonger)."""
+    try:
+        from app import live_pick
+        if not live_pick.SHOW_ON_SITE or sport != "foot":
+            return ""
+        matches = live_pick.recent_settled(sport)
+    except Exception:
+        return ""
+    if not matches:
+        return ""
+    import html as _h
+    cards, won_n, tot_n = [], 0, 0
+    for m in matches:
+        rows = []
+        for p in m["picks"]:
+            tot_n += 1
+            r = p.get("result")
+            won_n += 1 if r == "won" else 0
+            badge = "✅" if r == "won" else ("➖" if r == "push" else "❌")
+            cls = "lphr-w" if r == "won" else ("lphr-n" if r == "push" else "lphr-l")
+            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
+            cote = analyses.fmt_cote(p["odds"]) or "?"
+            rows.append(f'<div class="lph-row"><span class="lph-sel {cls}">{badge} {sel}</span>'
+                        f'<span class="lph-m">cote {cote} · EV +{p["ev"]*100:.0f}% · dès {p.get("minute","?")}\'</span></div>')
+        head = f'{_h.escape(m.get("home", ""))} — {_h.escape(m.get("away", ""))}'
+        cards.append(f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{head}</span>'
+                     f'<span class="lph-min">terminé {_h.escape(m.get("final", ""))}</span></div>{"".join(rows)}</div>')
+    style = ('<style>.lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}</style>')
+    note = (f'<div class="lph-note">Résultat des suggestions live À LA FIN du match (fantôme). '
+            f'<b>{won_n}/{tot_n}</b> passées sur les matchs récents affichés.</div>')
+    return _zone("lphs", "Test live — terminés", "test", len(matches), style + note + "".join(cards),
+                 zk="live-phantom-done", collapsible=True, open_=False)
 
 
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
@@ -11720,11 +11757,12 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
                 c["_livetab"] = True
         return _join_cards([c.get("_html") or _sport_row(c) for c in rows])
     _zlabel = {"foot": "football", "tennis": "tennis", "basket": "basket"}.get(_cur, "football")
-    # TEST LIVE (track fantôme, owner) : zone EXPÉRIMENTALE calculée à part. Incluse dans le test de vacuité
+    # TEST LIVE (track fantôme, owner) : zones EXPÉRIMENTALES calculées à part. Incluses dans le test de vacuité
     # pour qu'un match en cours SANS pari Confiance/Value (donc absent de `_play`) mais AVEC une suggestion live
     # affiche quand même la zone (sinon on tomberait sur « Aucun match en direct »).
     _phantom = _live_phantom_zone(_cur)
-    if not (_play or _prov or _combo or _safe_combo or _upcoming_all or _phantom):
+    _phantom_done = _live_phantom_settled_zone(_cur)
+    if not (_play or _prov or _combo or _safe_combo or _upcoming_all or _phantom or _phantom_done):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -11757,6 +11795,11 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         if _combos_shown():   # combinés MASQUÉS (user 2026-09-11) -> pas de zone « Combiné en direct »
             out.append(_zone("combo", _plur(len(_combo_rows), "Combiné"), "en direct",
                              len(_combo_rows), _combo, zk="live-combo", **_lz))
+        # TEST LIVE (fantôme) SOUS les matchs en direct (user 2026-09-13) : live d'abord, puis « terminés ».
+        if _phantom:
+            out.append(_phantom)
+        if _phantom_done:
+            out.append(_phantom_done)
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
         # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
         if _upcoming_all:
@@ -11766,8 +11809,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
             out.append(_zone("prog", _upc_title, "", len(_upcoming_all),
                              _join_cards([_sport_row(c) for c in _upcoming_all]),
                              zk="live-upc", collapsible=False))
-        if _phantom:                                    # TEST live (fantôme) — EN TÊTE (owner, visible d'emblée),
-            out.insert(0, _phantom)                     # badgé « test / non publié » ; à retirer aux abonnés
         zones = f'<div class="dash-zones">{"".join(x for x in out if x)}</div>'
     _sel = _sport_selector(_cur, _counts, target="pn-directs", base="/directs", q="")
     # Compteur TOUS sports -> BADGE chiffré du menu du bas (marqueur `.dv-nav` lu par le JS SPA).
