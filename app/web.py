@@ -5488,7 +5488,10 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
     # réussite restent affichés PAR onglet (Confiance/Value). _avantage_block conservé (dormant), non appelé.
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
+    # SIGNAUX LIVE (stats complètes) déplacés du Live vers STATS (user 2026-09-13) : track record + par famille +
+    # calibration + détail des matchs terminés. EXPÉRIMENTAL, hors ROI (ne touche pas les stats Confiance/Value).
+    _sig = _live_phantom_settled_zone("foot", title="Signaux Live")
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>{_sig}') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
@@ -11730,7 +11733,7 @@ def _live_phantom_zone(sport: str) -> str:
                  zk="live-phantom", collapsible=True, open_=True)
 
 
-def _live_phantom_settled_zone(sport: str) -> str:
+def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — terminés") -> str:
     """« Test live — terminés » : pour les matchs RÉGLÉS récents, les suggestions live proposées et si elles
     sont PASSÉES à la fin (✅/❌/➖). Répond à « ce qui avait été proposé est-il passé ? ». Fantôme, non publié,
     hors ROI/stats. '' si rien ou flag off. Repliable, fermé par défaut (peut s'allonger)."""
@@ -11800,7 +11803,7 @@ def _live_phantom_settled_zone(sport: str) -> str:
     note = (reco + f'<div class="lph-note">Détail de TOUTES les suggestions, résultat À LA FIN du match '
             f'(fantôme). ⚠️ Le brut <b>{won_n}/{tot_n}</b> compte des lignes CORRÉLÉES du même match '
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
-    return _zone("lphs", "Signaux Live — terminés", "", len(matches), note + _join_cards(cards),
+    return _zone("lphs", title, "", len(matches), note + _join_cards(cards),
                  zk="live-phantom-done", collapsible=True, open_=False)
 
 
@@ -11885,9 +11888,8 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # TEST LIVE (track fantôme, owner) : zones EXPÉRIMENTALES calculées à part. Incluses dans le test de vacuité
     # pour qu'un match en cours SANS pari Confiance/Value (donc absent de `_play`) mais AVEC une suggestion live
     # affiche quand même la zone (sinon on tomberait sur « Aucun match en direct »).
-    _phantom = _live_phantom_zone(_cur)
-    _phantom_done = _live_phantom_settled_zone(_cur)
-    if not (_play or _prov or _combo or _safe_combo or _upcoming_all or _phantom or _phantom_done):
+    _phantom = _live_phantom_zone(_cur)   # « terminés » PAS ici : déplacé dans l'onglet Stats (user 2026-09-13)
+    if not (_play or _prov or _combo or _safe_combo or _upcoming_all or _phantom):
         zones = (
             '<div class="live-empty">'
             '<div class="le-orb"><span class="le-ping"></span><span class="le-ping le-ping2"></span>'
@@ -11923,8 +11925,6 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
         # TEST LIVE (fantôme) SOUS les matchs en direct (user 2026-09-13) : live d'abord, puis « terminés ».
         if _phantom:
             out.append(_phantom)
-        if _phantom_done:
-            out.append(_phantom_done)
         # PROCHAINS LIVES — MÉLANGÉS (pas classés par type tant que non commencés, user 2026-08-19), triés par
         # coup d'envoi (ordre CHRONOLOGIQUE), cartes compactes NON cliquables. NON REPLIABLE, sans tag « à venir ».
         if _upcoming_all:
