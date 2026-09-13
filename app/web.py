@@ -4395,10 +4395,16 @@ _SPA_JS = (
     # /fixtures?live=all, ne le figeons plus 45 s à l'écran), UNIQUEMENT s'il contient un direct (.live) ET
     # qu'aucun accordéon n'est ouvert (on ne coupe pas une lecture). Le scroll est préservé, pas de direct =
     # aucun appel réseau (donc l'accélération ne touche QUE les panneaux avec un match en cours).
+    # KICKOFF ATTEINT : un décompte `.cd[data-ts]` dont l'heure est passée = un match qui vient de commencer mais
+    # que le serveur rend encore « à venir » -> on autorise le refresh pour capter la transition à-venir->live
+    # (sinon le temps de jeu ne s'affichait qu'au refresh MANUEL, retour user 2026-09-13). Une fois rendu live/
+    # terminé, le `.cd` disparaît -> plus de refresh « pour rien ».
+    "function _dueKO(p){var cd=p.querySelectorAll('.cd[data-ts]'),i;for(i=0;i<cd.length;i++){"
+    "var ts=+cd[i].getAttribute('data-ts');if(ts&&ts*1000<=Date.now()+2000)return true;}return false;}"
     "function fresh(){var c=P.children,i,p=null;"
     "for(i=0;i<c.length;i++)if(c[i].classList.contains('on')){p=c[i];break;}"
     "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
-    "if(!p.querySelector('.live'))return;"
+    "if(!p.querySelector('.live')&&!_dueKO(p))return;"
     "if(p.querySelector('.mc-manual'))return;"  # ne pas perturber une carte ouverte À LA MAIN
     # PLI D'ANALYSE « Pourquoi ce choix / cette jambe » OUVERT (`.cleg-fold[open]`) -> on NE rafraîchit PAS :
     # le refresh remplace le panneau et refermerait le pli -> l'utilisateur perdait sa lecture (user 2026-08-20).
