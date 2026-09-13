@@ -6524,14 +6524,105 @@ def _team_hue(name: str) -> int:
     return int(hashlib.md5(n.encode("utf-8")).hexdigest(), 16) % 360
 
 
+# --- VRAIE couleur d'équipe = teinte dominante du LOGO (user 2026-09-14 : « couleurs qui vont avec l'équipe »,
+#     comme le petit cercle Unibet, au lieu de teintes aléatoires). Extraction Pillow, cache PERSISTANT
+#     (data/team_colors.json ; les couleurs d'un club ne changent pas), calcul en TÂCHE DE FOND (non-bloquant au
+#     rendu ; repli hash tant que non calculé). ---
+_TEAM_COLOR_FILE = os.path.join("data", "team_colors.json")
+_TEAM_COLOR_CACHE: dict | None = None
+_COLOR_PENDING: set = set()
+
+
+def _cnorm(name) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def _color_cache() -> dict:
+    global _TEAM_COLOR_CACHE
+    if _TEAM_COLOR_CACHE is None:
+        try:
+            _TEAM_COLOR_CACHE = json.load(open(_TEAM_COLOR_FILE, encoding="utf-8"))
+        except Exception:
+            _TEAM_COLOR_CACHE = {}
+    return _TEAM_COLOR_CACHE
+
+
+def _bg_compute_hue(name: str, norm: str) -> None:
+    """Résout le logo -> teinte dominante VIVE (histogramme de teintes des pixels non blanc/noir/gris/transparent)
+    -> persiste (hue 0-360 ou None = pas de couleur trouvée). Tâche de fond (réseau + Pillow, bloquant OK ici)."""
+    hue = None
+    try:
+        from app import crest
+        import httpx as _hx
+        import io as _io
+        import colorsys as _cs
+        from PIL import Image
+        url = crest.known_logo(name) or crest.logo_url(crest.team_id(name))
+        if url:
+            r = _hx.get(url, timeout=8)
+            r.raise_for_status()
+            im = Image.open(_io.BytesIO(r.content)).convert("RGBA").resize((48, 48))
+            buckets: dict = {}
+            for (rr, gg, bb, aa) in im.getdata():
+                if aa < 128:
+                    continue
+                mx, mn = max(rr, gg, bb), min(rr, gg, bb)
+                if (mx > 235 and mn > 200) or mx < 40 or (mx - mn) < 30:
+                    continue                       # blanc / noir / gris -> ignoré
+                h, _l, s = _cs.rgb_to_hls(rr / 255.0, gg / 255.0, bb / 255.0)
+                if s < 0.25:
+                    continue
+                hb = int(h * 24)                   # 24 paniers de teinte (15°)
+                b = buckets.setdefault(hb, [0, 0.0])
+                b[0] += 1
+                b[1] += s
+            if buckets:                            # panier le + présent × saturé = teinte dominante
+                best = max(buckets.items(), key=lambda kv: kv[1][0] * kv[1][1])
+                hue = float(best[0] * 15)
+    except Exception:
+        hue = None
+    c = _color_cache()
+    c[norm] = hue
+    try:
+        tmp = _TEAM_COLOR_FILE + ".tmp"
+        json.dump(c, open(tmp, "w", encoding="utf-8"))
+        os.replace(tmp, _TEAM_COLOR_FILE)
+    except Exception:
+        pass
+    _COLOR_PENDING.discard(norm)
+
+
+def _team_color_hue(name: str):
+    """Teinte (0-360) de la VRAIE couleur du club (logo), depuis le cache persistant. None si pas encore calculé
+    (déclenche un calcul de fond) ou logo sans couleur nette. Lecture SEULE, non-bloquant."""
+    if not name:
+        return None
+    norm = _cnorm(name)
+    c = _color_cache()
+    if norm in c:
+        return c[norm]                             # hue (float) ou None (négatif caché)
+    if norm not in _COLOR_PENDING:
+        _COLOR_PENDING.add(norm)
+        try:
+            import threading as _th
+            _th.Thread(target=_bg_compute_hue, args=(name, norm), daemon=True).start()
+        except Exception:
+            _COLOR_PENDING.discard(norm)
+    return None
+
+
 def _team_colors_pair(home: str, away: str) -> tuple[str, str]:
-    """Couleur par équipe (domicile, extérieur), STABLE et DISTINCTE, calée sur le thème SOMBRE du site :
-    saturation/luminosité maîtrisées (vif mais pas néon, lisible sur fond foncé — pas de dépendance externe,
-    pas d'appel réseau ni d'analyse de logo). Garantit un CONTRASTE de teinte entre les 2 équipes (si trop
-    proches, on décale l'extérieur de ~150°). Utilisée par les barres de stats + la barre de domination."""
-    hh, ah = _team_hue(home), _team_hue(away)
+    """Couleur par équipe (domicile, extérieur) = teinte du LOGO réel (repli hash STABLE tant que non calculée),
+    calée sur le thème SOMBRE (S/L maîtrisées, vif mais lisible). Garantit un CONTRASTE : si les 2 teintes sont
+    trop proches, on décale l'extérieur de ~150° (indiscernables sinon). Barres de stats + barre de domination."""
+    hh = _team_color_hue(home)
+    ah = _team_color_hue(away)
+    if hh is None:
+        hh = _team_hue(home)                       # repli : teinte hash stable
+    if ah is None:
+        ah = _team_hue(away)
     d = abs(hh - ah) % 360
-    if min(d, 360 - d) < 40:                      # teintes trop proches -> équipes indiscernables
+    if min(d, 360 - d) < 40:                       # teintes trop proches -> équipes indiscernables
         ah = (ah + 150) % 360
     return _hsl_hex(hh, 0.66, 0.58), _hsl_hex(ah, 0.66, 0.56)
 
