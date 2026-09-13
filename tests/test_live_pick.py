@@ -98,6 +98,18 @@ def test_stats_injection_raises_rate_on_shot_pressure(monkeypatch):
     assert hot > base, "la pression de tirs doit relever le taux de buts attendu"
 
 
+def test_late_game_uplift(monkeypatch):
+    """Optim 3 : surcote de fin de match (buts plus fréquents tard) -> facteur 1.0 avant LATE_FROM, croissant
+    jusqu'à ~1+LATE_UPLIFT à 90'. Corrige la sur-confiance des Unders tardifs."""
+    monkeypatch.setattr(lp, "LATE_UPLIFT_ON", True)
+    assert lp._late_factor(50) == 1.0                          # avant 70' -> pas de surcote
+    assert lp._late_factor(70) == 1.0
+    assert lp._late_factor(90) > 1.25                          # ~1.28 à 90'
+    assert lp._late_factor(88) > lp._late_factor(80) > 1.0     # croissant
+    monkeypatch.setattr(lp, "LATE_UPLIFT_ON", False)
+    assert lp._late_factor(90) == 1.0                          # réversible
+
+
 def test_observe_settle_summary_end_to_end(tmp_path, monkeypatch):
     """Chaîne complète : observe (log) -> settle (score final) -> summary, dans un store isolé temporaire."""
     monkeypatch.setattr(lp, "_STORE", str(tmp_path))

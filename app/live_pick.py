@@ -88,6 +88,24 @@ _SETTLED_TTL = 15.0
 TEMPO_BLEND_ON = True
 _GOALS90_PRIOR_W = 1.0    # poids de l'a priori (taux-ligue), en « matchs complets » (Bayes). Plus haut = plus lisse.
 
+# OPTIMISATION 3 (2026-09-13) — SURCOTE DE FIN DE MATCH : fait FOOTBALLISTIQUE connu (pas un fit sur nos données)
+# -> les buts sont ~25-30 % plus fréquents dans les ~20 dernières minutes. Le Poisson à rythme UNIFORME les
+# sous-estime -> sur-confiance sur les Unders TARDIFS (la bande 90-100 % qui échoue). On majore le taux de buts
+# à partir de LATE_FROM. Réversible : LATE_UPLIFT_ON. Priors issus de la littérature, non ajustés à l'échantillon.
+LATE_UPLIFT_ON = True
+LATE_UPLIFT = 0.28        # +28 % de rythme de buts à la 90e (interpolé linéairement depuis LATE_FROM)
+LATE_FROM = 70            # minute à partir de laquelle la surcote monte (0 avant)
+
+
+def _late_factor(minute) -> float:
+    """Multiplicateur du taux de buts pour la fin de match (1.0 avant LATE_FROM, jusqu'à 1+LATE_UPLIFT à 90')."""
+    if not LATE_UPLIFT_ON:
+        return 1.0
+    m = minute or 0
+    if m <= LATE_FROM:
+        return 1.0
+    return 1.0 + LATE_UPLIFT * min(1.0, (m - LATE_FROM) / max(1.0, 90.0 - LATE_FROM))
+
 # OPTIMISATION 2 (2026-09-13, user « injecter pour optimiser au max ») : PRESSION DE TIRS live d'API-Football.
 # Les buts sont un signal RARE/bruité ; les TIRS (cadrés surtout) sont un signal DENSE de l'intensité offensive
 # réelle -> meilleur estimateur du taux de buts que le score seul. On les convertit en xG-proxy et on les mélange
@@ -158,7 +176,8 @@ def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_f
     sr = _stats_rate90(mid, home, away, ko, minute, allow_fetch)   # xG-proxy /90 (None si indispo)
     if sr is not None:
         obs = 0.5 * goals + 0.5 * (sr * f)                 # buts réels + xG-proxy accumulé (moitié-moitié)
-    return (obs + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
+    rate = (obs + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
+    return rate * _late_factor(minute)                     # surcote de fin de match (buts plus fréquents tard)
 
 
 # --- store séparé (append-only par match) -----------------------------------------------------------------
