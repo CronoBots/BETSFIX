@@ -106,6 +106,42 @@ def _late_factor(minute) -> float:
         return 1.0
     return 1.0 + LATE_UPLIFT * min(1.0, (m - LATE_FROM) / max(1.0, 90.0 - LATE_FROM))
 
+
+# OPTIMISATION 4 (2026-09-13, user) — TAUX DE BASE SPÉCIFIQUE AU MATCH : le prior « buts attendus » n'est plus la
+# moyenne de LIGUE (2.7) mais l'espérance de buts PRICÉE PAR LE MARCHÉ pour CE match, dérivée des vraies cotes
+# Over/Under de l'omap (dé-viggées -> λ Poisson qui reproduit P(over)). Le backtest a montré que le prior lazy 2.7
+# est le maillon faible. ZÉRO appel API (omap déjà dans le sidecar). Réversible : PREMATCH_PRIOR_ON.
+PREMATCH_PRIOR_ON = True
+_PREMATCH_CACHE: dict = {}   # mid -> goals90|None (statique pré-match)
+
+
+def _prematch_goals90(d: dict) -> float | None:
+    """Espérance de buts/90 du MATCH selon le marché : dé-vig Over/Under (2.5 puis 3.5/1.5 en repli) de l'omap,
+    puis résout le λ Poisson tel que P(total ≥ ligne+1) = proba dé-viggée. None si pas de ligne O/U exploitable."""
+    if not PREMATCH_PRIOR_ON:
+        return None
+    mid = d.get("id")
+    if mid in _PREMATCH_CACHE:
+        return _PREMATCH_CACHE[mid]
+    val = None
+    om = d.get("omap") or {}
+    for line in (2.5, 3.5, 1.5):
+        oo, uo = om.get(f"OVER {line}"), om.get(f"UNDER {line}")
+        if isinstance(oo, (int, float)) and isinstance(uo, (int, float)) and oo > 1 and uo > 1:
+            po = (1.0 / oo) / (1.0 / oo + 1.0 / uo)     # P(over line) dé-viggée
+            need = int(line) + 1                        # P(X ≥ need)
+            lo, hi = 0.3, 6.5
+            for _ in range(28):                         # bisection : λ tel que _poisson_sf(need, λ) = po
+                m = (lo + hi) / 2.0
+                if analyses._poisson_sf(need, m) < po:
+                    lo = m
+                else:
+                    hi = m
+            val = round((lo + hi) / 2.0, 3)
+            break
+    _PREMATCH_CACHE[mid] = val
+    return val
+
 # OPTIMISATION 2 (2026-09-13, user « injecter pour optimiser au max ») : PRESSION DE TIRS live d'API-Football.
 # Les buts sont un signal RARE/bruité ; les TIRS (cadrés surtout) sont un signal DENSE de l'intensité offensive
 # réelle -> meilleur estimateur du taux de buts que le score seul. On les convertit en xG-proxy et on les mélange
@@ -116,7 +152,7 @@ STATS_INJECT_ON = True
 # 2026-09-13. Estampillée sur chaque snapshot (`mv`) -> on mesure la calibration du NOUVEAU modèle SÉPARÉMENT
 # des vieux snapshots (v1 = taux-ligue), sinon la calibration reste polluée des semaines. Incrémenter à chaque
 # changement de modèle qui invalide la calibration passée.
-MODEL_VERSION = 2
+MODEL_VERSION = 3         # v3 (2026-09-13) = v2 (tempo+tirs+surcote-fin) + TAUX DE BASE pré-match (omap O/U)
 _XG_PER_SOT = 0.32        # xG-proxy par tir CADRÉ (ordre de grandeur usuel)
 _XG_PER_OFF = 0.04        # xG-proxy par tir NON cadré
 _STATS_RATE_TTL = 90.0
@@ -164,10 +200,11 @@ def _stats_rate90(mid, home, away, ko, minute, allow_fetch: bool = False) -> flo
     return rate
 
 
-def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False) -> float | None:
-    """Taux de buts/90 propre au match = mélange bayésien taux-ligue (a priori) + observé. `observé` = buts
-    RÉELS, enrichis (si dispo) de la PRESSION DE TIRS live (xG-proxy) -> signal plus dense/prédictif. None si
-    TEMPO_BLEND_ON=False. f = fraction de match écoulée. `allow_fetch` : cf. _stats_rate90 (fond only)."""
+def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False,
+                   pre_g90=None) -> float | None:
+    """Taux de buts/90 propre au match = mélange bayésien PRIOR (taux du MARCHÉ pour ce match si dispo, sinon
+    taux-ligue) + observé. `observé` = buts RÉELS, enrichis (si dispo) de la PRESSION DE TIRS live (xG-proxy).
+    None si TEMPO_BLEND_ON=False. `pre_g90` : espérance de buts pré-match (omap O/U). `allow_fetch` : cf. _stats_rate90."""
     if not TEMPO_BLEND_ON:
         return None
     f = max(0.05, min(1.0, (minute or 0) / 90.0))
@@ -176,7 +213,8 @@ def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_f
     sr = _stats_rate90(mid, home, away, ko, minute, allow_fetch)   # xG-proxy /90 (None si indispo)
     if sr is not None:
         obs = 0.5 * goals + 0.5 * (sr * f)                 # buts réels + xG-proxy accumulé (moitié-moitié)
-    rate = (obs + _GOALS90_PRIOR_W * analyses._FOOT_GOALS_90) / (f + _GOALS90_PRIOR_W)
+    prior = pre_g90 if (isinstance(pre_g90, (int, float)) and pre_g90 > 0) else analyses._FOOT_GOALS_90
+    rate = (obs + _GOALS90_PRIOR_W * prior) / (f + _GOALS90_PRIOR_W)
     return rate * _late_factor(minute)                     # surcote de fin de match (buts plus fréquents tard)
 
 
@@ -266,12 +304,12 @@ def _info_lite(info: dict) -> dict:
 
 
 def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute,
-                  mid=None, ko=None, allow_fetch: bool = False) -> list[dict]:
+                  mid=None, ko=None, allow_fetch: bool = False, pre_g90=None) -> list[dict]:
     """Croise chaque marché FIABLE du catalogue live avec le modèle : renvoie [{sel, family, wside, info,
     prob (0-1), odds, ev}] pour les marchés modélisables NON encore verrouillés. Lecture pure (0 réseau)."""
     out: list[dict] = []
     seen: set[str] = set()
-    g90 = _match_goals90(hs, as_, minute, mid, home, away, ko, allow_fetch)   # taux/90 (tempo + tirs live)
+    g90 = _match_goals90(hs, as_, minute, mid, home, away, ko, allow_fetch, pre_g90)   # prior marché + tempo + tirs
     for e in (catalog or []):
         text = (e.get("text") or "").strip()
         od = e.get("odds")
@@ -319,7 +357,9 @@ def observe_match(d: dict) -> int:
     catalog = analyses.live_catalog(mid)
     if not catalog:
         return 0
-    qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"), allow_fetch=True)
+    pre = _prematch_goals90(d)                             # taux de base pré-match (marché O/U de l'omap)
+    qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"),
+                                     allow_fetch=True, pre_g90=pre)
             if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]
     if not qual:
         return 0
@@ -365,7 +405,8 @@ def current_picks(d: dict, top: int = 3) -> list[dict]:
     catalog = analyses.live_catalog(d.get("id"))
     if not catalog:
         return []
-    picks = [p for p in price_catalog(catalog, home, away, hs, as_, minute, d.get("id"), d.get("start"))
+    picks = [p for p in price_catalog(catalog, home, away, hs, as_, minute, d.get("id"), d.get("start"),
+                                      pre_g90=_prematch_goals90(d))
              if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]
     picks.sort(key=lambda p: p["ev"], reverse=True)
     return picks[:max(1, top)]
