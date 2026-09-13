@@ -469,7 +469,7 @@ CSS = """
        fixed : le body est un FLEX COLONNE de hauteur viewport EXACTE, le contenu scrolle DANS `.wrap`, et la barre
        est un ITEM EN FLUX poussé tout en bas par `margin-top:auto`. Structurellement, la barre NE PEUT PLUS
        flotter au milieu (elle n'est pas positionnée ; le body fait pile 100svh -> son dernier enfant est au bord
-       bas). Le FLOTTANT vient du padding de `.botnav` (capsule `.botnav-inner` remontée). Zéro fixed = zéro bug iOS. */
+       bas). La barre est TRANSPARENTE (icônes sur le fond d'app, cf. `.botnav-inner`). Zéro fixed = zéro bug iOS. */
     body{display:flex;flex-direction:column;height:100svh;min-height:0;padding:0;overflow:hidden}
     .wrap{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
           max-width:none;margin:0;padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 14px}
@@ -478,9 +478,12 @@ CSS = """
             `.botnav{display:flex}` réduisait la capsule (enfant flex unique) à son contenu = pilule étriquée au
             milieu. En bloc, `.botnav-inner` REMPLIT la largeur (padding latéral 14px = léger flottant « Strava »). */
             background:transparent;border:0;box-shadow:none}
-    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:8px;border-radius:28px;
-            border:1px solid rgba(255,255,255,.11);background:rgba(17,19,27,.86);
-            box-shadow:0 14px 36px rgba(0,0,0,.5),0 3px 10px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
+    /* TRANSPARENTE « à la Strava » (user 2026-09-13, « il y a un fond derrière la barre, avant c'était mieux ») :
+       PLUS de capsule à fond solide/bordure/ombre. Les icônes flottent DIRECTEMENT sur le fond d'app (dégradé
+       html::before fixe 100vh + lueur basse) qui remonte en continu jusqu'au bord bas -> « l'app va jusqu'en bas
+       comme Strava », plus de bande/panneau sous les onglets. Reste juste le layout flex (répartition + espacement). */
+    .botnav-inner{display:flex;gap:2px;width:100%;max-width:none;margin:0;padding:4px 6px 0;
+            background:transparent;border:0;box-shadow:none;border-radius:0}
     .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
     /* PRONOS : RÉPARTIR les catégories sur toute la HAUTEUR (user 2026-08-19) — un jour léger/vide, les 6 lignes
        s'espacent régulièrement au lieu d'être tassées en haut. Chaîne flex .wrap > #panels > #pn-home.on >
