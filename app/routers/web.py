@@ -205,6 +205,7 @@ def _home_stats_compute(since_days: int | None = None) -> tuple:
     # ANALYSE (sous-onglet 2) : là où le modèle se prouve (edge, calibration, marchés écartés, transparence).
     analyse = (
         web.render_analysis_verdict(full)                                            # 0. VERDICT en tête (actionnable)
+        + web._signaux_stats_zone("foot", open_=True)                                # 0b. SIGNAUX LIVE (expérimental) — stats agrégées dans « Analyse » (user 2026-09-13)
         + _sec("Où se trouve l'edge", "notre rendement selon la ligue et la cote jouée", edge, open=True)   # 2.
         + _sec("Fiabilité du modèle", "la confiance annoncée se vérifie-t-elle vraiment ?",   # 3.
                web.render_reliability(analyses.calibration_reliability(buckets=12))
@@ -355,11 +356,12 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         rows = list(await _home_match_rows())
         results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
         body = web._today_zones(rows, sp, results)[0]
+        body += web._signaux_day_matches("foot", today_iso)   # SIGNAUX LIVE du jour (détail par jour, user 2026-09-13)
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
         return HTMLResponse(body)
     # `_day_view` bâtit lui-même ses cartes -> l'ancien `day_rows = _past_day_cards(date)` n'était jamais
     # lu (calcul mort à chaque consultation d'un jour passé). Retiré 2026-09-02.
-    body = web._day_view(date, sp)
+    body = web._day_view(date, sp) + web._signaux_day_matches("foot", date)   # + SIGNAUX LIVE de CE jour
     fragcache.put(ckey, body, ttl=1800)                    # jour passé : ~immuable -> 30 min
     return HTMLResponse(body)
 

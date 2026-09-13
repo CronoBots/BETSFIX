@@ -2775,7 +2775,7 @@ CSS = """
   .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:1px 7px}
   .lph-p-cote b{color:#cfe0f0;font-weight:700}
   .lph-p-min{color:#6f8098}
-  .lph-p.lph-none{color:#6f8098;font-style:italic;font-size:11.5px}
+  .lph-p.lph-none{color:#7f8fa2;font-style:italic;font-size:12px;text-align:center;padding:15px 0 9px}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -5488,10 +5488,7 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # le foot des sports simulés (tennis/basket, désormais supprimés) -> redondante en football seul.
     # Cadre KPIs global (« Avantage réalisé ») RETIRÉ au-dessus des onglets (user 2026-08-16) : le ROI +
     # réussite restent affichés PAR onglet (Confiance/Value). _avantage_block conservé (dormant), non appelé.
-    # SIGNAUX LIVE (stats complètes) déplacés du Live vers STATS (user 2026-09-13) : track record + par famille +
-    # calibration + détail des matchs terminés. EXPÉRIMENTAL, hors ROI (ne touche pas les stats Confiance/Value).
-    _sig = _live_phantom_settled_zone("foot", title="Signaux Live", open_=True)   # ouvert dans Stats (trouvable)
-    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>{_sig}') if _foot else ""
+    return (f'<div class="spf">{_sport_banner("foot")}{_foot}</div>') if _foot else ""
 
 
 def _roi_bars(rows: list) -> str:
@@ -11713,13 +11710,9 @@ def _live_phantom_zone(sport: str) -> str:
                     f'<span>{p["prob"]*100:.0f}% modèle</span>'
                     f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
             rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
-        if not rows:                                    # match suivi mais rien à proposer à cet instant
-            if not m.get("has_catalog"):
-                msg = "⏳ Cotes live en cours de chargement…"
-            elif not m.get("score"):
-                msg = "⏳ Données live en cours…"
-            else:
-                msg = "Aucune value live à cet instant."
+        if not rows:                                    # match suivi mais aucun signal à cet instant
+            msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
+                   else "Aucun signal live actuellement")
             rows.append(f'<div class="lph-p lph-none">{msg}</div>')
         # CENTRE de la carte = score + horloge live (comme les cartes Confiance/Value en direct)
         _sc = (m.get("score") or "").strip()
@@ -11809,6 +11802,89 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — termin
             f'(ex. Moins 3.5 / 4.5 / 5.5) — ce n\'est pas un taux de paris indépendants (voir le track record ci-dessus).</div>')
     return _zone("lphs", title, "", len(matches), note + _join_cards(cards),
                  zk="live-phantom-done", collapsible=True, open_=open_)
+
+
+def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
+    """Stats AGRÉGÉES des Signaux Live (track record canonique + par famille + calibration modèle) — pour
+    l'onglet Analyse (user 2026-09-13). SANS le détail par match (celui-ci va dans le Programme, par jour).
+    '' si rien / flag off. EXPÉRIMENTAL, hors ROI."""
+    try:
+        from app import live_pick as _lp
+        if not _lp.SHOW_ON_SITE or sport != "foot":
+            return ""
+        _s = _lp.summary() or {}
+    except Exception:
+        return ""
+    _c = _s.get("canonical", {})
+    if not _c.get("n"):
+        return ""
+    import html as _h
+    reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
+            f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
+            f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
+    _fam = _s.get("by_family") or {}
+    if _fam:
+        _fr = "".join(f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
+                      f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
+                      for f, r in _fam.items())
+        reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par famille</span>'
+                 f'<span class="lph-min">pick canonique</span></div>{_fr}</div>')
+    _cal = _s.get("calibration") or []
+    if _cal:
+        _cr = "".join(f'<div class="lph-row"><span class="lph-sel">{c["bucket"]}</span>'
+                      f'<span class="lph-m">modèle {c["model"]}% → réalisé <b>{c["real"]}%</b> · n={c["n"]}</span></div>'
+                      for c in _cal)
+        reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Calibration modèle</span>'
+                 f'<span class="lph-min">proba vs réel</span></div>{_cr}</div>')
+    note = ('<div class="lph-note">🔬 Modèle live EXPÉRIMENTAL (fantôme, non publié, hors ROI). Le détail des '
+            'matchs analysés est dans le Programme, jour par jour.</div>')
+    return _zone("lphs", "Signaux Live", "", _c.get("n", 0), reco + note,
+                 zk="live-phantom-stats", collapsible=True, open_=open_)
+
+
+def _signaux_day_matches(sport: str, day: str) -> str:
+    """Détail des matchs Signaux Live RÉGLÉS d'un JOUR SPORTIF donné (`day` = ISO), pour le Programme. Chaque
+    match = carte premium + ses suggestions (✓/✗). '' si aucun ce jour / flag off. EXPÉRIMENTAL, hors ROI."""
+    try:
+        from app import live_pick as _lp
+        if not _lp.SHOW_ON_SITE or sport != "foot":
+            return ""
+        matches = _lp.recent_settled(sport, hours=24 * 14, limit=200)   # large -> on filtre par jour ci-dessous
+    except Exception:
+        return ""
+    import html as _h
+    import datetime as _dt
+    day_ms = []
+    for m in matches:
+        st = m.get("start")
+        try:
+            mday = _sport_date(to_local(_dt.datetime.fromisoformat(str(st).replace("Z", "+00:00")))).isoformat()
+        except Exception:
+            mday = (st or "")[:10]
+        if mday == day:
+            day_ms.append(m)
+    if not day_ms:
+        return ""
+    cards = []
+    for m in day_ms:
+        rows = []
+        for p in m["picks"]:
+            r = p.get("result")
+            dot_cls, dot_char = (("lph-dot-w", "✓") if r == "won"
+                                 else ("lph-dot-n", "–") if r == "push" else ("lph-dot-l", "✗"))
+            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
+            cote = analyses.fmt_cote(p["odds"]) or "?"
+            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
+                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
+                    f'<span class="lph-p-min">dès {p.get("minute", "?")}\'</span>')
+            rows.append(_lph_pick(sel, dot_cls, dot_char, meta))
+        _fin = (m.get("final") or "").strip()
+        center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
+                  f'<span class="tm-fin">Terminé</span></span>')
+        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
+                                         center, "", "".join(rows)))
+    return _zone("lphs-day", "Signaux Live", "test", len(day_ms), _join_cards(cards),
+                 zk="sig-day", collapsible=True, open_=False)
 
 
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
