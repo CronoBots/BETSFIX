@@ -2712,8 +2712,14 @@ CSS = """
        background:rgba(255,255,255,.05);gap:2px}
   .mcx-bh{background:var(--hc,#34d27b);border-radius:3px 0 0 3px} /* domicile = couleur d'équipe (repli vert) */
   .mcx-ba{background:var(--ac,#33b7ef);border-radius:0 3px 3px 0} /* extérieur = couleur d'équipe (repli bleu) */
-  /* APERÇU LIVE ouvert d'office (user 2026-09-11) : plus de <details>/bouton — bloc simple avec en-tête discret */
-  .mcx-live{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.06)}
+  /* APERÇU LIVE = pli FERMÉ par défaut (user 2026-09-13 : plus d'ouverture d'office en Programme/Live) —
+     on charge les stats seulement quand le user ouvre le pli (lazy + refresh 30 s via le handler `toggle`). */
+  .mcx-fold{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.06)}
+  .mcx-fold>summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:800;color:#c4d2e2;
+       letter-spacing:.2px;display:flex;align-items:center;justify-content:space-between}
+  .mcx-fold>summary::-webkit-details-marker{display:none}
+  .mcx-chev{color:#8fa2b8;font-size:12px;transition:transform .2s}
+  .mcx-fold[open]>summary .mcx-chev{transform:rotate(180deg)}
   .mcx-hd{font-size:11.5px;font-weight:800;color:#c4d2e2;letter-spacing:.2px;margin-bottom:2px}
   /* BARRE « QUI DOMINE LE MATCH » (user 2026-09-11) : indice agrégé, 2 côtés aux couleurs d'équipe */
   .mcx-dom{margin:2px 0 12px}
@@ -6574,12 +6580,11 @@ def _render_match_center(stats: dict | None) -> str:
         evs.append(f'<div class="mcx-ev {align}"><span class="mcx-ev-m">{mlab}</span>'
                    f'<span class="mcx-ev-i">{ic}</span><span class="mcx-ev-p">{who}</span></div>')
     tl = f'<div class="mcx-tl">{"".join(evs)}</div>' if evs else ""
-    # xG : absent EN DIRECT (API-Football le calcule ~après le match) et jamais couvert hors grands
-    # championnats -> message NEUTRE (ne pas affirmer « hors grands championnats » sur un match de C1 en cours).
-    xgn = "" if stats.get("has_xg") else '<div class="mcx-foot">xG indisponible en direct (mis à jour après le match).</div>'
+    # (Ligne de bas de page « xG indisponible en direct » RETIRÉE — user 2026-09-13 : le xG n'est de toute
+    # façon pas utilisé après match, la note n'apportait rien.) Le xG reste affiché en barre quand présent.
     # `--hc/--ac` posés sur le conteneur -> les barres appariées (.mcx-bh/.mcx-ba) prennent les couleurs d'équipe.
     return (f'<div class="mcx-wrap" style="--hc:{hc};--ac:{ac}">{_dom}'
-            f'<div class="mcx-body">{body}</div>{tl}{xgn}</div>')
+            f'<div class="mcx-body">{body}</div>{tl}</div>')
 
 
 async def live_match_center_fragment(mid: str) -> str:
@@ -6590,16 +6595,16 @@ async def live_match_center_fragment(mid: str) -> str:
 
 
 def _live_match_center_fold(mid) -> str:
-    """« 📊 Aperçu du match » en live — VISIBLE D'OFFICE, SANS bouton de dépliage (user 2026-09-11). Plus de
-    <details>/<summary> : un simple bloc `.mcx-live` avec le placeholder `.mcx[data-mcx-auto]` chargé
-    automatiquement dès son apparition par `window._mcInit` (appelé après chaque swap SPA) puis rafraîchi
-    30 s. Classe `exp` -> un clic dans les stats ne replie pas la carte (garde du handler de carte)."""
+    """« 📊 Aperçu du match » en live — pli FERMÉ par défaut (user 2026-09-13 : ne plus l'ouvrir d'office en
+    Programme/Live). `<details class="mcx-fold">` : les stats live ne sont chargées qu'à l'OUVERTURE du pli
+    (lazy -> 0 fetch au rendu) puis rafraîchies 30 s tant qu'il reste ouvert (handler `toggle` global).
+    Classe `exp` -> un clic dans les stats ne replie pas la carte parente (garde du handler de carte)."""
     if not mid:
         return ""
-    return ('<div class="mcx-live exp">'
-            '<div class="mcx-hd">📊 Aperçu du match</div>'
-            f'<div class="mcx" data-mcx="/foot/match/{html.escape(str(mid))}/livecenter" data-mcx-auto="1">'
-            '<div class="mcx-load">Chargement des stats…</div></div></div>')
+    return ('<details class="mcx-fold exp">'
+            '<summary class="mcx-sum">📊 Aperçu du match<span class="mcx-chev">▾</span></summary>'
+            f'<div class="mcx" data-mcx="/foot/match/{html.escape(str(mid))}/livecenter">'
+            '<div class="mcx-load">Chargement des stats…</div></div></details>')
 
 
 def _load_day_programme() -> dict:
