@@ -479,12 +479,12 @@ CSS = """
        viewport et remonte quand le contenu est court). C'était la VRAIE cause (hier la capsule avait blur +
        translateZ + will-change). Fond translucide SOLIDE (lisible sans flou). Écart 16px identique bas + côtés. */
     .botnav{position:fixed;top:auto;left:16px;right:16px;bottom:16px;width:auto;max-width:none;margin:0;z-index:60;
-            display:flex;gap:2px;padding:5px 10px;border-radius:16px;   /* MÊME arrondi que les boutons
-            `.botnav a` (16px, user 2026-09-13) : coins cohérents barre/boutons (fini la pilule pleine 999px) +
+            display:flex;gap:2px;padding:5px 10px;border-radius:999px;   /* PILULE PLEINE (user 2026-09-13) :
+            forme de la barre restaurée ; ce sont les BOUTONS qui s'y adaptent (`.botnav a` en 999px aussi) +
             hauteur RÉDUITE (padding 8->5 ici + 11->7 sur `.botnav a` plus bas). */
             background:rgba(24,27,36,.9);border:1px solid rgba(255,255,255,.09);
             box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
-    .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:16px;gap:4px}
+    .botnav a{min-width:0;flex:1;padding:7px 0 5px;border-radius:999px;gap:4px}   /* boutons en pilule -> épousent la forme de la barre (user 2026-09-13) */
     /* Le body scrolle -> `.wrap` remplit AU MOINS un écran (moins la barre) : (1) la chaîne flex:1 du Pronos a de
        la hauteur à répartir ; (2) le contenu est TOUJOURS >= viewport -> l'onglet vide ne laisse pas la barre
        fixe « flotter » plus haut (le défaut d'hier), même si l'ancrage iOS retombe sur le document. */
@@ -3031,7 +3031,11 @@ CSS = """
   /* padding-bas 15px : `overflow-x:auto` fait AUSSI clipper la verticale -> le glow BAS de la pastille du
      jour (0 6px 16px) était COUPÉ sous le calendrier (user 2026-09-06). Le padding lui laisse la place. */
   .daycal-track{display:flex;gap:7px;overflow-x:auto;padding:2px 4px 15px;scroll-snap-type:x proximity;
-       -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+       -webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;
+       /* FONDU des bords G/D (user 2026-09-13) : les jours aux extrémités se dégradent au lieu d'être coupés
+          net. Masque dégradé horizontal (transparent -> opaque -> transparent). -webkit- pour iOS Safari. */
+       -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
+       mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%)}
   .daycal-track::-webkit-scrollbar{display:none}
   .daycal-d{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:1px;
        min-width:46px;padding:7px 6px 6px;border:1px solid var(--border);border-radius:13px;
