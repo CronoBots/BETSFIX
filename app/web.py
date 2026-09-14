@@ -8794,6 +8794,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ABSTENTIONS masquées quand le PROGRAMME est TERMINÉ (plus aucun match à jouer, user 2026-08-27) : une
     # abstention n'a de sens que tant qu'il reste des matchs à venir. Journée finie -> on ne montre plus ce
     # qu'on n'a pas joué. Même condition `_has_prog` que le badge « en attente ».
+    # SIGNAUX LIVE (user 2026-09-14) : les abstentions EN DIRECT deviennent leur carte Signaux Live -> zone à part,
+    # AVANT les abstentions pré-match restantes.
+    _sig_html = _signaux_live_prog_zone(sport or "foot") if _has_prog else ""
+    out.append(_sig_html)
     _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
     out.append(_abst_html)
     # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné) —
@@ -9646,14 +9650,14 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
     items = [(m, _dt_of(m)) for m in (prog.get("matches") or []) if (m.get("sport") or "foot") == sport]
     items = sorted([(m, dt) for m, dt in items if dt is not None], key=lambda x: x[1])
     if not items:
-        return [], []
+        return [], [], []
     # NB (user 2026-08-17) : on N'EXCLUT PLUS les jambes de combiné. Leur PARI SIMPLE est
     # ANALYSÉ SÉPARÉMENT par la vague (~2h avant le KO) -> tant que ce n'est pas fait, le match est bien « à
     # analyser » et doit RESTER dans le Programme. Le combiné est un OVERLAY (le même match peut
     # donc figurer au Programme/Abstention/Confiance/Value ET dans Combiné). Ainsi les 20 matchs du jour
     # sont TOUS représentés par leur état de pari simple, sans « trou ».
     _now = datetime.now(timezone.utc)
-    pending, abst = [], []
+    pending, abst, sig = [], [], []
     for m, dt in items:
         mid = str(m.get("id"))
         d = analyses.meta(sport, mid)
@@ -9678,9 +9682,15 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             if _awaiting_prematch_reanalysis(sport, mid, dt, _now):
                 pending.append((m, dt))
             else:
-                abst.append(_status_card(m, dt, "abst"))
+                # ABSTENTION EN DIRECT -> devient sa carte SIGNAUX LIVE (user 2026-09-14 : « les abstentions
+                # produisent des signaux live »). Pré-match / pas de signal -> reste en Abstention classique.
+                _scard = _signaux_live_card_for_sidecar(d) if analyses.status_of(d) == "inprogress" else ""
+                if _scard:
+                    sig.append(_scard)
+                else:
+                    abst.append(_status_card(m, dt, "abst"))
         # sinon : a un pari -> carte dans sa zone Confiance/Value
-    return pending, abst
+    return pending, abst, sig
 
 
 def _paj_hero() -> str:
@@ -9752,7 +9762,7 @@ def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
     près du chevron). '' si plus rien à analyser.
     `collapse` (user 2026-08-31) : FERMÉ par défaut dès qu'un pari existe déjà dans une catégorie (Confiance/
     Value/Combiné) ; OUVERT tant qu'aucun pari (pour voir le programme à venir)."""
-    pending, _abst = _planning_cards(sport)
+    pending, _abst, _sig = _planning_cards(sport)
     if not pending:
         # RIEN À ANALYSER -> deux cas (user 2026-08-20 : la LIGNE « Programme du jour » doit rester visible avec
         # l'info du timing) :
@@ -9780,13 +9790,23 @@ def _abstention_zone(sport: str = "foot") -> str:
     """Zone « Abstention » = les matchs analysés SANS pari, en CARTES (comme les paris) — user 2026-08-17.
     Catégorie à part entière, badge compteur à droite. CACHÉE tant qu'il n'y a aucune abstention (user
     2026-08-20 : plus d'en-tête vide) -> '' si vide."""
-    _pending, abst = _planning_cards(sport)
+    _pending, abst, _sig = _planning_cards(sport)
     if not abst:
         # CACHÉE tant qu'il n'y a aucune abstention (user 2026-08-20) : plus d'en-tête vide.
         return ""
     # TOUJOURS REPLIÉE (user 2026-09-03) : les abstentions ne se voient qu'en dépliant la ligne (`open_=False`).
     return _zone("abst", _plur(len(abst), "Abstention"), "", len(abst), _MC_SEP.join(abst),
                  collapsible=True, open_=False)
+
+
+def _signaux_live_prog_zone(sport: str = "foot") -> str:
+    """Zone « Signaux Live » du PROGRAMME = les abstentions EN DIRECT (matchs analysés sans pari joué mais qui
+    produisent des signaux live). Cartes Signaux Live premium. '' si aucune (user 2026-09-14). Ouverte."""
+    _p, _a, sig = _planning_cards(sport)
+    if not sig:
+        return ""
+    return _zone("lph", "Signaux Live", "en direct", len(sig), _join_cards(sig),
+                 zk="prog-signaux", collapsible=True, open_=True)
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
@@ -11789,36 +11809,67 @@ def _live_phantom_zone(sport: str) -> str:
         return ""
     if not matches:
         return ""
-    import html as _h
-    cards = []
-    for m in matches:
-        rows = []
-        for p in m.get("picks") or []:
-            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
-            cote = analyses.fmt_cote(p["odds"]) or "?"
-            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
-                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
-                    f'<span>{p["prob"]*100:.0f}% modèle</span>'
-                    f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
-            rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
-        if not rows:                                    # match suivi mais aucun signal à cet instant
-            msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
-                   else "Aucun signal live actuellement")
-            rows.append(f'<div class="lph-p lph-none">{msg}</div>')
-        # CENTRE de la carte = score + horloge live (comme les cartes Confiance/Value en direct)
-        _sc = (m.get("score") or "").strip()
-        if _sc:
-            center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
-                      + _live_clock_html("foot", m.get("home", ""), m.get("away", "")) + '</span>')
-        else:
-            center = '<span class="tm-live"><b>en direct</b></span>'
-        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                                         center, "",   # badge « en direct » retiré (score+horloge le disent déjà)
-                                         "".join(rows), state_cls=" mc-r-live"))
+    cards = [_signaux_match_card(m) for m in matches]
     # Cartes SÉPARÉES comme Confiance/Value (via `_join_cards` = `.mc-sep`) ; PLUS de description sous la zone
     # (user 2026-09-13 : catégorie épurée comme les autres).
     return _zone("lph", "Signaux Live", "en direct", len(matches), _join_cards(cards),
                  zk="live-phantom", collapsible=True, open_=True)
+
+
+def _signaux_match_card(m: dict) -> str:
+    """Carte Signaux Live d'UN match EN COURS (dict {home,away,comp,score,minute,picks,has_catalog}) : cadre
+    live `.row.mc` (logos/score/horloge) + pronos conseillés dessous (ou placeholder). PARTAGÉ entre l'onglet
+    Live et le Programme (abstention live -> Signaux Live, user 2026-09-14)."""
+    import html as _h
+    rows = []
+    for p in m.get("picks") or []:
+        sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
+        cote = analyses.fmt_cote(p["odds"]) or "?"
+        meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
+                f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
+                f'<span>{p["prob"]*100:.0f}% modèle</span>'
+                f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
+        rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
+    if not rows:                                        # match suivi mais aucun signal à cet instant
+        msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
+               else "Aucun signal live actuellement")
+        rows.append(f'<div class="lph-p lph-none">{msg}</div>')
+    _sc = (m.get("score") or "").strip()
+    if _sc:
+        center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
+                  + _live_clock_html("foot", m.get("home", ""), m.get("away", "")) + '</span>')
+    else:
+        center = '<span class="tm-live"><b>en direct</b></span>'
+    return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
+                              center, "", "".join(rows), state_cls=" mc-r-live")
+
+
+def _signaux_live_card_for_sidecar(d: dict) -> str:
+    """Carte Signaux Live d'un match EN COURS depuis son SIDECAR (pour une abstention live du Programme). Réutilise
+    les suggestions courantes (`current_picks`, lecture caches, 0 réseau). '' si flag off / pas foot / pas live."""
+    try:
+        from app import live_pick as _lp
+        if not _lp.SHOW_ON_SITE or d.get("sport") != "foot":
+            return ""
+        picks = _lp.current_picks(d)
+        ld = match_select.live_state_for("foot", d.get("home", ""), d.get("away", ""))
+        sc = (ld or {}).get("score") or {}
+        hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
+        minute = match_select.live_minute(ld)
+        rec = _lp._load("foot", d.get("id")) or {}
+        first: dict = {}
+        for s in rec.get("snaps", []):
+            k, mn = s.get("sel"), s.get("minute")
+            if k is not None and isinstance(mn, int) and (k not in first or mn < first[k]):
+                first[k] = mn
+        for p in picks:
+            p["first_min"] = first.get(p.get("sel"), minute)
+        return _signaux_match_card({
+            "home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
+            "minute": minute, "score": f"{hs}-{as_}" if (hs is not None and as_ is not None) else "",
+            "picks": picks, "has_catalog": bool(analyses.live_catalog(d.get("id")))})
+    except Exception:
+        return ""
 
 
 def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — terminés", open_: bool = False) -> str:
