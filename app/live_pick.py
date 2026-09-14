@@ -316,14 +316,21 @@ _XCOUNT_KW = [   # ordre : le plus spécifique d'abord (hors-jeu avant « jeu »
 ]
 
 
-def _side_of(text: str, home: str, away: str):
-    """'HOME'/'AWAY'/None : quelle équipe le libellé cible (jetons ≥3 lettres du nom), None si total/ambigu."""
-    low = (text or "").lower()
+def _team_distinct_tokens(home: str, away: str):
+    """Jetons ≥3 lettres PROPRES à chaque équipe (le partagé est retiré). CRITIQUE (bug user 2026-09-14) :
+    « Leeds United » vs « Newcastle United » partagent « united » -> sans ce retrait, « Newcastle United : …»
+    matchait Leeds (1er testé) et attribuait les buts de Leeds au marché de Newcastle = FAUX « validé »."""
+    ht = {t for t in re.split(r"\W+", (home or "").lower()) if len(t) >= 3}
+    at = {t for t in re.split(r"\W+", (away or "").lower()) if len(t) >= 3}
+    shared = ht & at
+    return ht - shared, at - shared
 
-    def _hit(name):
-        toks = [t for t in re.split(r"\W+", (name or "").lower()) if len(t) >= 3]
-        return any(t in low for t in toks)
-    h, a = _hit(home), _hit(away)
+
+def _side_of(text: str, home: str, away: str):
+    """'HOME'/'AWAY'/None : quelle équipe le libellé cible (jetons PROPRES ≥3 lettres), None si total/ambigu."""
+    low = (text or "").lower()
+    ht, at = _team_distinct_tokens(home, away)
+    h, a = any(t in low for t in ht), any(t in low for t in at)
     return "HOME" if (h and not a) else "AWAY" if (a and not h) else None
 
 
@@ -765,11 +772,13 @@ def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str, co
         return "open"
 
     def _team_val(hv, av):
-        """Valeur de l'ÉQUIPE citée dans le libellé (token ≥3 c pour capter VPS/PSV/PSG…), sinon None (= total)."""
-        for name, v in ((home, hv), (away, av)):
-            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 3]
-            if any(t in low for t in toks):
-                return v
+        """Valeur de l'ÉQUIPE citée dans le libellé (jetons PROPRES ≥3 c, le partagé « United »/« City » retiré
+        pour ne pas confondre Leeds United ↔ Newcastle United), sinon None (= total)."""
+        ht, at = _team_distinct_tokens(home, away)
+        if any(t in low for t in ht):
+            return hv
+        if any(t in low for t in at):
+            return av
         return None
 
     # BTTS (les deux équipes marquent) — oui : acquis dès que les 2 ont marqué ; non : tombé dès que les 2 ont marqué.
@@ -828,10 +837,11 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         return None
 
     def _tv(hv, av):
-        for name, v in ((home, hv), (away, av)):
-            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 3]
-            if any(t in low for t in toks):
-                return v
+        ht, at = _team_distinct_tokens(home, away)          # jetons PROPRES (le partagé « United » retiré)
+        if any(t in low for t in ht):
+            return hv
+        if any(t in low for t in at):
+            return av
         return None
     poss = "possession" in low
     obj = ("corners" if "corner" in low else "cards" if "carton" in low
