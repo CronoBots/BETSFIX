@@ -9383,6 +9383,22 @@ _LZ_CSS = """
 .lz.js-anim .reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){.lz.js-anim .reveal{opacity:1!important;transform:none!important;transition:none!important}}
 @media (prefers-reduced-motion:reduce){.lz *{animation:none!important;transition:none!important}.lz .reveal{opacity:1;transform:none}}
+/* Tableau comparatif « quelle méthode tient » (inspiré ensitics, bleu, chiffres réels) */
+.lz .cmpwrap{margin-top:30px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:16px}
+.lz .cmp{width:100%;min-width:340px;border-collapse:collapse}
+.lz .cmp th,.lz .cmp td{padding:12px 9px;text-align:center;font-size:12.5px;line-height:1.25;border-bottom:1px solid rgba(255,255,255,.06)}
+.lz .cmp thead th{font-weight:800;color:var(--dim);font-size:11px;letter-spacing:.02em;vertical-align:bottom}
+.lz .cmp tbody th{text-align:left;font-weight:600;color:var(--dim);white-space:nowrap;font-size:12px}
+.lz .cmp td{color:var(--faint);text-transform:none;background:none}
+.lz .cmp tr:last-child th,.lz .cmp tr:last-child td{border-bottom:0}
+.lz .cmp .us{background:rgba(34,184,255,.07);color:var(--ink);font-weight:700}
+.lz .cmp thead .us{border-top-left-radius:12px;border-top-right-radius:12px;border-top:2px solid var(--accent);color:var(--accent);position:relative;padding-top:26px}
+.lz .cmp tbody tr:last-child .us{border-bottom-left-radius:12px;border-bottom-right-radius:12px}
+.lz .cmp .usb{position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:8.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:6px;padding:2px 7px;font-weight:900;white-space:nowrap}
+.lz .cmp .hot{color:var(--accent);font-weight:800}
+.lz .cmp .yes{color:#34d27b;font-weight:800}
+.lz .cmp .no{color:#ff6b6b}
 """
 
 # Animations PREMIUM de l'Accueil (user 2026-08-22) : reveal au scroll (IntersectionObserver), count-up du
@@ -9675,6 +9691,25 @@ def accueil_body(frag: bool = True) -> str:
       </div>
     </div>
   </div>
+</div></section>
+
+<section class="blk"><div class="lzw">
+  <div class="sec-head"><span class="eyebrow">Le match</span>
+    <h2>Quelle méthode<br>tient sur la durée ?</h2>
+    <p>Parier au feeling, suivre un tipster opaque, ou copier un relevé daté et mesuré. Le tableau parle.</p></div>
+  <div class="cmpwrap"><table class="cmp">
+    <thead><tr><th></th><th>Au feeling</th><th>Tipster payant</th>
+      <th class="us"><span class="usb">recommandé</span>BETSFIX</th></tr></thead>
+    <tbody>
+      <tr><th>Temps d'analyse</th><td>2 h+/jour</td><td>0 min</td><td class="us">0 min</td></tr>
+      <tr><th>Méthode</th><td>à l'instinct</td><td>opaque</td><td class="us">mécanique, backtestée</td></tr>
+      <tr><th>Résultats datés</th><td class="no">non</td><td>rarement</td><td class="us yes">✓ tout</td></tr>
+      <tr><th>Réussite Confiance</th><td>—</td><td>?</td><td class="us hot">{s['pct']} %</td></tr>
+      <tr><th>ROI mesuré</th><td>négatif</td><td>?</td><td class="us hot">{roi_txt}</td></tr>
+      <tr><th>Rentable sur la durée</th><td>?</td><td>?</td><td class="us yes">oui, mesuré</td></tr>
+      <tr><th>Prix</th><td>0 €</td><td>30–80 €</td><td class="us">9,99 €</td></tr>
+    </tbody>
+  </table></div>
 </div></section>
 
 <div class="final"><div class="lzw">
