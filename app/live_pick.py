@@ -218,12 +218,13 @@ _STATS_RATE_CACHE: dict = {}   # mid -> (ts, rate90|None)
 _FIXID_CACHE: dict = {}        # mid -> fixture_id API-Football (semi-statique)
 
 
-_AF_STATS_CACHE: dict = {}     # mid -> (ts, stats{home,away}|None) : stats live brutes API-Football, cachées 90 s
+_AF_STATS_CACHE: dict = {}     # mid -> (ts, stats{home,away}|None) : stats live brutes API-Football, cachées 180 s
 
 
 def _af_live_stats(mid, home, away, ko, allow_fetch: bool = False):
-    """Stats live BRUTES API-Football ({home,away: shots_on/shots_total/corners/yellow/red…}). Cachées 90 s/match
-    ; fixture id caché en permanence (quota). SEUL le fond (observe loop, hors event loop) fetch (`allow_fetch`) ;
+    """Stats live BRUTES API-Football ({home,away: shots_on/shots_total/corners/fouls/offsides/saves/passes/
+    possession…}). Cachées 180 s/match (_STATS_RATE_TTL) ; fixture id caché en permanence (quota). SEUL le fond
+    (observe loop, hors event loop) fetch (`allow_fetch`) ;
     l'AFFICHAGE lit le cache (jamais d'appel réseau bloquant dans le rendu). None si indispo."""
     if not mid:
         return None
