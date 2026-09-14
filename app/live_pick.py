@@ -458,36 +458,69 @@ import re as _re
 _NUM_RE = _re.compile(r"(\d+(?:[.,]\d+)?)")
 
 
-def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str) -> str:
-    """Statut IRRÉVERSIBLE d'un signal au score courant (hs-as_) : 'won' (validé) / 'lost' (tombé) / 'open'.
-    Ne tranche QUE les marchés de BUTS irréversibles (le score ne peut pas revenir en arrière) ; tout le reste
-    (résultat / double chance / handicap / périodes / corners / cartons / tirs) reste 'open' = peut encore
-    basculer. Pur calcul, lecture seule."""
+def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str, counts=None) -> str:
+    """Statut IRRÉVERSIBLE d'un signal au score/aux stats du direct : 'won' (validé) / 'lost' (tombé) / 'open'.
+    PRINCIPE : on ne tranche QUE les métriques MONOTONES (ne redescendent jamais) dispo en match — BUTS (score),
+    CORNERS, CARTONS, TIRS, TIRS CADRÉS — en TOTAL comme PAR ÉQUIPE, plus BTTS oui/non. Pour ces marchés :
+    Over/Plus acquis dès que la valeur > ligne ; Under/Moins tombé dès que la valeur > ligne ; « marque » acquis
+    dès valeur ≥ 1. Tout le reste (résultat / double chance / handicap / vainqueur / mi-temps-période) N'EST PAS
+    monotone (peut encore basculer) -> 'open'. `counts` = dict live {corners_h/a, cards_h/a, sot_h/a, shots_h/a}
+    (None si stats indispo -> les marchés comptés restent 'open'). Pur calcul, lecture seule."""
     if hs is None or as_ is None:
         return "open"
-    fam = family or ""
     low = (sel or "").lower()
-    tot = hs + as_
     m = _NUM_RE.search(low)
     thr = float(m.group(1).replace(",", ".")) if m else None
-    if fam == "Total Over":            # total match dépassé -> acquis (les buts ne se retirent pas)
-        return "won" if (thr is not None and tot > thr) else "open"
-    if fam == "Total Under":           # total match dépassé -> perdu, définitivement
-        return "lost" if (thr is not None and tot > thr) else "open"
-    if fam == "Les 2 marquent":        # BTTS oui : acquis dès que les 2 ont marqué
-        return "won" if (hs > 0 and as_ > 0) else "open"
-    if fam == "Total équipe" and thr is not None:
-        tg = None
-        for name, g in ((home, hs), (away, as_)):
-            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 4]
-            if any(t in low for t in toks):               # un token distinctif (≥4 c) du nom dans le libellé
-                tg = g
-                break
-        if tg is not None:
-            if "plus" in low or "over" in low:
-                return "won" if tg > thr else "open"
-            if "moins" in low or "under" in low:
-                return "lost" if tg > thr else "open"
+    # PÉRIODES (mi-temps / quart) : jamais tranchées ici (métrique de période, pas du match entier).
+    if _re.search(r"mi-temps|1[eè]re|2[eè]\b|quart|p[ée]riode", low):
+        return "open"
+
+    def _team_val(hv, av):
+        """Valeur de l'ÉQUIPE citée dans le libellé (token ≥3 c pour capter VPS/PSV/PSG…), sinon None (= total)."""
+        for name, v in ((home, hv), (away, av)):
+            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 3]
+            if any(t in low for t in toks):
+                return v
+        return None
+
+    # BTTS (les deux équipes marquent) — oui : acquis dès que les 2 ont marqué ; non : tombé dès que les 2 ont marqué.
+    if family == "Les 2 marquent" or ("deux" in low and "marqu" in low) or "btts" in low:
+        both = hs > 0 and as_ > 0
+        if _re.search(r"\bnon\b|ne\s+marqu|\bpas\b", low):
+            return "lost" if both else "open"
+        return "won" if both else "open"
+
+    # MÉTRIQUE : objet compté (corners/cartons/tirs) sinon BUTS.
+    obj = ("corners" if "corner" in low else "cards" if "carton" in low
+           else "sot" if "cadr" in low else "shots" if "tir" in low else None)
+    if obj is not None:
+        if not counts:
+            return "open"                                  # pas de stats live -> indéterminable
+        hv, av = counts.get(obj + "_h"), counts.get(obj + "_a")
+        if hv is None and av is None:
+            return "open"
+        tv = _team_val(hv or 0, av or 0)
+        val = tv if tv is not None else (hv or 0) + (av or 0)
+    else:
+        # BUTS uniquement : il faut un marché de buts MONOTONE (dit « but(s) », ou famille total, ou « marque »).
+        # Sinon = handicap / double chance / vainqueur / résultat -> NON monotone -> 'open'.
+        goals_mkt = bool(_re.search(r"\bbuts?\b", low)) or family in ("Total Over", "Total Under", "Total équipe")
+        marks = "marqu" in low or "scores" in low
+        if not goals_mkt and not marks:
+            return "open"
+        tv = _team_val(hs, as_)
+        val = tv if tv is not None else hs + as_
+        # « <équipe> marque » (sans seuil) = équipe Over 0.5 -> acquis dès 1 but.
+        if thr is None and tv is not None and marks:
+            return "won" if tv >= 1 else "open"
+
+    if thr is None:
+        return "open"
+    # Sens : Over/Plus -> acquis quand dépassé ; Under/Moins -> tombé quand dépassé. (Under jamais « won » avant FT.)
+    if "plus" in low or "over" in low:
+        return "won" if val > thr else "open"
+    if "moins" in low or "under" in low:
+        return "lost" if val > thr else "open"
     return "open"
 
 
@@ -520,11 +553,14 @@ def enriched_signals(d: dict, top: int = 3) -> list[dict]:
     for p in open_picks:
         p["status"] = "open"
         p["first_min"] = first.get(p["sel"], minute)
+    # compteurs live PAR ÉQUIPE (corners/cartons/tirs) depuis le CACHE (allow_fetch=False -> 0 réseau au rendu)
+    # pour trancher les marchés comptés en direct (total ET par équipe).
+    counts = _live_vals(d.get("id"), home, away, d.get("start"), allow_fetch=False)
     won, lost = [], []
     for sel, s in last.items():
         if sel in open_sels:
             continue
-        st = _live_signal_status(sel, s.get("family"), hs, as_, home, away)
+        st = _live_signal_status(sel, s.get("family"), hs, as_, home, away, counts)
         if st in ("won", "lost"):
             rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
                      "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
