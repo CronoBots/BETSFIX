@@ -12216,19 +12216,26 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
     if not _c.get("n"):
         return ""
     import html as _h
-    reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
-            f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
-            f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
-    # PAR MARCHÉ : TOUS les types séparés (user 2026-09-14) — sur les signaux distincts (pas juste le pick
-    # canonique), triés par volume. Chaque famille (Vainqueur/DC/Total Over/Under/Total équipe/BTTS/Corners/
-    # Cartons/Tirs/Tirs cadrés) a sa ligne dès ≥1 signal réglé.
+    _d = _s.get("distinct", {})
+    reco = (f'<div class="lph-reco">📊 <b>Track record</b> — <b>tous les signaux</b> : '
+            f'<b>{_d.get("winrate", 0)}%</b> réussite · ROI <b>{_d.get("roi", 0):+g}%</b> · n={_d.get("n", 0)} · '
+            f'cote moy {_d.get("avg_cote", 0)}.<br><span style="color:#8aa0b6;font-size:11px">1 pari '
+            f'indépendant/match : {_c.get("winrate", 0)}% · ROI {_c.get("roi", 0):+g}% · n={_c.get("n", 0)}.</span></div>')
+
+    def _rows(d: dict, only_nonzero=True):
+        return "".join(f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(k))}</span>'
+                       f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
+                       for k, r in d.items() if not only_nonzero or r.get("n", 0))
+
+    def _card(title, sub, rows_html):
+        return (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{title}</span>'
+                f'<span class="lph-min">{sub}</span></div>{rows_html}</div>') if rows_html else ""
+    # PAR MARCHÉ : TOUS les types séparés (user 2026-09-14) — signaux distincts, triés par volume.
     _fam = _s.get("by_family_all") or _s.get("by_family") or {}
-    if _fam:
-        _fr = "".join(f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
-                      f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
-                      for f, r in _fam.items())
-        reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par marché</span>'
-                 f'<span class="lph-min">tous les signaux</span></div>{_fr}</div>')
+    reco += _card("Par marché", "tous les signaux", _rows(_fam, only_nonzero=False))
+    # PAR TRANCHE DE COTE + PAR MINUTE DE CRÉATION (user 2026-09-14 : stats complètes).
+    reco += _card("Par tranche de cote", "réussite · ROI · n", _rows(_s.get("by_cote") or {}))
+    reco += _card("Par minute de création", "réussite · ROI · n", _rows(_s.get("by_minute") or {}))
     _cal = _s.get("calibration") or []
     if _cal:
         _cr = "".join(f'<div class="lph-row"><span class="lph-sel">{c["bucket"]}</span>'

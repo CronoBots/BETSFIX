@@ -1259,10 +1259,21 @@ def summary() -> dict:
     for s in allsnaps:
         _by_mv[s.get("mv", 1)] = _by_mv.get(s.get("mv", 1), 0) + 1
 
+    # AGRÉGAT GLOBAL sur les signaux DISTINCTS (1 par match×marché) + ventilations par COTE / par MINUTE de
+    # création (user 2026-09-14 « stats complètes visibles »). `distinct` = déjà 1 signal réglé par (match, sel).
+    _COTE_BANDS = [(1.0, 1.2), (1.2, 1.4), (1.4, 1.6), (1.6, 2.0), (2.0, 3.0), (3.0, 99.0)]
+    _MIN_BANDS = [(0, 15), (15, 30), (30, 45), (45, 60), (60, 75), (75, 130)]
+    by_cote = {f"{lo:.2f}–{hi:.2f}": _roi([s for s in distinct if lo <= s.get("odds", 0) < hi])
+               for lo, hi in _COTE_BANDS}
+    by_minute = {f"{lo}–{hi}'": _roi([s for s in distinct if lo <= s.get("minute", 0) < hi])
+                 for lo, hi in _MIN_BANDS}
+
     _res = {
         "matches": matches, "snaps_total": len(allsnaps) + pending, "snaps_pending": pending,
         "settled_by_model": _by_mv, "model_version": MODEL_VERSION,
         "canonical": _roi(canon),
+        "distinct": _roi(distinct),                    # TOUS les signaux distincts réglés (pas juste 1/match)
+        "by_cote": by_cote, "by_minute": by_minute,
         "all_settled": _roi([s for s in allsnaps if s["result"] in ("won", "lost", "push")]),
         "by_family": {fam: _roi(rows) for fam, rows in sorted(by_fam.items())},
         # tous les marchés séparés, triés par volume décroissant (le plus « travaillé » en tête).
