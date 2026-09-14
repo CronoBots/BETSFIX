@@ -4961,7 +4961,22 @@ def _onboarding_block() -> str:
         "animation:onbIn .3s ease}"
         ".onb.onb-out{animation:onbOut .26s ease forwards}"
         "@keyframes onbIn{from{opacity:0}to{opacity:1}}@keyframes onbOut{to{opacity:0}}"
-        ".onb-top,.onb-stage,.onb-foot{width:100%;max-width:460px}"
+        # FOND AMBIANT (comble le vide, signature ensitics) : flux de cartes-pronos fantômes + scrim + halo.
+        ".onb-feed{position:absolute;inset:0;z-index:0;display:flex;flex-direction:column;gap:11px;padding:64px 16px;"
+        "overflow:hidden;pointer-events:none;animation:onbDrift 40s linear infinite;"
+        "-webkit-mask:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent);"
+        "mask:linear-gradient(180deg,transparent,#000 14%,#000 86%,transparent)}"
+        "@keyframes onbDrift{from{transform:translateY(0)}to{transform:translateY(-90px)}}"
+        ".onb-fr{flex:none;display:flex;align-items:center;gap:12px;height:56px;border-radius:14px;padding:0 14px;"
+        "background:rgba(255,255,255,.022);border:1px solid rgba(255,255,255,.045)}"
+        ".onb-fd{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.07)}"
+        ".onb-fl{flex:1;height:9px;border-radius:6px;background:rgba(255,255,255,.055)}"
+        ".onb-fl.s{flex:none;width:46%}"
+        ".onb-fc{flex:none;width:38px;height:15px;border-radius:6px;background:rgba(34,184,255,.13)}"
+        ".onb-fc.g{background:rgba(52,210,123,.15)}"
+        ".onb-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;"
+        "background:radial-gradient(78% 46% at 50% 50%,#080d15 34%,rgba(8,13,21,.55) 62%,transparent 100%)}"
+        ".onb-top,.onb-stage,.onb-foot{position:relative;z-index:2;width:100%;max-width:460px}"
         ".onb-top{display:flex;align-items:center;justify-content:space-between;flex:none}"
         ".onb-wm{font-weight:900;letter-spacing:.18em;font-size:15px;color:#fff}.onb-wm b{color:#22b8ff}"
         ".onb-skip{background:none;border:0;color:#7d90a8;font-size:15px;font-weight:600;cursor:pointer;padding:6px 2px}"
@@ -4970,8 +4985,8 @@ def _onboarding_block() -> str:
         "opacity:0;transform:translateY(14px);transition:opacity .32s ease,transform .32s ease;pointer-events:none}"
         ".onb-slide.on{opacity:1;transform:none;pointer-events:auto}"
         ".onb-kick{color:#22b8ff;font-weight:800;letter-spacing:.16em;font-size:12.5px;margin-bottom:14px}"
-        ".onb-h{display:block;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:1.03;margin:0 0 18px;"
-        "font-size:clamp(30px,8vw,40px);overflow-wrap:break-word}.onb-h b{color:#22b8ff;font-weight:900;display:block}"
+        ".onb-h{display:block;font-weight:900;text-transform:uppercase;letter-spacing:-.015em;line-height:1.02;margin:0 0 18px;"
+        "font-size:clamp(33px,8.8vw,46px);overflow-wrap:break-word}.onb-h b{color:#22b8ff;font-weight:900;display:block}"
         ".onb-lead{color:#9fb0c6;font-size:16px;line-height:1.5;max-width:34ch;margin:0 0 26px}"
         ".onb-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:430px}"
         ".onb-card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:16px 16px 14px}"
@@ -4986,7 +5001,12 @@ def _onboarding_block() -> str:
         ".onb-cta:active{transform:translateY(1px)}"
         "</style>"
     )
+    feed = "".join(
+        '<div class="onb-fr"><span class="onb-fd"></span><span class="onb-fl{s}"></span>'
+        '<span class="onb-fc{g}"></span></div>'.format(s=(" s" if k % 2 else ""), g=(" g" if k % 3 == 0 else ""))
+        for k in range(30))
     markup = f"""<div id="onb" class="onb" hidden>
+<div class="onb-feed">{feed}</div><div class="onb-scrim"></div>
 <div class="onb-top"><span class="onb-wm">BETS<b>FIX</b></span><button type="button" class="onb-skip">Passer</button></div>
 <div class="onb-stage">
  <div class="onb-slide on"><div class="onb-kick">// LE MODÈLE</div>
