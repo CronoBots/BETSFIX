@@ -1432,6 +1432,35 @@ CSS = """
   .acctwrap .abadge{font-size:11px;font-weight:800;border-radius:7px;padding:3px 9px}
   .acctwrap .abadge.on{background:rgba(25,196,106,.18);color:#8df3c0}
   .acctwrap .abadge.off{background:rgba(150,165,185,.16);color:#c0cbdb}
+  /* COMPTE style « réglages groupés » (refonte 2026-09-14, inspiré ensitics, en bleu). Scopé .acctwrap
+     pour battre la règle globale `.acctwrap button` (specificité). */
+  .acctwrap .ahdr{display:flex;align-items:center;gap:14px;margin:10px 2px 20px}
+  .acctwrap .aav{flex:none;width:56px;height:56px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-weight:900;font-size:23px;color:#04121c;background:linear-gradient(135deg,#22b8ff,#1496f0)}
+  .acctwrap .ahd-m{min-width:0}
+  .acctwrap .aeml{font-weight:800;font-size:16px;color:#eef4fb;word-break:break-word;line-height:1.2}
+  .acctwrap .ameta{margin-top:7px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .acctwrap .asince{font-size:11px;color:#7c90ab}
+  .acctwrap .apro{display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;border:0;
+    background:linear-gradient(135deg,#22b8ff,#1496f0);color:#04121c;border-radius:18px;padding:16px 18px;
+    margin:0 0 22px;font-family:inherit;box-shadow:0 10px 30px rgba(34,184,255,.25)}
+  .acctwrap .apro-t{flex:1;min-width:0}
+  .acctwrap .apro-t b{display:block;font-size:19px;font-weight:900;letter-spacing:-.01em;line-height:1.1}
+  .acctwrap .apro-t span{display:block;margin-top:3px;font-size:13px;font-weight:600;opacity:.82}
+  .acctwrap .apro-go{flex:none;width:38px;height:38px;border-radius:50%;background:rgba(0,10,18,.22);color:#04121c;
+    display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900}
+  .acctwrap .aset-h{font-size:11px;font-weight:800;letter-spacing:.12em;color:#6f8299;text-transform:uppercase;margin:0 4px 8px}
+  .acctwrap .aset{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;
+    padding:0 15px;margin:0 0 22px}
+  .acctwrap .aset form{margin:0}
+  .acctwrap .aset-i{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:53px;
+    padding:13px 0;margin:0;box-sizing:border-box;border-top:1px solid rgba(255,255,255,.06);
+    border-left:0;border-right:0;border-bottom:0;background:none;width:100%;text-align:left;font-family:inherit;
+    font-size:15px;font-weight:600;color:#eef4fb;cursor:pointer}
+  .acctwrap .aset-i:first-child{border-top:0}
+  .acctwrap .aset-i .v{color:#8698ae;font-weight:600;font-size:14px;text-align:right;word-break:break-word}
+  .acctwrap .aset-i .chev{flex:none;color:#5a6e86;font-weight:800;font-size:17px;line-height:1}
+  .acctwrap .aset-i.danger{color:#ff8088}
   /* Couleur de la bulle selon le RÉSULTAT (prime sur le type) : vert+halo / rouge+halo */
   .fpick.fp-won{background:linear-gradient(90deg,rgba(25,196,106,.16),rgba(25,196,106,.05));
                 border-color:rgba(25,196,106,.75);box-shadow:0 0 15px rgba(25,196,106,.32)}

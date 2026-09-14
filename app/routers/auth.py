@@ -215,10 +215,11 @@ def _page(title: str, body: str, frag: bool = False) -> str:
     if frag:
         return inner
     from app import web                       # import paresseux (évite tout cycle à l'import)
-    # « Compte » n'est PLUS un onglet SPA (déplacé en bouton HAUT À DROITE, 2026-07-30) -> page PLEINE via
-    # web.layout : logo + bouton compte + barre du bas (Accueil·Pronos·Live·Résultats). Taper un
-    # onglet recharge la page (comme les autres pages layout). Le fragment (frag) reste dispo si besoin.
-    return web.layout(title, "compte", inner)
+    # Chargement PLEIN de /compte (relance PWA, refresh, retour post-login) -> on rend la COQUILLE SPA avec
+    # l'onglet « compte » actif (comme /, /directs, /stats). Ainsi taper un autre onglet BASCULE sans recharger
+    # le site (user 2026-09-14 : « passer sur l'onglet compte ne doit pas relancer le chargement »). Avant :
+    # web.layout = page autonome sans le JS SPA -> chaque tap rechargeait tout.
+    return web.spa_shell("compte", title, inner)
 
 
 def _safe_next(nxt: str | None) -> str:
@@ -456,26 +457,42 @@ async def account_page(request: Request, frag: int = 0):
         badge = f'<span class="abadge on">✓ Abonné · {e(plabel)}</span>'
     else:
         badge = '<span class="abadge off">Non abonné</span>'
+    # « depuis <mois année> » (date d'inscription).
+    _MOIS = ["", "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+    since = ""
+    created = int(u.get("created") or 0)
+    if created:
+        import datetime as _dt
+        _d = _dt.datetime.fromtimestamp(created)
+        since = f"depuis {_MOIS[_d.month]} {_d.year}"
+    initial = e((email[:1] or "?").upper())
+    forfait = "Essai" if (plan == "trial" and sub) else (e(plabel) if sub else "Gratuit")
+
+    # Carte HERO : « Passer Pro » (bleu) si pas encore abonné payant ; état « abonnement actif · gérer » sinon.
     if sub and plan != "trial":
-        action = ('<div class=ok>Ton abonnement est actif — tu vois tous les pronos joués.</div>'
-                  '<form method=post action="/billing/portal"><button class=ghost type=submit>'
-                  'Gérer mon abonnement</button></form>')
+        hero = ('<form method=post action="/billing/portal"><button class=apro type=submit>'
+                '<span class=apro-t><b>Abonnement actif</b><span>Tu vois tous les pronos joués · gérer</span></span>'
+                '<span class=apro-go>&rarr;</span></button></form>')
     else:
-        head = ('<div class=ok>Essai gratuit en cours — profites-en pour voir les pronos joués. '
-                'Abonne-toi pour continuer sans coupure.</div>' if plan == "trial"
-                else '<div class=sub>Débloque tous les pronos joués (simples + combinés). '
-                     'Les stats et résultats sont déjà ouverts.</div>')
-        action = (head + '<form method=post action="/billing/subscribe"><button type=submit>'
-                  "S'abonner</button></form>")
-    # « Revoir l'intro » (user 2026-09-14) : rejoue l'onboarding — efface le drapeau localStorage + recharge en
-    # plein `/?onb=1` (la coquille SPA réinjecte le bloc onboarding qui se ré-affiche). Marche aussi en PWA.
-    revoir = ("<button class=ghost type=button style='margin-top:12px' "
-              "onclick=\"try{localStorage.removeItem('onb_seen_v1')}catch(e){};location.assign('/?onb=1')\">"
-              "Revoir l'intro</button>")
-    return HTMLResponse(_page("Mon compte", f"""<div class=acctwrap><div class=acard><h1>Mon compte</h1>
-<div class=arow><span>Email</span><b>{e(email)}</b></div>
-<div class=arow><span>Abonnement</span>{badge}</div>
-{action}
-{revoir}
-<form method=post action='/logout'><button class=ghost type=submit style='margin-top:12px'>Se déconnecter</button></form>
-</div></div>""", frag=bool(frag)))
+        line = ("Ton essai tourne — abonne-toi pour ne pas couper." if plan == "trial"
+                else "Tous les pronos joués, simples + combinés. 9,99 €/mois.")
+        hero = ('<form method=post action="/billing/subscribe"><button class=apro type=submit>'
+                f'<span class=apro-t><b>Passer Pro</b><span>{line}</span></span>'
+                '<span class=apro-go>&rarr;</span></button></form>')
+
+    # « Revoir l'intro » : rejoue l'onboarding (efface le drapeau localStorage + recharge en plein `/?onb=1`,
+    # la coquille SPA réinjecte le bloc). Marche aussi en PWA (user 2026-09-14).
+    revoir_i = ("<button type=button class=aset-i "
+                "onclick=\"try{localStorage.removeItem('onb_seen_v1')}catch(e){};location.assign('/?onb=1')\">"
+                "Revoir l'intro<span class=chev>&rsaquo;</span></button>")
+    body = f"""<div class=ahdr><div class=aav>{initial}</div>
+<div class=ahd-m><div class=aeml>{e(email)}</div><div class=ameta>{badge}{f'<span class=asince>{since}</span>' if since else ''}</div></div></div>
+{hero}
+<div class=aset-h>Compte</div>
+<div class=aset><div class=aset-i>Email<span class=v>{e(email)}</span></div></div>
+<div class=aset-h>Abonnement</div>
+<div class=aset><div class=aset-i>Forfait actuel<span class=v>{forfait}</span></div></div>
+<div class=aset-h>Plus</div>
+<div class=aset>{revoir_i}
+<form method=post action='/logout'><button type=submit class=aset-i>Se déconnecter<span class=chev>&rsaquo;</span></button></form></div>"""
+    return HTMLResponse(_page("Mon compte", body, frag=bool(frag)))
