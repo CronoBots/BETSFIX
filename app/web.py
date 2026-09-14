@@ -1107,6 +1107,9 @@ CSS = """
        text-overflow:ellipsis;line-height:1.25}   /* ligue sur UNE seule ligne (user 2026-09-12), ellipse si trop long */
   .mc-r-live .mc-line-c .mc-comp{padding:0 10px}
   .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
+  /* BADGE DOUBLON : match déjà couvert par un pari pré-match Confiance/Value (user 2026-09-14, transparence) */
+  .mc-pmb{margin-left:8px;font-size:9.5px;font-weight:800;letter-spacing:.02em;color:#e0b341;
+       background:rgba(224,179,65,.12);border:1px solid rgba(224,179,65,.28);border-radius:6px;padding:1px 6px;white-space:nowrap}
   /* Ligue des cartes de PARI (Confiance/Value, à venir ET terminé, _sport_row) : calée EN HAUT À GAUCHE
      et colorée comme les jambes de combiné (.cleg-comp #8fa2b8), au lieu du BLANC CENTRÉ (user 2026-09-03).
      Modificateur scopé -> n'affecte PAS les autres cartes (programme .mc-tg, combiné, accueil). Le badge
@@ -12106,8 +12109,17 @@ def _signaux_match_card(m: dict) -> str:
         # Pas encore de score (fenêtre de coup d'envoi / rafraîchissement du flux ~12 s) : signaler que ça
         # CHARGE, plutôt qu'un « en direct » sec qui a l'air d'un état final (user 2026-09-14).
         center = '<span class="tm-live"><b>⏳ en direct</b><span class="tm-fin">score en cours…</span></span>'
+    # BADGE DOUBLON (user 2026-09-14) : ce match a-t-il déjà un pari pré-match confiance/value ? -> marqué.
+    badge = ""
+    try:
+        from app import live_pick as _lp
+        _pt = _lp._prematch_tier(str(m.get("mid"))) if m.get("mid") else None
+        if _pt in ("confiance", "value"):
+            badge = f'<span class="mc-pmb">déjà en {_pt.capitalize()}</span>'
+    except Exception:
+        badge = ""
     return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                              center, "", "".join(rows), state_cls=" mc-r-live")
+                              center, badge, "".join(rows), state_cls=" mc-r-live")
 
 
 def _signaux_live_card_for_sidecar(d: dict) -> str:
@@ -12123,7 +12135,7 @@ def _signaux_live_card_for_sidecar(d: dict) -> str:
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
         return _signaux_match_card({
-            "home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
+            "home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""), "mid": d.get("id"),
             "minute": minute, "score": f"{hs}-{as_}" if (hs is not None and as_ is not None) else "",
             "picks": picks, "has_catalog": bool(analyses.live_catalog(d.get("id")))})
     except Exception:
@@ -12236,6 +12248,8 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
     # PAR TRANCHE DE COTE + PAR MINUTE DE CRÉATION (user 2026-09-14 : stats complètes).
     reco += _card("Par tranche de cote", "réussite · ROI · n", _rows(_s.get("by_cote") or {}))
     reco += _card("Par minute de création", "réussite · ROI · n", _rows(_s.get("by_minute") or {}))
+    # DOUBLON pré-match (user 2026-09-14 : transparence) — signaux sur matchs déjà en Confiance/Value vs autres.
+    reco += _card("Doublon pré-match", "signal vs pari confiance/value", _rows(_s.get("by_prematch") or {}))
     _cal = _s.get("calibration") or []
     if _cal:
         _cr = "".join(f'<div class="lph-row"><span class="lph-sel">{c["bucket"]}</span>'

@@ -975,7 +975,7 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
         # Signaux + STATUT (validé / en cours / tombé), triés — `first_min` déjà posé par enriched_signals.
         picks = enriched_signals(d, top=top)
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
-                    "minute": minute, "score": score, "picks": picks,
+                    "mid": d.get("id"), "minute": minute, "score": score, "picks": picks,
                     "has_catalog": bool(analyses.live_catalog(d.get("id")))})   # cotes live chaudes ou non
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
     _CURRENT_ALL_CACHE[sport] = (_now_m, out)
@@ -1109,6 +1109,29 @@ def settle_all() -> int:
     return n
 
 
+_PM_TIER_CACHE: dict = {}       # mid -> (ts, tier|None) : tier du pari pré-match d'un match, caché ~120 s
+
+
+def _prematch_tier(mid):
+    """Tier du pari pré-match JOUÉ (confiance/value) du match, ou None. Sert à MARQUER les signaux d'un match
+    déjà couvert par un pari pré-match (user 2026-09-14 : transparence du doublon). Caché ~120 s. Lecture seule."""
+    if not mid:
+        return None
+    import time as _t
+    hit = _PM_TIER_CACHE.get(mid)
+    if hit and (_t.time() - hit[0]) < 120.0:
+        return hit[1]
+    tier = None
+    try:
+        d = analyses.meta("foot", mid)
+        if d and d.get("stat_bet"):
+            tier = analyses.tier_of(d)
+    except Exception:
+        tier = None
+    _PM_TIER_CACHE[mid] = (_t.time(), tier)
+    return tier
+
+
 # familles dont le RÈGLEMENT est connu (source réelle) — toute autre famille réglée = anomalie à investiguer.
 _KNOWN_SETTLE_FAMILIES = (set(_FAM_BASE) | {
     "Possession", "Vainqueur", "Double chance", "Handicap", "Total Over", "Total Under",
@@ -1178,7 +1201,8 @@ def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list
         if not seen:
             continue
         out.append({"home": rec.get("home", ""), "away": rec.get("away", ""), "comp": rec.get("comp", ""),
-                    "final": rec.get("final", ""), "start": st, "picks": list(seen.values())})
+                    "mid": rec.get("match_id"), "final": rec.get("final", ""), "start": st,
+                    "picks": list(seen.values())})
     out.sort(key=lambda m: m.get("start") or "", reverse=True)
     _SETTLED_CACHE[_k] = (_now_m, out[:limit])
     return out[:limit]
@@ -1196,6 +1220,7 @@ def summary() -> dict:
     if _hit and (_now_m - _hit[0]) < _SUMMARY_TTL:
         return _hit[1]
     canon, allsnaps, distinct = [], [], []
+    dist_with, dist_without = [], []          # signaux distincts : match AVEC vs SANS pari pré-match (doublon)
     matches = pending = 0
     for rec in _iter_records():
         matches += 1
@@ -1207,7 +1232,10 @@ def summary() -> dict:
         _seen: dict = {}
         for s in settled:
             _seen.setdefault(s.get("sel"), s)
-        distinct.extend(_seen.values())
+        _dv = list(_seen.values())
+        distinct.extend(_dv)
+        # DOUBLON (user 2026-09-14) : ce match a-t-il déjà un pari pré-match confiance/value ? -> split transparence.
+        (dist_with if _prematch_tier(str(rec.get("match_id"))) else dist_without).extend(_dv)
         cs = sorted((s for s in settled if s.get("minute", 0) >= MINUTE_CANON_MIN),
                     key=lambda s: (s["minute"], s.get("sel", "")))
         if cs:
@@ -1275,6 +1303,9 @@ def summary() -> dict:
         "canonical": _roi(canon),
         "distinct": _roi(distinct),                    # TOUS les signaux distincts réglés (pas juste 1/match)
         "by_cote": by_cote, "by_minute": by_minute,
+        # DOUBLON pré-match (transparence user 2026-09-14) : signaux sur matchs AVEC vs SANS pari confiance/value.
+        "by_prematch": {"Match déjà en Confiance/Value": _roi(dist_with),
+                        "Match sans pari pré-match": _roi(dist_without)},
         "all_settled": _roi([s for s in allsnaps if s["result"] in ("won", "lost", "push")]),
         "by_family": {fam: _roi(rows) for fam, rows in sorted(by_fam.items())},
         # tous les marchés séparés, triés par volume décroissant (le plus « travaillé » en tête).
