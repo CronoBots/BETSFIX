@@ -70,7 +70,22 @@ _ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés"})   # a
 _BAN_TEXT_RE = re.compile(
     r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist|arr[eê]t"
     r"|hors-?jeu|coup\s+franc|remplac|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode"
-    r"|3-?way|\(\s*\d+\s*-\s*\d+\s*\)",
+    r"|3-?way|\(\s*\d+\s*-\s*\d+\s*\)"
+    # BAN DUR (bug user 2026-09-14) : marchés « Fautes … par intervalle Opta » (« 40:00-44:59 (Réglé selon
+    # les données Opta) ») — mal lus jadis comme « <équipe> vainqueur » -> fausses victoires. On n'a pas la
+    # donnée fautes en direct + intervalle = non réglable. Ban par libellé (fautes / intervalle mm:ss-mm:ss / opta).
+    r"|\bfautes?\b|donn[ée]es\s+opta|\d{1,3}:\d{2}\s*[-–]\s*\d{1,3}:\d{2}",
+    re.I)
+
+# STATS NON RÉCUPÉRABLES/NON RÉGLABLES en direct (on n'a pas la donnée fiable) : un marché qui les mentionne
+# n'est JAMAIS un « <équipe> vainqueur / double chance ». Sans ce garde-fou, `_winner_side` voyait le nom
+# d'équipe dans « Possession de Roma », « Coups francs Roma », « Dégagements Roma »… et classait le marché en
+# « Vainqueur » -> réglé sur le SCORE final -> fausses victoires (bug user 2026-09-14). On ne pique QUE ce qu'on
+# sait régler avec des stats réelles : score (buts/DC/handicap/BTTS/total) + compteurs live (corners/cartons/
+# tirs/tirs cadrés). Tout le reste = rejeté. (corners/cartons/tirs NE figurent PAS ici : ils sont réglables.)
+_UNSETTLEABLE_STAT_RE = re.compile(
+    r"possession|fautes?|coups?\s*francs?|d[ée]gagements?|tacles?|hors-?jeu|passes?|interceptions?"
+    r"|touches?|centres?|arr[eê]ts?|penalt|corners?\s+conc|but\s+contre|%",
     re.I)
 
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
@@ -316,6 +331,10 @@ def _family(info: dict, wside, text: str) -> str:
     (rejeté). On ne s'appuie PAS sur un code de règlement (le catalogue n'en a pas) mais sur la métrique."""
     if analyses._is_btts(text, ""):
         return "Les 2 marquent"
+    # Garde-fou racine : un marché de STAT non réglable (possession/fautes/coups francs/dégagements…) ne peut
+    # PAS être un vainqueur/DC même si `_winner_side` y a repéré un nom d'équipe (sinon réglé sur le score = faux).
+    if wside in ("home", "away", "draw", "1X", "12", "X2") and _UNSETTLEABLE_STAT_RE.search(text):
+        return "Autre"
     if wside in ("home", "away", "draw"):
         return "Vainqueur"
     if wside in ("1X", "12", "X2"):
@@ -683,8 +702,13 @@ def _settle_snap(snap: dict, fh: int, fa: int):
     """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL. Résultat/DC résolus à la main ; totaux/
     handicap buts via `analyses._eval_leg` (final) ; BTTS sur les deux scores."""
     fam, wside = snap.get("family"), snap.get("wside")
+    sel = snap.get("sel", "") or ""
+    # DÉFENSE (bug user 2026-09-14) : ne JAMAIS régler sur le score un marché qui parle d'une stat non réglable
+    # (possession/fautes/coups francs/dégagements…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
+    if _BAN_TEXT_RE.search(sel) or (wside and _UNSETTLEABLE_STAT_RE.search(sel)):
+        return None
     if fam == "Les 2 marquent":
-        yes = "non" not in (snap.get("sel", "") or "").lower()
+        yes = "non" not in sel.lower()
         return "won" if ((fh >= 1 and fa >= 1) == yes) else "lost"
     res = "home" if fh > fa else "away" if fa > fh else "draw"
     if wside in ("home", "away", "draw"):
