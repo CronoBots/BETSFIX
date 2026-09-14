@@ -542,6 +542,13 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         return None
     obj = ("corners" if "corner" in low else "cards" if "carton" in low
            else "sot" if "cadr" in low else "shots" if "tir" in low else None)
+    _m = _NUM_RE.search(low)
+    line = float(_m.group(1).replace(",", ".")) if _m else None
+
+    def _fmt(val, sing, plur):
+        # unité accordée à la LIGNE (« 0.5 carton », « 16.5 corners ») ; « courant / ligne » si ligne connue.
+        u = sing if (line is not None and line < 2) else plur
+        return f"{val} / {line:g} {u}" if line is not None else f"{val} {plur if val != 1 else sing}"
     if obj is not None:
         if not counts:
             return None
@@ -552,14 +559,14 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         val = tv if tv is not None else (hv or 0) + (av or 0)
         _u = {"corners": ("corner", "corners"), "cards": ("carton", "cartons"),
               "sot": ("tir cadré", "tirs cadrés"), "shots": ("tir", "tirs")}[obj]
-        return f"{val} {_u[0] if val == 1 else _u[1]}"
+        return _fmt(val, _u[0], _u[1])
     # BUTS uniquement (pas handicap/DC/vainqueur)
     if not (_re.search(r"\bbuts?\b", low) or family in ("Total Over", "Total Under", "Total équipe")
             or "marqu" in low or "scores" in low):
         return None
     tv = _tv(hs, as_)
     val = tv if tv is not None else hs + as_
-    return f"{val} {'but' if val == 1 else 'buts'}"
+    return _fmt(val, "but", "buts")
 
 
 def enriched_signals(d: dict, top: int = 3) -> list[dict]:

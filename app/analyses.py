@@ -638,8 +638,11 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
                      r"(.*?)\s*(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:corners?|cartons?|tirs?)?\s*$", s, re.I)
     if _mcnt:
         _obj = _mcnt.group(1).lower()
-        _unit = ("corners" if _obj.startswith("corner") else "cartons" if _obj.startswith("carton")
-                 else "tirs cadrés" if "cadr" in _obj else "tirs")
+        _sg = float(_mcnt.group(4)) < 2                # unité au singulier sous la ligne 2 (« 0.5 carton »)
+        _kind = ("corner" if _obj.startswith("corner") else "carton" if _obj.startswith("carton")
+                 else "tir cadré" if "cadr" in _obj else "tir")
+        _unit = _kind if _sg else {"corner": "corners", "carton": "cartons",
+                                   "tir cadré": "tirs cadrés", "tir": "tirs"}[_kind]
         _team = (_mcnt.group(2) or "").strip(" -–—:")
         _core = f"{_mcnt.group(3).capitalize()} de {_mcnt.group(4)} {_unit}"
         if _team and _team.lower() not in ("de", "des", "du", "la", "le", "match", "du match", "d"):
