@@ -4934,6 +4934,102 @@ def layout(title: str, sport: str, body: str, subnav: str | None = None,
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_TOTOP_HTML}{botnav}<script>{_VERCHECK_JS}</script><script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_DAYCAL_JS}</script></body></html>"""
 
+# ONBOARDING (inspiré ensitics, adapté BETSFIX — bleu, VRAIS chiffres source unique stats_full).
+# Overlay 1er lancement : 3 slides de valeur (Le modèle / Les données / La preuve), skippable, vu 1×
+# (localStorage `onb_seen_v1`). Forçable pour test/capture via `?onb=1`. GATÉ par ONBOARDING_ON.
+ONBOARDING_ON = True
+
+
+def _onboarding_block() -> str:
+    """Bloc onboarding auto-contenu (style + markup + script) injecté en tête de la coquille SPA.
+    '' si le flag est off. Ne bloque jamais l'app : caché par défaut, révélé par JS au 1er lancement."""
+    if not ONBOARDING_ON:
+        return ""
+    try:
+        s = stats_full()
+        bt = s.get("by_tier", {})
+        conf_pct = int(round((bt.get("confiance", {}).get("pct") or 0)))
+        val_roi = int(round((bt.get("value", {}).get("roi") or 0)))
+        total_n = int(s.get("overall", {}).get("settled") or 0)
+    except Exception:
+        conf_pct, val_roi, total_n = 92, 27, 163
+    css = (
+        "<style>"
+        ".onb{position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;align-items:center;color:#eef4fb;"
+        "background:#080d15;background-image:radial-gradient(120% 80% at 50% -8%,#122236 0%,#080d15 62%);overflow:hidden;"
+        "padding:calc(env(safe-area-inset-top) + 20px) 22px calc(env(safe-area-inset-bottom) + 22px);"
+        "animation:onbIn .3s ease}"
+        ".onb.onb-out{animation:onbOut .26s ease forwards}"
+        "@keyframes onbIn{from{opacity:0}to{opacity:1}}@keyframes onbOut{to{opacity:0}}"
+        ".onb-top,.onb-stage,.onb-foot{width:100%;max-width:460px}"
+        ".onb-top{display:flex;align-items:center;justify-content:space-between;flex:none}"
+        ".onb-wm{font-weight:900;letter-spacing:.18em;font-size:15px;color:#fff}.onb-wm b{color:#22b8ff}"
+        ".onb-skip{background:none;border:0;color:#7d90a8;font-size:15px;font-weight:600;cursor:pointer;padding:6px 2px}"
+        ".onb-stage{flex:1;position:relative;display:flex;align-items:center}"
+        ".onb-slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;"
+        "opacity:0;transform:translateY(14px);transition:opacity .32s ease,transform .32s ease;pointer-events:none}"
+        ".onb-slide.on{opacity:1;transform:none;pointer-events:auto}"
+        ".onb-kick{color:#22b8ff;font-weight:800;letter-spacing:.16em;font-size:12.5px;margin-bottom:14px}"
+        ".onb-h{display:block;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:1.03;margin:0 0 18px;"
+        "font-size:clamp(30px,8vw,40px);overflow-wrap:break-word}.onb-h b{color:#22b8ff;font-weight:900;display:block}"
+        ".onb-lead{color:#9fb0c6;font-size:16px;line-height:1.5;max-width:34ch;margin:0 0 26px}"
+        ".onb-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:430px}"
+        ".onb-card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:16px 16px 14px}"
+        ".onb-num{font-weight:900;font-size:30px;line-height:1}.onb-num.g{color:#34d27b}.onb-num.b{color:#22b8ff}"
+        ".onb-lbl{display:block;margin-top:8px;color:#8698ae;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;line-height:1.3}"
+        ".onb-foot{flex:none;display:flex;flex-direction:column;gap:18px;align-items:center}"
+        ".onb-dots{display:flex;gap:8px}"
+        ".onb-dot{width:7px;height:7px;border-radius:99px;background:#2b3b4f;transition:all .25s ease;cursor:pointer}"
+        ".onb-dot.on{width:22px;background:#22b8ff}"
+        ".onb-cta{width:100%;max-width:460px;border:0;border-radius:999px;padding:17px;background:#22b8ff;"
+        "color:#001321;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 8px 30px rgba(34,184,255,.28)}"
+        ".onb-cta:active{transform:translateY(1px)}"
+        "</style>"
+    )
+    markup = f"""<div id="onb" class="onb" hidden>
+<div class="onb-top"><span class="onb-wm">BETS<b>FIX</b></span><button type="button" class="onb-skip">Passer</button></div>
+<div class="onb-stage">
+ <div class="onb-slide on"><div class="onb-kick">// LE MODÈLE</div>
+  <h2 class="onb-h">Deux sélecteurs. <b>Zéro approximation.</b></h2>
+  <p class="onb-lead">Confiance maximise le taux de réussite. Value traque les cotes sous-évaluées. Les deux passent chaque match, chaque jour.</p>
+  <div class="onb-cards"><div class="onb-card"><span class="onb-num g">{conf_pct}%</span><span class="onb-lbl">Réussite · Confiance</span></div>
+  <div class="onb-card"><span class="onb-num b">+{val_roi}%</span><span class="onb-lbl">ROI · Value</span></div></div></div>
+ <div class="onb-slide"><div class="onb-kick">// LES DONNÉES</div>
+  <h2 class="onb-h">8 sources. <b>Un seul verdict.</b></h2>
+  <p class="onb-lead">Pinnacle (sharp), Unibet, FotMob, Understat, Flashscore, LiveScore, Sportradar — croisées à chaque fait, jamais au flair.</p>
+  <div class="onb-cards"><div class="onb-card"><span class="onb-num g">8</span><span class="onb-lbl">Sources croisées</span></div>
+  <div class="onb-card"><span class="onb-num b">100%</span><span class="onb-lbl">Football</span></div></div></div>
+ <div class="onb-slide"><div class="onb-kick">// LA PREUVE</div>
+  <h2 class="onb-h">Plus de gagnants. <b>Rien de caché.</b></h2>
+  <p class="onb-lead">{total_n} pronos notés et datés depuis le 8 juin. Les gains, les pertes, tout est là — daté, jamais effacé.</p>
+  <div class="onb-cards"><div class="onb-card"><span class="onb-num g">{total_n}</span><span class="onb-lbl">Pronos notés</span></div>
+  <div class="onb-card"><span class="onb-num b">9,99 €</span><span class="onb-lbl">par mois</span></div></div></div>
+</div>
+<div class="onb-foot"><div class="onb-dots"><i class="onb-dot on"></i><i class="onb-dot"></i><i class="onb-dot"></i></div>
+<button type="button" class="onb-cta">Continuer</button></div></div>"""
+    js = (
+        "<script>(function(){"
+        "var o=document.getElementById('onb');if(!o)return;"
+        "var force=location.search.indexOf('onb=1')>=0,seen=null;try{seen=localStorage.getItem('onb_seen_v1');}catch(e){}"
+        "if(seen&&!force){o.parentNode&&o.parentNode.removeChild(o);return;}"
+        "o.hidden=false;var html=document.documentElement,pov=html.style.overflow;html.style.overflow='hidden';"
+        "var i=0,sl=o.querySelectorAll('.onb-slide'),dt=o.querySelectorAll('.onb-dot'),n=sl.length,cta=o.querySelector('.onb-cta');"
+        "function show(k){i=k;for(var x=0;x<n;x++){sl[x].classList.toggle('on',x===i);dt[x].classList.toggle('on',x===i);}"
+        "cta.textContent=(i>=n-1)?\"C'est parti\":'Continuer';}"
+        "function done(){try{localStorage.setItem('onb_seen_v1','1');}catch(e){}html.style.overflow=pov;"
+        "o.classList.add('onb-out');setTimeout(function(){o.parentNode&&o.parentNode.removeChild(o);},260);}"
+        "cta.addEventListener('click',function(){if(i>=n-1)done();else show(i+1);});"
+        "o.querySelector('.onb-skip').addEventListener('click',done);"
+        "for(var x=0;x<dt.length;x++){(function(j){dt[j].addEventListener('click',function(){show(j);});})(x);}"
+        "var x0=null;o.addEventListener('touchstart',function(e){x0=e.touches[0].clientX;},{passive:true});"
+        "o.addEventListener('touchend',function(e){if(x0==null)return;var dx=e.changedTouches[0].clientX-x0;"
+        "if(dx<-40&&i<n-1)show(i+1);else if(dx>40&&i>0)show(i-1);x0=null;});"
+        "var st=parseInt((location.search.match(/[?&]s=(\\d)/)||[])[1]||'0',10)||0;show(Math.max(0,Math.min(st,n-1)));"
+        "})();</script>"
+    )
+    return css + markup + js
+
+
 def spa_shell(active: str, title: str, body: str, source: dict | None = None) -> str:
     """Coquille « single-page » des 4 onglets principaux. Le sport `active` est rendu côté
     serveur (1er affichage rapide, marche sans JS) ; les 3 autres panneaux sont vides et
@@ -4976,7 +5072,7 @@ def spa_shell(active: str, title: str, body: str, source: dict | None = None) ->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BETSFIX">
 {_CSS_LINK}</head><body class="sp-{e(active)}">
-{_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
+{_onboarding_block()}{_ACCT_BTN}{splash}<div class="wrap">{toplogo}{pausebar}<main id="panels">{''.join(panels)}</main>
 <div class="foot">18+ · Outil informatif, sans garantie · Jouez responsable</div>
 </div>{_A2HS_HTML}{_TOTOP_HTML}{botnav}<script>{_VERCHECK_JS}</script><script>{_ANIM_JS}</script><script>{_COUNTDOWN_JS}</script><script>{_LIVECLK_JS}</script><script>{_NOZOOM_JS}</script><script>{_PUSH_JS}</script><script>{_BELL_JS}</script><script>{_TOTOP_JS}</script><script>{_CARDS_JS}</script><script>{_SCTABS_JS}</script><script>{_SPA_JS}</script><script>{_LZ_ANIM_JS}</script><script>{_TERM_JS}</script><script>{_MILE_JS}</script><script>{_CAL_JS}</script><script>{_MCAL_JS}</script><script>{_A2HS_JS}</script><script>{_SPSEL_JS}</script><script>{_DAYCAL_JS}</script><script>{_RESNAV_JS}</script></body></html>"""
 
