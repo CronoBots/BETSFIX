@@ -5060,6 +5060,8 @@ def _onboarding_block() -> str:
         "<script>(function(){"
         "var o=document.getElementById('onb');if(!o)return;"
         "var force=location.search.indexOf('onb=1')>=0,seen=null;try{seen=localStorage.getItem('onb_seen_v1');}catch(e){}"
+        # ?onb=0 -> saute l'intro ET marque « vue » (utile QA/captures ; inoffensif en prod).
+        "if(location.search.indexOf('onb=0')>=0){try{localStorage.setItem('onb_seen_v1','1');}catch(e){}o.parentNode&&o.parentNode.removeChild(o);return;}"
         "if(seen&&!force){o.parentNode&&o.parentNode.removeChild(o);return;}"
         "o.hidden=false;var html=document.documentElement,pov=html.style.overflow;html.style.overflow='hidden';"
         "var i=0,sl=o.querySelectorAll('.onb-slide'),dt=o.querySelectorAll('.onb-dot'),n=sl.length,cta=o.querySelector('.onb-cta');"
@@ -9678,8 +9680,8 @@ def accueil_body(frag: bool = True) -> str:
 <div class="final"><div class="lzw">
   <h2>Arrêtez de suivre des pronos. <br>Suivez un relevé.</h2>
   <p>Les pronos du jour, la courbe en direct, les combinés — et chaque pari réglé au grand jour.</p>
-  <div class="cta-row"><a class="btn lg" href="/signup">Créer mon compte →</a></div>
-  <p class="cta-note" style="margin-top:18px">Résiliable en un clic · aucune donnée revendue</p>
+  <div class="cta-row"><a class="btn lg" href="/signup">Créer mon compte — 3 jours offerts →</a></div>
+  <p class="cta-note" style="margin-top:16px"><b style="color:var(--accent)">9,99 €/mois</b> ensuite · résiliable en un clic · aucune donnée revendue</p>
 </div></div>
 
 </div>"""
