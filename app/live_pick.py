@@ -524,6 +524,44 @@ def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str, co
     return "open"
 
 
+def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts=None) -> str | None:
+    """Valeur COURANTE de la métrique d'un signal (nb déjà obtenu) pour l'afficher à côté d'un signal EN COURS :
+    « 7 corners », « 0 but », « 3 cartons »… Total ou par équipe selon le libellé. None si marché NON compté
+    (résultat/DC/handicap/périodes) ou stats indispo. Pur calcul, lecture seule."""
+    if hs is None or as_ is None:
+        return None
+    low = (sel or "").lower()
+    if _re.search(r"mi-temps|1[eè]re|2[eè]\b|quart|p[ée]riode", low):
+        return None
+
+    def _tv(hv, av):
+        for name, v in ((home, hv), (away, av)):
+            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 3]
+            if any(t in low for t in toks):
+                return v
+        return None
+    obj = ("corners" if "corner" in low else "cards" if "carton" in low
+           else "sot" if "cadr" in low else "shots" if "tir" in low else None)
+    if obj is not None:
+        if not counts:
+            return None
+        hv, av = counts.get(obj + "_h"), counts.get(obj + "_a")
+        if hv is None and av is None:
+            return None
+        tv = _tv(hv or 0, av or 0)
+        val = tv if tv is not None else (hv or 0) + (av or 0)
+        _u = {"corners": ("corner", "corners"), "cards": ("carton", "cartons"),
+              "sot": ("tir cadré", "tirs cadrés"), "shots": ("tir", "tirs")}[obj]
+        return f"{val} {_u[0] if val == 1 else _u[1]}"
+    # BUTS uniquement (pas handicap/DC/vainqueur)
+    if not (_re.search(r"\bbuts?\b", low) or family in ("Total Over", "Total Under", "Total équipe")
+            or "marqu" in low or "scores" in low):
+        return None
+    tv = _tv(hs, as_)
+    val = tv if tv is not None else hs + as_
+    return f"{val} {'but' if val == 1 else 'buts'}"
+
+
 def enriched_signals(d: dict, top: int = 3) -> list[dict]:
     """Signaux live d'un match + TRI PAR STATUT au score courant (user 2026-09-14) : chaque pick porte
     `status` = 'won' (validé, acquis en direct) / 'open' (en cours) / 'lost' (tombé). Liste triée : validés
@@ -550,12 +588,14 @@ def enriched_signals(d: dict, top: int = 3) -> list[dict]:
         if isinstance(mn, int) and (k not in first or mn < first[k]):
             first[k] = mn
         last[k] = s                                        # snaps ordonnés dans le temps -> dernier gagne
-    for p in open_picks:
-        p["status"] = "open"
-        p["first_min"] = first.get(p["sel"], minute)
     # compteurs live PAR ÉQUIPE (corners/cartons/tirs) depuis le CACHE (allow_fetch=False -> 0 réseau au rendu)
     # pour trancher les marchés comptés en direct (total ET par équipe).
     counts = _live_vals(d.get("id"), home, away, d.get("start"), allow_fetch=False)
+    for p in open_picks:
+        p["status"] = "open"
+        p["first_min"] = first.get(p["sel"], minute)
+        # valeur COURANTE de la métrique (nb déjà obtenu) à afficher à côté du signal en cours (user 2026-09-14).
+        p["cur"] = _signal_current(p.get("sel"), p.get("family"), hs, as_, home, away, counts)
     won, lost = [], []
     for sel, s in last.items():
         if sel in open_sels:
