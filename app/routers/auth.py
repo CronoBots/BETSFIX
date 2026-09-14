@@ -166,9 +166,10 @@ bs.forEach(function(b,i){
 })();</script>"""
 
 
-def _code_form(nxt: str = "/", err: str = "", email: str = "", frag: bool = False) -> str:
+def _code_form(nxt: str = "/", err: str = "", email: str = "", frag: bool = False, spa: bool = False) -> str:
     """Entrée du flux SANS mot de passe : email -> on envoie un code à 6 chiffres. Unifie connexion et
-    inscription (compte créé au 1er code validé)."""
+    inscription (compte créé au 1er code validé). `spa=True` seulement quand c'est l'ONGLET compte (/compte
+    déconnecté) -> coquille SPA ; ailleurs (/login,/signup) page légère."""
     e = _html.escape
     err_html = f'<div class=err>{e(err)}</div>' if err else ""
     return _page("Connexion", f"""<div class=acard><h1>Connexion / inscription</h1>
@@ -178,7 +179,7 @@ Nouveau ? Ton compte est créé avec {accounts.TRIAL_DAYS} jours d'essai. Stats 
 <input type=hidden name=next value='{e(nxt)}'>
 <label>Email</label><input name=email type=email autocomplete=email inputmode=email value='{e(email)}' required autofocus>
 <button type=submit>Recevoir mon code</button></form>
-<div class=alt><a href='/login?pw=1&next={e(nxt)}'>Utiliser un mot de passe</a></div></div>""", frag)
+<div class=alt><a href='/login?pw=1&next={e(nxt)}'>Utiliser un mot de passe</a></div></div>""", frag, spa)
 
 
 def _otp_page(nxt: str, email: str, token: str, err: str = "", info: str = "") -> str:
@@ -207,19 +208,19 @@ def _otp_page(nxt: str, email: str, token: str, err: str = "", info: str = "") -
     return _page("Code de connexion", body)
 
 
-def _page(title: str, body: str, frag: bool = False) -> str:
-    """Contenu Compte. `frag=True` -> fragment seul (injecté dans le panneau SPA, bascule SANS
-    rechargement, comme un onglet sport) ; sinon page complète via web.layout (barre du bas + thème),
-    onglet 'compte' actif."""
+def _page(title: str, body: str, frag: bool = False, spa: bool = False) -> str:
+    """Contenu Compte / pages auth. `frag=True` -> fragment seul (injecté dans le panneau SPA, bascule SANS
+    rechargement). `spa=True` (chargement PLEIN de l'onglet COMPTE) -> coquille spa_shell avec l'onglet
+    « compte » actif : taper un autre onglet BASCULE sans recharger (user 2026-09-14). Sinon (formulaires
+    auth purs : login/signup/otp/forgot/reset/verify) -> page légère web.layout, PAS de préchargement SPA
+    (revue 2026-09-14 : ne pas booter les 4 panneaux sur une page de connexion)."""
     inner = f'<div class="acctwrap">{body}</div>'
     if frag:
         return inner
     from app import web                       # import paresseux (évite tout cycle à l'import)
-    # Chargement PLEIN de /compte (relance PWA, refresh, retour post-login) -> on rend la COQUILLE SPA avec
-    # l'onglet « compte » actif (comme /, /directs, /stats). Ainsi taper un autre onglet BASCULE sans recharger
-    # le site (user 2026-09-14 : « passer sur l'onglet compte ne doit pas relancer le chargement »). Avant :
-    # web.layout = page autonome sans le JS SPA -> chaque tap rechargeait tout.
-    return web.spa_shell("compte", title, inner)
+    if spa:
+        return web.spa_shell("compte", title, inner)
+    return web.layout(title, "compte", inner)
 
 
 def _safe_next(nxt: str | None) -> str:
@@ -443,7 +444,7 @@ async def verify_email(token: str = ""):
 async def account_page(request: Request, frag: int = 0):
     email = accounts.session_email(request)
     if not email:                                  # non connecté -> flux code (sans mot de passe) dans l'onglet
-        return HTMLResponse(_code_form("/compte", frag=bool(frag)))
+        return HTMLResponse(_code_form("/compte", frag=bool(frag), spa=True))
     e = _html.escape
     sub = accounts.is_subscriber(email)
     plan = accounts.plan_of(email)
@@ -495,4 +496,4 @@ async def account_page(request: Request, frag: int = 0):
 <div class=aset-h>Plus</div>
 <div class=aset>{revoir_i}
 <form method=post action='/logout'><button type=submit class=aset-i>Se déconnecter<span class=chev>&rsaquo;</span></button></form></div>"""
-    return HTMLResponse(_page("Mon compte", body, frag=bool(frag)))
+    return HTMLResponse(_page("Mon compte", body, frag=bool(frag), spa=True))

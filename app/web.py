@@ -4975,7 +4975,7 @@ def _onboarding_block() -> str:
     if not ONBOARDING_ON:
         return ""
     try:
-        s = stats_full()
+        s = analyses.stats_full()
         bt = s.get("by_tier", {})
         conf_pct = int(round((bt.get("confiance", {}).get("pct") or 0)))
         val_roi = int(round((bt.get("value", {}).get("roi") or 0)))
