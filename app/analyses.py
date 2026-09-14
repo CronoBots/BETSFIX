@@ -630,14 +630,21 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # TOTAL D'OBJETS COMPTÉS (corners / cartons / tirs / tirs cadrés) : garder l'UNITÉ correcte, jamais « buts »
     # (bug user 2026-09-14 : « des corners : Moins de 10.5 buts » — le formateur buts-équipe ci-dessous prenait
     # « des corners » pour une équipe et collait « buts »). Placé AVANT pour intercepter. « Moins de 10.5 corners ».
+    # `(?:… ÉQUIPE …)?` optionnel entre l'objet et le sens : « corners par Parma Plus de 2.5 » /
+    # « cartons - Como Plus de 0.5 » -> « Parma : Plus de 2.5 corners » (bug user 2026-09-14 : ces libellés
+    # d'ÉQUIPE restaient bruts). Sans équipe -> « Moins de 10.5 corners ».
     _mcnt = re.match(r"^(?:(?:nombre\s+)?total\s+)?(?:de\s+|des\s+|d')?"
-                     r"(corners?|cartons?|tirs?\s+cadr[ée]s|tirs?)\s*[—–:\-]*\s+"
-                     r"(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:corners?|cartons?|tirs?)?\s*$", s, re.I)
+                     r"(corners?|cartons?|tirs?\s+cadr[ée]s|tirs?)\s*(?:[—–:\-]\s*|\bpar\s+)?"
+                     r"(.*?)\s*(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:corners?|cartons?|tirs?)?\s*$", s, re.I)
     if _mcnt:
         _obj = _mcnt.group(1).lower()
         _unit = ("corners" if _obj.startswith("corner") else "cartons" if _obj.startswith("carton")
                  else "tirs cadrés" if "cadr" in _obj else "tirs")
-        return f"{_mcnt.group(2).capitalize()} de {_mcnt.group(3)} {_unit}"
+        _team = (_mcnt.group(2) or "").strip(" -–—:")
+        _core = f"{_mcnt.group(3).capitalize()} de {_mcnt.group(4)} {_unit}"
+        if _team and _team.lower() not in ("de", "des", "du", "la", "le", "match", "du match", "d"):
+            return f"{_team} : {_core}"
+        return _core
     # TOTAL DU MATCH : « Nombre total de buts – Moins de 2.5 » -> « Moins de 2.5 buts » (forme unique). Cible
     # buts/points/jeux uniquement (les objets nommés corners/cartons ont leur propre glose).
     _mtot = re.match(r"^(?:nombre\s+)?total\s+(?:de\s+|d')?(buts?|points?|jeux)\s*[—–:\-]*\s+"
