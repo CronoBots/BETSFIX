@@ -2170,6 +2170,18 @@ async def _settle_analyses_impl() -> int:
                     _mk = ((card.get("simple") or {}).get("mark")
                            or (card.get("combo") or {}).get("mark")) if card else None
                     if card and _mk:
+                        # ANTI-DOUBLON (user 2026-09-14 : « CONFIANCE GAGNÉE » posté 2× à la même seconde) :
+                        # les flags `notified_*` sont figés APRÈS envoi (pour permettre le retry), donc deux
+                        # passes/instances de règlement concurrentes postent AVANT que le flag ne soit écrit.
+                        # On RELIT le sidecar JUSTE AVANT l'envoi : si une passe concurrente a déjà posté+figé
+                        # ce résultat, on saute (pas de retry perdu — si non figé, on poste). Ferme la course.
+                        if card.get("_side") and card.get("_flags"):
+                            try:
+                                _cur = json.load(open(card["_side"], encoding="utf-8"))
+                                if all(_cur.get(_fl) for _fl in card["_flags"]):
+                                    continue
+                            except (OSError, ValueError):
+                                pass
                         try:
                             # AUTO-RÉPARATION : une réponse résultat déjà postée (règlement corrigé) est SUPPRIMÉE
                             # avant de reposter la bonne (plus de « ❌ » fantôme qui traîne dans le fil).
