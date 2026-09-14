@@ -2811,7 +2811,7 @@ CSS = """
   .lph-dot-live{background:rgba(34,184,255,.16);color:#22b8ff}
   .lph-p-sel{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32}
   /* COTE à droite de l'entête, mise en valeur comme « Cote 1.14 » des cartes Confiance/Value (user 2026-09-14) */
-  .lph-p-cote{flex:none;margin-left:auto;white-space:nowrap;font-size:11px;color:#7f8fa2;align-self:flex-start;margin-top:1px}
+  .lph-p-cote{flex:none;white-space:nowrap;font-size:11px;color:#7f8fa2}
   .lph-p-cote b{color:#eaf2fb;font-weight:800;font-size:14px}
   /* BARRE de PROBABILITÉ MODÈLE par signal = jumelle de la barre « Chance live » (remplissage rouge->vert
      selon le %). Rend chaque signal aussi « lisible d'un coup d'œil » qu'une carte Confiance. */
@@ -2824,14 +2824,12 @@ CSS = """
   .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 26px;font-size:11px;color:#8aa0b6}
   .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:2px 8px}
   .lph-p-min{color:#6f8098}
-  /* BADGE MINUTE de création à gauche (remplace le point) — coloré par statut (user 2026-09-14) */
-  .lph-tm{flex:none;min-width:34px;text-align:center;margin-top:1px;font-size:11px;font-weight:800;
-       border-radius:7px;padding:3px 6px;line-height:1}
-  .lph-tm-open{background:rgba(34,184,255,.16);color:#22b8ff}
-  .lph-tm-won{background:rgba(52,210,123,.16);color:#34d27b}
-  .lph-tm-lost{background:rgba(255,107,107,.15);color:#ff6b6b}
-  .lph-tm-push{background:rgba(224,179,65,.15);color:#e0b341}
-  /* VALEUR COURANTE de la métrique (ex. « 8 corners ») à côté du signal en cours */
+  /* BADGE MINUTE de création à gauche (remplace le point) — NEUTRE (= « quand », pas le résultat) user 2026-09-14 */
+  .lph-tm{flex:none;min-width:32px;text-align:center;margin-top:1px;font-size:11px;font-weight:800;
+       border-radius:7px;padding:3px 6px;line-height:1;background:rgba(255,255,255,.07);color:#9fb0c6}
+  /* COLONNE DROITE de l'entête : cote (+ badge résultat en dessous si réglé), alignée à droite */
+  .lph-p-rt{flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+  /* VALEUR COURANTE de la métrique (ex. « 8 / 16.5 corners ») à côté du signal en cours */
   .lph-cur{font-weight:700;color:#9fb0c6;background:rgba(255,255,255,.05);border-radius:6px;padding:2px 8px}
   /* TAGS de statut (validé / tombé) — signal tranché en direct (user 2026-09-14) */
   .lph-tag{font-weight:800;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:2px 8px}
@@ -12012,16 +12010,17 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
     2026-09-14 : « le temps de match lors de la création, pour s'y retrouver »). EN COURS : barre de proba
     modèle (rouge→vert) + « value +EV% » + **valeur courante** (`cur`, ex. « 8 corners »). VALIDÉ/TOMBÉ :
     tag « validé »/« tombé » (issue tranchée, pas de barre)."""
-    _bc = {"won": "lph-tm-won", "lost": "lph-tm-lost", "push": "lph-tm-push"}.get(status, "lph-tm-open")
-    badge = f'<span class="lph-tm {_bc}">{html.escape(str(min_txt))}</span>'
+    # RÉPARTITION CLAIRE (user 2026-09-14) : minute NEUTRE à gauche (le « quand ») · pronostic au centre ·
+    # à DROITE en colonne : cote + (si réglé) badge résultat ✓ validé / ✗ tombé. Le résultat n'est plus
+    # confondu avec la minute (avant la minute était colorée comme le statut).
+    badge = f'<span class="lph-tm">{html.escape(str(min_txt))}</span>'
     cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
     cur_html = f'<span class="lph-cur">{html.escape(str(cur))}</span>' if cur else ""
     if status in ("won", "lost", "push"):
-        tag = {"won": '<span class="lph-tag lph-tag-w">validé</span>',
-               "lost": '<span class="lph-tag lph-tag-l">tombé</span>'}.get(
-                   status, '<span class="lph-tag">remboursé</span>')
-        body = ""
-        meta = f'{tag}{cur_html}'
+        tag = {"won": '<span class="lph-tag lph-tag-w">✓ validé</span>',
+               "lost": '<span class="lph-tag lph-tag-l">✗ tombé</span>'}.get(
+                   status, '<span class="lph-tag">➖ remb.</span>')
+        rt, body, meta = f'{cote_html}{tag}', "", ""
     else:
         pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
         body = ""
@@ -12032,10 +12031,11 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
                     f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
         ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
                    if isinstance(ev, (int, float)) else "")
+        rt = cote_html
         meta = f'{ev_html}{cur_html}'
     return (f'<div class="lph-p lph-p-{html.escape(status)}"><div class="lph-p-h">'
-            f'{badge}<span class="lph-p-sel">{sel_html}</span>{cote_html}</div>'
-            f'{body}<div class="lph-p-m">{meta}</div></div>')
+            f'{badge}<span class="lph-p-sel">{sel_html}</span><span class="lph-p-rt">{rt}</span></div>'
+            f'{body}' + (f'<div class="lph-p-m">{meta}</div>' if meta else "") + "</div>")
 
 
 def _phantom_match_card(home: str, away: str, comp: str, center_html: str, badge: str,
