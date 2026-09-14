@@ -634,16 +634,22 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # « cartons - Como Plus de 0.5 » -> « Parma : Plus de 2.5 corners » (bug user 2026-09-14 : ces libellés
     # d'ÉQUIPE restaient bruts). Sans équipe -> « Moins de 10.5 corners ».
     _mcnt = re.match(r"^(?:(?:nombre\s+)?total\s+)?(?:de\s+|des\s+|d')?"
-                     r"(corners?|cartons?|tirs?\s+cadr[ée]s|tirs?)\s*(?:[—–:\-]\s*|\bpar\s+)?"
-                     r"(.*?)\s*(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:corners?|cartons?|tirs?)?\s*$", s, re.I)
+                     r"(corners?|cartons?|tirs?\s+cadr[ée]s|tirs?|fautes?|hors-?jeu|arr[eê]ts?(?:\s+du\s+gardien)?|passes?)"
+                     r"\s*(?:[—–:\-]\s*|\bpar\s+)?"
+                     r"(.*?)\s*(plus|moins)\s+de\s+(\d+(?:\.\d+)?)"
+                     r"\s*(?:corners?|cartons?|tirs?|fautes?|hors-?jeu|arr[eê]ts?|passes?)?\s*$", s, re.I)
     if _mcnt:
         _obj = _mcnt.group(1).lower()
         _sg = float(_mcnt.group(4)) < 2                # unité au singulier sous la ligne 2 (« 0.5 carton »)
         _kind = ("corner" if _obj.startswith("corner") else "carton" if _obj.startswith("carton")
-                 else "tir cadré" if "cadr" in _obj else "tir")
+                 else "tir cadré" if "cadr" in _obj else "tir" if _obj.startswith("tir")
+                 else "faute" if _obj.startswith("faute") else "hors-jeu" if "hors" in _obj
+                 else "arrêt" if _obj.startswith("arr") else "passe")
         _unit = _kind if _sg else {"corner": "corners", "carton": "cartons",
-                                   "tir cadré": "tirs cadrés", "tir": "tirs"}[_kind]
+                                   "tir cadré": "tirs cadrés", "tir": "tirs", "faute": "fautes",
+                                   "hors-jeu": "hors-jeu", "arrêt": "arrêts", "passe": "passes"}[_kind]
         _team = (_mcnt.group(2) or "").strip(" -–—:")
+        _team = re.sub(r"^(?:du\s+)?gardien\b\s*", "", _team, flags=re.I).strip(" -–—:")
         _core = f"{_mcnt.group(3).capitalize()} de {_mcnt.group(4)} {_unit}"
         if _team and _team.lower() not in ("de", "des", "du", "la", "le", "match", "du match", "d"):
             return f"{_team} : {_core}"

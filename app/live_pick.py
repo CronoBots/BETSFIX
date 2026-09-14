@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 import re
 import time
@@ -60,7 +61,9 @@ _ALLOW_FAMILIES = frozenset({
     "Vainqueur", "Double chance", "Handicap",
     "Total Over", "Total Under", "Total équipe", "Les 2 marquent",
 })
-_ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés"})   # activés si ALL_MARKETS_ON
+_ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés",
+                            # user 2026-09-14 « tout le mesurable » : compteurs API-Football supplémentaires
+                            "Fautes", "Hors-jeu", "Arrêts", "Passes", "Possession"})   # activés si ALL_MARKETS_ON
 
 # BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés en
 # total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %). On les
@@ -68,13 +71,14 @@ _ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés"})   # a
 # on ne bannit que les VRAIS non-modélisables : props JOUEUR (marque/buteur/passe/arrêts), mi-temps/périodes,
 # scoreline, score exact, hors-jeu, coup franc. « marquent » (BTTS) épargné.
 _BAN_TEXT_RE = re.compile(
-    r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist|arr[eê]t"
-    r"|hors-?jeu|coup\s+franc|remplac|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode"
+    r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist"
+    r"|coup\s+franc|remplac|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode"
     r"|3-?way|\(\s*\d+\s*-\s*\d+\s*\)"
-    # BAN DUR (bug user 2026-09-14) : marchés « Fautes … par intervalle Opta » (« 40:00-44:59 (Réglé selon
-    # les données Opta) ») — mal lus jadis comme « <équipe> vainqueur » -> fausses victoires. On n'a pas la
-    # donnée fautes en direct + intervalle = non réglable. Ban par libellé (fautes / intervalle mm:ss-mm:ss / opta).
-    r"|\bfautes?\b|donn[ée]es\s+opta|\d{1,3}:\d{2}\s*[-–]\s*\d{1,3}:\d{2}",
+    # BAN DUR (bug user 2026-09-14) : marchés « … par intervalle Opta » (« 40:00-44:59 (Réglé selon les données
+    # Opta) ») — non réglables à ce grain (API-Football donne le TOTAL, pas le découpage par tranche de 5 min).
+    # Le TOTAL fautes/hors-jeu/arrêts, lui, est désormais AUTORISÉ (cf. _extra_metric) — d'où le ban ciblé
+    # UNIQUEMENT sur l'intervalle mm:ss-mm:ss et la mention Opta, plus « mi-temps/période » (traité en stage 2).
+    r"|donn[ée]es\s+opta|\d{1,3}:\d{2}\s*[-–]\s*\d{1,3}:\d{2}",
     re.I)
 
 # STATS NON RÉCUPÉRABLES/NON RÉGLABLES en direct (on n'a pas la donnée fiable) : un marché qui les mentionne
@@ -84,8 +88,8 @@ _BAN_TEXT_RE = re.compile(
 # sait régler avec des stats réelles : score (buts/DC/handicap/BTTS/total) + compteurs live (corners/cartons/
 # tirs/tirs cadrés). Tout le reste = rejeté. (corners/cartons/tirs NE figurent PAS ici : ils sont réglables.)
 _UNSETTLEABLE_STAT_RE = re.compile(
-    r"possession|fautes?|coups?\s*francs?|d[ée]gagements?|tacles?|hors-?jeu|passes?|interceptions?"
-    r"|touches?|centres?|arr[eê]ts?|penalt|corners?\s+conc|but\s+contre|%",
+    r"coups?\s*francs?|d[ée]gagements?|tacles?|interceptions?|touches?|centres?"
+    r"|penalt|corners?\s+conc|but\s+contre",
     re.I)
 
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
@@ -249,7 +253,114 @@ def _live_vals(mid, home, away, ko, allow_fetch: bool = False):
             "cards_h": _g("home", "yellow") + _g("home", "red"),
             "cards_a": _g("away", "yellow") + _g("away", "red"),
             "sot_h": _g("home", "shots_on"), "sot_a": _g("away", "shots_on"),
-            "shots_h": _g("home", "shots_total"), "shots_a": _g("away", "shots_total")}
+            "shots_h": _g("home", "shots_total"), "shots_a": _g("away", "shots_total"),
+            # Compteurs supplémentaires API-Football (user 2026-09-14 « tout le mesurable ») — mêmes clés que
+            # `_af_live_stats`. Servent au pricing ET au règlement des marchés fautes/hors-jeu/arrêts/passes.
+            "fouls_h": _g("home", "fouls"), "fouls_a": _g("away", "fouls"),
+            "offsides_h": _g("home", "offsides"), "offsides_a": _g("away", "offsides"),
+            "saves_h": _g("home", "saves"), "saves_a": _g("away", "saves"),
+            "passes_h": _g("home", "passes"), "passes_a": _g("away", "passes"),
+            "poss_h": _g("home", "possession"), "poss_a": _g("away", "possession")}
+
+
+# --- MARCHÉS COMPTÉS SUPPLÉMENTAIRES (fautes / hors-jeu / arrêts / passes / possession) -------------------
+# Décision user 2026-09-14 (« tout le mesurable ») : on price ET on règle tout ce qu'API-Football sait mesurer.
+# Isolé ici (pas dans analyses._leg_metric, PARTAGÉ avec le pré-match) pour ne rien changer à la sélection
+# confiance/value/combos. Modèle = même Poisson que les corners (rythme /90) ; possession = ratio (normale
+# rétrécissante). Rates /90 = moyennes de ligue, LES 2 ÉQUIPES CUMULÉES.
+_XCOUNT_RATE90 = {"fouls": 22.0, "offsides": 3.6, "saves": 5.4, "passes": 900.0}
+_XCOUNT_BASE = {"fouls": "fouls", "offsides": "offsides", "saves": "saves", "passes": "passes",
+                "corners": "corners", "cards": "cards", "sot": "sot", "shots": "shots"}
+_XCOUNT_FAMILY = {"fouls": "Fautes", "offsides": "Hors-jeu", "saves": "Arrêts",
+                  "passes": "Passes", "possession": "Possession"}
+# libellé -> famille de compteur (pour le RÈGLEMENT, à partir du family stocké)
+_FAM_BASE = {"Corners": "corners", "Cartons": "cards", "Tirs": "shots", "Tirs cadrés": "sot",
+             "Fautes": "fouls", "Hors-jeu": "offsides", "Arrêts": "saves", "Passes": "passes"}
+_XCOUNT_KW = [   # ordre : le plus spécifique d'abord (hors-jeu avant « jeu », arrêts avant tout)
+    (re.compile(r"hors-?jeu|offsides?", re.I), "offsides"),
+    (re.compile(r"arr[eê]ts?\s+(?:du\s+)?gardien|parades?|\bsaves?\b", re.I), "saves"),
+    (re.compile(r"\bfautes?\b|\bfouls?\b", re.I), "fouls"),
+    (re.compile(r"possession", re.I), "possession"),
+    (re.compile(r"\bpasses?\b", re.I), "passes"),
+]
+
+
+def _side_of(text: str, home: str, away: str):
+    """'HOME'/'AWAY'/None : quelle équipe le libellé cible (jetons ≥3 lettres du nom), None si total/ambigu."""
+    low = (text or "").lower()
+
+    def _hit(name):
+        toks = [t for t in re.split(r"\W+", (name or "").lower()) if len(t) >= 3]
+        return any(t in low for t in toks)
+    h, a = _hit(home), _hit(away)
+    return "HOME" if (h and not a) else "AWAY" if (a and not h) else None
+
+
+def _extra_metric(text: str, home: str, away: str):
+    """Info d'un marché compté SUPPLÉMENTAIRE (fautes/hors-jeu/arrêts/passes/possession) ou None. Format
+    aligné sur `_leg_metric` (metric/scope/dir/side/line/live_ok) pour réutiliser le pricing/règlement."""
+    low = (text or "").lower()
+    metric = next((m for rx, m in _XCOUNT_KW if rx.search(low)), None)
+    if not metric:
+        return None
+    if "plus" in low or "over" in low or "au moins" in low or "supérieur" in low or "superieur" in low:
+        over = True
+    elif "moins" in low or "under" in low or "inférieur" in low or "inferieur" in low:
+        over = False
+    else:
+        return None
+    nm = re.search(r"(\d+(?:[.,]\d+)?)", low)
+    if not nm:
+        return None
+    line = float(nm.group(1).replace(",", "."))
+    side = _side_of(text, home, away)
+    if metric == "possession" and side is None:        # possession = toujours par équipe, sinon inexploitable
+        return None
+    return {"metric": metric, "scope": "match", "dir": "OVER" if over else "UNDER",
+            "side": side, "line": line, "live_ok": True}
+
+
+def _sf(k: int, lam: float) -> float:
+    """P(X>=k) Poisson ; approx normale (continuité) pour grand lambda (passes) où le CDF exact rame."""
+    if k <= 0:
+        return 1.0
+    if lam > 60.0:
+        z = (k - 0.5 - lam) / math.sqrt(lam)
+        return max(0.0, min(1.0, 1.0 - analyses._norm_cdf(z)))
+    return analyses._poisson_sf(k, lam)
+
+
+def _extra_count_pct(info: dict, vals: dict, rem: float):
+    """Proba modèle d'un marché compté supplémentaire vu le compteur live + le temps restant. None si indispo."""
+    m = info.get("metric")
+    if info.get("dir") not in ("OVER", "UNDER") or info.get("line") is None:
+        return None
+    line, over = info["line"], info["dir"] == "OVER"
+    if m == "possession":
+        side = info.get("side")
+        cur = analyses._as_int((vals or {}).get("poss_h" if side == "HOME" else "poss_a"))
+        if not cur:                                    # 0/None = stat absente -> non priçable
+            return None
+        sd = 4.0 + 8.0 * max(0.0, min(1.0, rem))       # incertitude sur la possession FINALE, rétrécit avec le temps
+        p_over = 1.0 - analyses._norm_cdf((line - cur) / sd)
+        return p_over if over else 1.0 - p_over
+    base, rate = _XCOUNT_BASE.get(m), _XCOUNT_RATE90.get(m)
+    if not base or not rate:
+        return None
+    ch = analyses._as_int((vals or {}).get(f"{base}_h"))
+    ca = analyses._as_int((vals or {}).get(f"{base}_a"))
+    if ch is None or ca is None:
+        return None
+    side = info.get("side")
+    if side in ("HOME", "AWAY"):
+        cur, lam = (ch if side == "HOME" else ca), (rate / 2.0) * rem
+    else:
+        cur, lam = ch + ca, rate * rem
+    if cur > line:
+        p_over = 1.0
+    else:
+        p_over = _sf(int(math.floor(line - cur)) + 1, lam)
+    return p_over if over else 1.0 - p_over
 
 
 def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False,
@@ -380,17 +491,27 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
             continue
         if _BAN_TEXT_RE.search(text):                  # props/scoreline/mi-temps -> jetés
             continue
-        info = analyses._leg_metric({"sel": text}, home, away)
-        wside = analyses._winner_side(text, "", home, away, "foot")
-        if wside is None:                              # DC par NOM (catalogue sans jeton « 1X ») -> résolue ici
-            wside = _dc_pair(text, home, away)
-        fam = _family(info, wside, text)
+        # Marché compté SUPPLÉMENTAIRE (fautes/hors-jeu/arrêts/passes/possession) — détecté/pricé/réglé LOCALEMENT
+        # (jamais via analyses._leg_metric, partagé avec le pré-match). Prioritaire : un « Possession de Roma »
+        # n'est PAS un vainqueur (c'est le bug 2026-09-14).
+        xinfo = _extra_metric(text, home, away) if ALL_MARKETS_ON else None
+        if xinfo:
+            info, wside, fam = xinfo, None, _XCOUNT_FAMILY[xinfo["metric"]]
+        else:
+            info = analyses._leg_metric({"sel": text}, home, away)
+            wside = analyses._winner_side(text, "", home, away, "foot")
+            if wside is None:                          # DC par NOM (catalogue sans jeton « 1X ») -> résolue ici
+                wside = _dc_pair(text, home, away)
+            fam = _family(info, wside, text)
         if fam not in _ALLOW_FAMILIES and not (ALL_MARKETS_ON and fam in _ALLOW_COUNTED):
             continue
-        # Déjà tranché par le direct (total franchi / BTTS acquis) = plus une OPPORTUNITÉ de pari live -> skip.
-        if analyses._live_locked("foot", text, "", info, hs, as_, vals) in ("won", "lost"):
-            continue
-        prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, vals, goals90=g90)
+        if xinfo:
+            prob = _extra_count_pct(xinfo, vals, analyses._foot_remaining(minute))
+        else:
+            # Déjà tranché par le direct (total franchi / BTTS acquis) = plus une OPPORTUNITÉ de pari live -> skip.
+            if analyses._live_locked("foot", text, "", info, hs, as_, vals) in ("won", "lost"):
+                continue
+            prob = analyses._live_model_pct("foot", text, "", info, wside, hs, as_, minute, vals, goals90=g90)
         if prob is None:
             continue
         seen.add(text)
@@ -509,9 +630,13 @@ def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str, co
             return "lost" if both else "open"
         return "won" if both else "open"
 
-    # MÉTRIQUE : objet compté (corners/cartons/tirs) sinon BUTS.
+    # MÉTRIQUE : objet compté (corners/cartons/tirs + fautes/hors-jeu/arrêts/passes) sinon BUTS. Possession =
+    # ratio NON monotone -> pas ici (reste 'open' jusqu'au règlement final). Ordre : « cadr » avant « tir ».
     obj = ("corners" if "corner" in low else "cards" if "carton" in low
-           else "sot" if "cadr" in low else "shots" if "tir" in low else None)
+           else "sot" if "cadr" in low else "shots" if "tir" in low
+           else "offsides" if _re.search(r"hors-?jeu|offside", low) else "fouls" if "faute" in low
+           else "saves" if _re.search(r"arr[eê]t|parade|\bsave", low) else "passes" if "passe" in low
+           else None)
     if obj is not None:
         if not counts:
             return "open"                                  # pas de stats live -> indéterminable
@@ -559,8 +684,12 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
             if any(t in low for t in toks):
                 return v
         return None
+    poss = "possession" in low
     obj = ("corners" if "corner" in low else "cards" if "carton" in low
-           else "sot" if "cadr" in low else "shots" if "tir" in low else None)
+           else "sot" if "cadr" in low else "shots" if "tir" in low
+           else "offsides" if _re.search(r"hors-?jeu|offside", low) else "fouls" if "faute" in low
+           else "saves" if _re.search(r"arr[eê]t|parade|\bsave", low) else "passes" if "passe" in low
+           else None)
     _m = _NUM_RE.search(low)
     line = float(_m.group(1).replace(",", ".")) if _m else None
 
@@ -568,6 +697,13 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         # unité accordée à la LIGNE (« 0.5 carton », « 16.5 corners ») ; « courant / ligne » si ligne connue.
         u = sing if (line is not None and line < 2) else plur
         return f"{val} / {line:g} {u}" if line is not None else f"{val} {plur if val != 1 else sing}"
+    if poss:                                               # possession = % par équipe (pas de total additif)
+        if not counts:
+            return None
+        pv = _tv(counts.get("poss_h"), counts.get("poss_a"))
+        if not pv:
+            return None
+        return f"{pv}% / {line:g}%" if line is not None else f"{pv}%"
     if obj is not None:
         if not counts:
             return None
@@ -577,7 +713,9 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         tv = _tv(hv or 0, av or 0)
         val = tv if tv is not None else (hv or 0) + (av or 0)
         _u = {"corners": ("corner", "corners"), "cards": ("carton", "cartons"),
-              "sot": ("tir cadré", "tirs cadrés"), "shots": ("tir", "tirs")}[obj]
+              "sot": ("tir cadré", "tirs cadrés"), "shots": ("tir", "tirs"),
+              "fouls": ("faute", "fautes"), "offsides": ("hors-jeu", "hors-jeu"),
+              "saves": ("arrêt", "arrêts"), "passes": ("passe", "passes")}[obj]
         return _fmt(val, _u[0], _u[1])
     # BUTS uniquement (pas handicap/DC/vainqueur)
     if not (_re.search(r"\bbuts?\b", low) or family in ("Total Over", "Total Under", "Total équipe")
@@ -698,15 +836,46 @@ def _final_goals(d: dict):
     return int(m.group(1)), int(m.group(2))
 
 
-def _settle_snap(snap: dict, fh: int, fa: int):
-    """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL. Résultat/DC résolus à la main ; totaux/
-    handicap buts via `analyses._eval_leg` (final) ; BTTS sur les deux scores."""
+def _settle_count(snap: dict, vals: dict):
+    """'won'/'lost'/'push'/None pour un marché COMPTÉ (corners/cartons/tirs/fautes/hors-jeu/arrêts/passes/
+    possession), réglé sur le TOTAL FINAL RÉEL (`vals` = _live_vals en fin de match). None (=void) si la stat
+    finale manque : on NE FABRIQUE JAMAIS un résultat (règle user 2026-09-14)."""
+    info = dict(snap.get("info") or {})
+    fam = snap.get("family")
+    line, dirn, side = info.get("line"), info.get("dir"), info.get("side")
+    if line is None or dirn not in ("OVER", "UNDER"):
+        return None
+    over = dirn == "OVER"
+    if fam == "Possession":
+        cur = analyses._as_int((vals or {}).get("poss_h" if side == "HOME" else "poss_a"))
+        if not cur:
+            return None
+    else:
+        base = _FAM_BASE.get(fam)
+        ch = analyses._as_int((vals or {}).get(f"{base}_h")) if base else None
+        ca = analyses._as_int((vals or {}).get(f"{base}_a")) if base else None
+        if ch is None or ca is None:
+            return None
+        cur = (ch if side == "HOME" else ca) if side in ("HOME", "AWAY") else ch + ca
+    if cur == line:
+        return "push"
+    win = (cur > line) if over else (cur < line)
+    return "won" if win else "lost"
+
+
+def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None):
+    """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL (+ totaux finaux `vals` pour les compteurs).
+    Résultat/DC résolus à la main ; totaux/handicap buts via `analyses._eval_leg` ; BTTS sur les deux scores ;
+    compteurs (corners/fautes/…) sur leur vrai total final."""
     fam, wside = snap.get("family"), snap.get("wside")
     sel = snap.get("sel", "") or ""
     # DÉFENSE (bug user 2026-09-14) : ne JAMAIS régler sur le score un marché qui parle d'une stat non réglable
-    # (possession/fautes/coups francs/dégagements…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
+    # (coups francs/dégagements/tacles…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
     if _BAN_TEXT_RE.search(sel) or (wside and _UNSETTLEABLE_STAT_RE.search(sel)):
         return None
+    # COMPTEURS : réglés sur le total FINAL réel (jamais sur les buts).
+    if fam in _FAM_BASE or fam == "Possession":
+        return _settle_count(snap, vals or {})
     if fam == "Les 2 marquent":
         yes = "non" not in sel.lower()
         return "won" if ((fh >= 1 and fa >= 1) == yes) else "lost"
@@ -738,10 +907,16 @@ def settle_all() -> int:
         if goals is None:
             continue
         fh, fa = goals
+        # Totaux FINAUX réels (corners/fautes/hors-jeu/arrêts/passes/possession) pour régler les compteurs —
+        # les stats API-Football persistent après le coup de sifflet final (même appel `/fixtures?id=`).
+        need_counts = any((s.get("family") in _FAM_BASE or s.get("family") == "Possession")
+                          and s.get("result") not in ("won", "lost", "push") for s in rec.get("snaps", []))
+        fvals = (_live_vals(rec.get("match_id"), rec.get("home", ""), rec.get("away", ""),
+                            rec.get("start"), allow_fetch=True) if need_counts else None)
         for s in rec.get("snaps", []):
             if s.get("result") in ("won", "lost", "push"):
                 continue
-            s["result"] = _settle_snap(s, fh, fa)
+            s["result"] = _settle_snap(s, fh, fa, fvals)
         rec["settled"] = True
         rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
         _save(rec)
