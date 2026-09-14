@@ -454,6 +454,84 @@ def current_picks(d: dict, top: int = 3) -> list[dict]:
     return picks[:max(1, top)]
 
 
+import re as _re
+_NUM_RE = _re.compile(r"(\d+(?:[.,]\d+)?)")
+
+
+def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str) -> str:
+    """Statut IRRÉVERSIBLE d'un signal au score courant (hs-as_) : 'won' (validé) / 'lost' (tombé) / 'open'.
+    Ne tranche QUE les marchés de BUTS irréversibles (le score ne peut pas revenir en arrière) ; tout le reste
+    (résultat / double chance / handicap / périodes / corners / cartons / tirs) reste 'open' = peut encore
+    basculer. Pur calcul, lecture seule."""
+    if hs is None or as_ is None:
+        return "open"
+    fam = family or ""
+    low = (sel or "").lower()
+    tot = hs + as_
+    m = _NUM_RE.search(low)
+    thr = float(m.group(1).replace(",", ".")) if m else None
+    if fam == "Total Over":            # total match dépassé -> acquis (les buts ne se retirent pas)
+        return "won" if (thr is not None and tot > thr) else "open"
+    if fam == "Total Under":           # total match dépassé -> perdu, définitivement
+        return "lost" if (thr is not None and tot > thr) else "open"
+    if fam == "Les 2 marquent":        # BTTS oui : acquis dès que les 2 ont marqué
+        return "won" if (hs > 0 and as_ > 0) else "open"
+    if fam == "Total équipe" and thr is not None:
+        tg = None
+        for name, g in ((home, hs), (away, as_)):
+            toks = [t for t in (name or "").lower().replace("-", " ").split() if len(t) >= 4]
+            if any(t in low for t in toks):               # un token distinctif (≥4 c) du nom dans le libellé
+                tg = g
+                break
+        if tg is not None:
+            if "plus" in low or "over" in low:
+                return "won" if tg > thr else "open"
+            if "moins" in low or "under" in low:
+                return "lost" if tg > thr else "open"
+    return "open"
+
+
+def enriched_signals(d: dict, top: int = 3) -> list[dict]:
+    """Signaux live d'un match + TRI PAR STATUT au score courant (user 2026-09-14) : chaque pick porte
+    `status` = 'won' (validé, acquis en direct) / 'open' (en cours) / 'lost' (tombé). Liste triée : validés
+    d'abord, puis en cours (meilleur EV), puis tombés. Les validés/tombés viennent des signaux DÉJÀ déclenchés
+    (store) qui ont quitté la bande EV ; les 'open' sont les suggestions courantes. 100 % lecture (0 réseau)."""
+    if not LIVE_PICK_ON or d.get("sport") != "foot":
+        return []
+    from app import match_select
+    home, away = d.get("home", ""), d.get("away", "")
+    ld = match_select.live_state_for("foot", home, away)
+    sc = (ld or {}).get("score") or {}
+    hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
+    minute = match_select.live_minute(ld)
+    if hs is None or as_ is None or minute is None:
+        return []
+    open_picks = current_picks(d, top=top)
+    open_sels = {p["sel"] for p in open_picks}
+    rec = _load("foot", d.get("id")) or {}
+    first, last = {}, {}
+    for s in rec.get("snaps", []):
+        k, mn = s.get("sel"), s.get("minute")
+        if k is None:
+            continue
+        if isinstance(mn, int) and (k not in first or mn < first[k]):
+            first[k] = mn
+        last[k] = s                                        # snaps ordonnés dans le temps -> dernier gagne
+    for p in open_picks:
+        p["status"] = "open"
+        p["first_min"] = first.get(p["sel"], minute)
+    won, lost = [], []
+    for sel, s in last.items():
+        if sel in open_sels:
+            continue
+        st = _live_signal_status(sel, s.get("family"), hs, as_, home, away)
+        if st in ("won", "lost"):
+            rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
+                     "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
+            (won if st == "won" else lost).append(rec_p)
+    return won[:4] + open_picks + lost[:2]                 # validés · en cours · tombés (caps lisibilité)
+
+
 def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
     """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] de TOUS les matchs EN COURS
     pour lesquels on a la donnée live (score + minute + catalogue de cotes). `picks` PEUT être vide (aucune
@@ -494,16 +572,8 @@ def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
         score = f"{hs}-{as_}" if (hs is not None and as_ is not None) else ""
-        picks = current_picks(d, top=top)
-        # 1re minute où CHAQUE suggestion a été proposée (loggée) -> « dès X' » même en live. Depuis le store.
-        rec = _load(sport, d.get("id")) or {}
-        first = {}
-        for s in rec.get("snaps", []):
-            k, mn = s.get("sel"), s.get("minute")
-            if k is not None and isinstance(mn, int) and (k not in first or mn < first[k]):
-                first[k] = mn
-        for p in picks:
-            p["first_min"] = first.get(p.get("sel"), minute)   # repli = minute courante (pas encore loggé)
+        # Signaux + STATUT (validé / en cours / tombé), triés — `first_min` déjà posé par enriched_signals.
+        picks = enriched_signals(d, top=top)
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
                     "minute": minute, "score": score, "picks": picks,
                     "has_catalog": bool(analyses.live_catalog(d.get("id")))})   # cotes live chaudes ou non

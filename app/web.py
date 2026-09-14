@@ -2824,6 +2824,13 @@ CSS = """
   .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 26px;font-size:11px;color:#8aa0b6}
   .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:2px 8px}
   .lph-p-min{color:#6f8098}
+  /* TAGS de statut (validé / tombé) — signal tranché en direct (user 2026-09-14) */
+  .lph-tag{font-weight:800;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;border-radius:6px;padding:2px 8px}
+  .lph-tag-w{color:#34d27b;background:rgba(52,210,123,.14)}
+  .lph-tag-l{color:#ff6b6b;background:rgba(255,107,107,.13)}
+  .lph-p-won .lph-p-sel{color:#d7f5e4}
+  .lph-p-lost{opacity:.62}
+  .lph-p-lost .lph-p-sel{text-decoration:line-through;text-decoration-color:rgba(255,107,107,.5)}
   .lph-p.lph-none{color:#7f8fa2;font-style:italic;font-size:12px;text-align:center;padding:15px 0 9px}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
@@ -11984,24 +11991,33 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
 
 
 def _lph_pick(sel_html: str, dot_cls: str, dot_char: str, cote: str,
-              ev: float | None, prob: float | None, min_txt: str, min_lbl: str = "dès") -> str:
+              ev: float | None, prob: float | None, min_txt: str, min_lbl: str = "dès",
+              status: str = "open") -> str:
     """Item PREMIUM d'un signal live, calqué sur les cartes Confiance/Value en direct (user 2026-09-14) :
-    entête = pastille statut + libellé + COTE à droite ; puis une BARRE de probabilité modèle (rouge->vert,
-    jumelle de « Chance live ») ; puis une ligne meta = EV (value, en pastille dorée) + « dès X' »."""
-    pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
-    bar = ""
-    if pct is not None:
-        hue = int(round(1.2 * max(0, min(100, pct))))       # 0 %=rouge, 100 %=vert (comme _live_bar_html)
-        fill = f"linear-gradient(180deg,hsl({hue},74%,54%),hsl({hue},68%,42%))"
-        bar = (f'<div class="lph-bar"><span class="lph-bar-tk"><i style="width:{pct}%;background:{fill}"></i></span>'
-               f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
+    entête = pastille statut + libellé + COTE à droite. EN COURS (`status='open'`) : BARRE de probabilité modèle
+    (rouge->vert, jumelle de « Chance live ») + EV (value, pastille dorée) + « dès X' ». VALIDÉ/TOMBÉ (acquis en
+    direct) : pas de barre (l'issue est tranchée) mais un TAG « validé »/« tombé » + « dès X' »."""
     cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
-    ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
-               if isinstance(ev, (int, float)) else "")
-    return (f'<div class="lph-p"><div class="lph-p-h">'
+    if status in ("won", "lost"):
+        tag = ('<span class="lph-tag lph-tag-w">validé</span>' if status == "won"
+               else '<span class="lph-tag lph-tag-l">tombé</span>')
+        meta = f'{tag}<span class="lph-p-min">{min_lbl} {html.escape(min_txt)}</span>'
+        body = ""
+    else:
+        pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
+        body = ""
+        if pct is not None:
+            hue = int(round(1.2 * max(0, min(100, pct))))   # 0 %=rouge, 100 %=vert (comme _live_bar_html)
+            fill = f"linear-gradient(180deg,hsl({hue},74%,54%),hsl({hue},68%,42%))"
+            body = (f'<div class="lph-bar"><span class="lph-bar-tk"><i style="width:{pct}%;background:{fill}"></i></span>'
+                    f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
+        ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
+                   if isinstance(ev, (int, float)) else "")
+        meta = f'{ev_html}<span class="lph-p-min">{min_lbl} {html.escape(min_txt)}</span>'
+    return (f'<div class="lph-p lph-p-{html.escape(status)}"><div class="lph-p-h">'
             f'<span class="lph-dot {dot_cls}">{dot_char}</span>'
             f'<span class="lph-p-sel">{sel_html}</span>{cote_html}</div>'
-            f'{bar}<div class="lph-p-m">{ev_html}<span class="lph-p-min">{min_lbl} {html.escape(min_txt)}</span></div></div>')
+            f'{body}<div class="lph-p-m">{meta}</div></div>')
 
 
 def _phantom_match_card(home: str, away: str, comp: str, center_html: str, badge: str,
@@ -12044,11 +12060,17 @@ def _signaux_match_card(m: dict) -> str:
     Live et le Programme (abstention live -> Signaux Live, user 2026-09-14)."""
     import html as _h
     rows = []
-    for p in m.get("picks") or []:
+    # TRI PAR STATUT (user 2026-09-14) : validé (acquis en direct) -> en cours -> tombé.
+    _ord = {"won": 0, "open": 1, "lost": 2}
+    _picks = sorted(m.get("picks") or [], key=lambda p: _ord.get(p.get("status", "open"), 1))
+    for p in _picks:
+        st = p.get("status", "open")
         sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
         cote = analyses.fmt_cote(p["odds"]) or "?"
-        rows.append(_lph_pick(sel, "lph-dot-live", "•", cote, p.get("ev"), p.get("prob"),
-                              f"{p.get('first_min', '?')}'"))
+        dot_cls, dot_char = (("lph-dot-w", "✓") if st == "won"
+                             else ("lph-dot-l", "✗") if st == "lost" else ("lph-dot-live", "•"))
+        rows.append(_lph_pick(sel, dot_cls, dot_char, cote, p.get("ev"), p.get("prob"),
+                              f"{p.get('first_min', '?')}'", status=st))
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
@@ -12070,19 +12092,11 @@ def _signaux_live_card_for_sidecar(d: dict) -> str:
         from app import live_pick as _lp
         if not _lp.SHOW_ON_SITE or d.get("sport") != "foot":
             return ""
-        picks = _lp.current_picks(d)
+        picks = _lp.enriched_signals(d)                     # signaux + statut validé/en cours/tombé, triés
         ld = match_select.live_state_for("foot", d.get("home", ""), d.get("away", ""))
         sc = (ld or {}).get("score") or {}
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
-        rec = _lp._load("foot", d.get("id")) or {}
-        first: dict = {}
-        for s in rec.get("snaps", []):
-            k, mn = s.get("sel"), s.get("minute")
-            if k is not None and isinstance(mn, int) and (k not in first or mn < first[k]):
-                first[k] = mn
-        for p in picks:
-            p["first_min"] = first.get(p.get("sel"), minute)
         return _signaux_match_card({
             "home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
             "minute": minute, "score": f"{hs}-{as_}" if (hs is not None and as_ is not None) else "",
