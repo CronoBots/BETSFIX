@@ -2760,7 +2760,7 @@ CSS = """
   .lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}
   /* pronos conseillés SOUS le cadre de match (carte .row.mc mc-prem, même style que Confiance/Value live) —
      item PREMIUM : pastille de statut + label NEUTRE (plus de mur vert/rouge) + meta avec EV en pastille. */
-  .lph-picks{padding:3px 15px 12px}
+  .lph-picks{padding:10px 15px 12px}
   .lph-p{padding:7px 0;border-top:1px solid rgba(255,255,255,.05)}
   .lph-p:first-child{border-top:none}
   .lph-p-h{display:flex;align-items:flex-start;gap:9px}
@@ -12025,7 +12025,8 @@ def _signaux_day_matches(sport: str, day: str) -> str:
                   f'<span class="tm-fin">Terminé</span></span>')
         cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
                                          center, "", "".join(rows)))
-    return _zone("lphs-day", "Signaux Live", "test", len(day_ms), _join_cards(cards),
+    # Badge « 🟢 Live » (comme l'onglet Live) au lieu du mot « test » (user 2026-09-14).
+    return _zone("lphs-day", "Signaux Live", "en direct", len(day_ms), _join_cards(cards),
                  zk="sig-day", collapsible=True, open_=False)
 
 
