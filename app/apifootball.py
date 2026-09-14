@@ -121,8 +121,16 @@ _STOP = {"fc", "cf", "sc", "ac", "cd", "ca", "afc", "if", "bk", "sk", "club", "d
          "united", "city", "calcio", "sad", "ii", "b", "u21", "u23", "u20", "u19", "reserve", "reserves"}
 
 
+# Lettres qui NE se décomposent PAS sous NFKD (atomiques) -> sinon `encode('ascii','ignore')` les SUPPRIME au
+# lieu de les convertir : « Brøndby » -> « brndby » (≠ « brondby » côté API-Football) -> résolution ratée
+# (bug user 2026-09-14). Pré-conversion explicite : ø/æ/å/ß/ł/đ/ð/þ… (Nordiques/Est-Europe fréquents en foot).
+_ACCENT_MAP = str.maketrans({
+    "ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe", "å": "a", "Å": "a",
+    "ß": "ss", "ł": "l", "Ł": "l", "đ": "d", "Đ": "d", "ð": "d", "Ð": "d", "þ": "th", "Þ": "th", "ı": "i"})
+
+
 def _norm(s) -> set:
-    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode()
+    s = unicodedata.normalize("NFKD", str(s or "").translate(_ACCENT_MAP)).encode("ascii", "ignore").decode()
     return {t for t in re.sub(r"[^a-z0-9 ]", " ", s.lower()).split() if t and t not in _STOP}
 
 
