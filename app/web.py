@@ -2809,10 +2809,20 @@ CSS = """
   .lph-dot-l{background:rgba(255,107,107,.15);color:#ff6b6b}
   .lph-dot-n{background:rgba(224,179,65,.15);color:#e0b341}
   .lph-dot-live{background:rgba(34,184,255,.16);color:#22b8ff}
-  .lph-p-sel{font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32}
-  .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:4px 0 0 26px;font-size:11px;color:#8aa0b6}
-  .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:1px 7px}
-  .lph-p-cote b{color:#cfe0f0;font-weight:700}
+  .lph-p-sel{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32}
+  /* COTE à droite de l'entête, mise en valeur comme « Cote 1.14 » des cartes Confiance/Value (user 2026-09-14) */
+  .lph-p-cote{flex:none;margin-left:auto;white-space:nowrap;font-size:11px;color:#7f8fa2;align-self:flex-start;margin-top:1px}
+  .lph-p-cote b{color:#eaf2fb;font-weight:800;font-size:14px}
+  /* BARRE de PROBABILITÉ MODÈLE par signal = jumelle de la barre « Chance live » (remplissage rouge->vert
+     selon le %). Rend chaque signal aussi « lisible d'un coup d'œil » qu'une carte Confiance. */
+  .lph-bar{display:flex;align-items:center;gap:9px;margin:8px 0 0 26px}
+  .lph-bar-tk{flex:1;height:7px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden;
+       box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+  .lph-bar-tk i{display:block;height:100%;border-radius:5px}
+  .lph-bar-v{flex:none;font-size:11px;font-weight:800;color:#cfe0f0;min-width:52px;text-align:right}
+  .lph-bar-v s{color:#7f8fa2;font-weight:600;text-decoration:none;font-size:10px}
+  .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 26px;font-size:11px;color:#8aa0b6}
+  .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:2px 8px}
   .lph-p-min{color:#6f8098}
   .lph-p.lph-none{color:#7f8fa2;font-style:italic;font-size:12px;text-align:center;padding:15px 0 9px}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
@@ -11973,13 +11983,25 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     return rows
 
 
-def _lph_pick(sel_html: str, dot_cls: str, dot_char: str, meta_html: str) -> str:
-    """Item PREMIUM d'un prono conseillé : pastille de statut (✓/✗/•) + libellé NEUTRE + ligne meta
-    (EV en pastille · cote · minute / proba). Remplace l'ancienne ligne au label tout colorié."""
+def _lph_pick(sel_html: str, dot_cls: str, dot_char: str, cote: str,
+              ev: float | None, prob: float | None, min_txt: str, min_lbl: str = "dès") -> str:
+    """Item PREMIUM d'un signal live, calqué sur les cartes Confiance/Value en direct (user 2026-09-14) :
+    entête = pastille statut + libellé + COTE à droite ; puis une BARRE de probabilité modèle (rouge->vert,
+    jumelle de « Chance live ») ; puis une ligne meta = EV (value, en pastille dorée) + « dès X' »."""
+    pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
+    bar = ""
+    if pct is not None:
+        hue = int(round(1.2 * max(0, min(100, pct))))       # 0 %=rouge, 100 %=vert (comme _live_bar_html)
+        fill = f"linear-gradient(180deg,hsl({hue},74%,54%),hsl({hue},68%,42%))"
+        bar = (f'<div class="lph-bar"><span class="lph-bar-tk"><i style="width:{pct}%;background:{fill}"></i></span>'
+               f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
+    cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
+    ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
+               if isinstance(ev, (int, float)) else "")
     return (f'<div class="lph-p"><div class="lph-p-h">'
             f'<span class="lph-dot {dot_cls}">{dot_char}</span>'
-            f'<span class="lph-p-sel">{sel_html}</span></div>'
-            f'<div class="lph-p-m">{meta_html}</div></div>')
+            f'<span class="lph-p-sel">{sel_html}</span>{cote_html}</div>'
+            f'{bar}<div class="lph-p-m">{ev_html}<span class="lph-p-min">{min_lbl} {html.escape(min_txt)}</span></div></div>')
 
 
 def _phantom_match_card(home: str, away: str, comp: str, center_html: str, badge: str,
@@ -12025,11 +12047,8 @@ def _signaux_match_card(m: dict) -> str:
     for p in m.get("picks") or []:
         sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
         cote = analyses.fmt_cote(p["odds"]) or "?"
-        meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
-                f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
-                f'<span>{p["prob"]*100:.0f}% modèle</span>'
-                f'<span class="lph-p-min">dès {p.get("first_min", "?")}\'</span>')
-        rows.append(_lph_pick(sel, "lph-dot-live", "•", meta))
+        rows.append(_lph_pick(sel, "lph-dot-live", "•", cote, p.get("ev"), p.get("prob"),
+                              f"{p.get('first_min', '?')}'"))
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
@@ -12097,10 +12116,8 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — termin
                                  else ("lph-dot-n", "–") if r == "push" else ("lph-dot-l", "✗"))
             sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
             cote = analyses.fmt_cote(p["odds"]) or "?"
-            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
-                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
-                    f'<span class="lph-p-min">dès {p.get("minute", "?")}\'</span>')
-            rows.append(_lph_pick(sel, dot_cls, dot_char, meta))
+            rows.append(_lph_pick(sel, dot_cls, dot_char, cote, p.get("ev"), p.get("prob"),
+                                  f"{p.get('minute', '?')}'"))
         _fin = (m.get("final") or "").strip()
         center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
                   f'<span class="tm-fin">Terminé</span></span>')
@@ -12216,10 +12233,8 @@ def _signaux_day_matches(sport: str, day: str) -> str:
                                  else ("lph-dot-n", "–") if r == "push" else ("lph-dot-l", "✗"))
             sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
             cote = analyses.fmt_cote(p["odds"]) or "?"
-            meta = (f'<span class="lph-ev">EV +{p["ev"]*100:.0f}%</span>'
-                    f'<span class="lph-p-cote">cote <b>{cote}</b></span>'
-                    f'<span class="lph-p-min">dès {p.get("minute", "?")}\'</span>')
-            rows.append(_lph_pick(sel, dot_cls, dot_char, meta))
+            rows.append(_lph_pick(sel, dot_cls, dot_char, cote, p.get("ev"), p.get("prob"),
+                                  f"{p.get('minute', '?')}'"))
         _fin = (m.get("final") or "").strip()
         center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
                   f'<span class="tm-fin">Terminé</span></span>')
