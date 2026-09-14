@@ -2812,6 +2812,11 @@ CSS = """
   .lph-p-sel{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32}
   /* COTE à droite de l'entête, mise en valeur comme « Cote 1.14 » des cartes Confiance/Value (user 2026-09-14) */
   .lph-p-cote{flex:none;white-space:nowrap;font-size:11px;color:#7f8fa2}
+  /* RÉSULTAT intégré : cote colorée + ✓/✗ (plus de badge séparé, user 2026-09-14) */
+  .lph-res{font-weight:900}
+  .lph-p-cote.lph-cote-w,.lph-p-cote.lph-cote-w b{color:#34d27b}
+  .lph-p-cote.lph-cote-l,.lph-p-cote.lph-cote-l b{color:#ff6b6b}
+  .lph-p-cote.lph-cote-p,.lph-p-cote.lph-cote-p b{color:#e0b341}
   .lph-p-cote b{color:#eaf2fb;font-weight:800;font-size:14px}
   /* BARRE de PROBABILITÉ MODÈLE par signal = jumelle de la barre « Chance live » (remplissage rouge->vert
      selon le %). Rend chaque signal aussi « lisible d'un coup d'œil » qu'une carte Confiance. */
@@ -12017,10 +12022,12 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
     cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
     cur_html = f'<span class="lph-cur">{html.escape(str(cur))}</span>' if cur else ""
     if status in ("won", "lost", "push"):
-        tag = {"won": '<span class="lph-tag lph-tag-w">✓ validé</span>',
-               "lost": '<span class="lph-tag lph-tag-l">✗ tombé</span>'}.get(
-                   status, '<span class="lph-tag">➖ remb.</span>')
-        rt, body, meta = f'{cote_html}{tag}', "", ""
+        # RÉSULTAT INTÉGRÉ au pari coloré (user 2026-09-14) : plus de badge séparé — la LIGNE entière est
+        # colorée (label vert/barré-rouge via .lph-p-won/-lost) + un ✓/✗ devant la cote, elle-même colorée.
+        _mk, _cc = {"won": ("✓", "lph-cote-w"), "lost": ("✗", "lph-cote-l")}.get(status, ("➖", "lph-cote-p"))
+        rt = (f'<span class="lph-p-cote {_cc}"><span class="lph-res">{_mk}</span> cote <b>{cote}</b></span>'
+              if cote else f'<span class="lph-res {_cc}">{_mk}</span>')
+        body, meta = "", ""
     else:
         pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
         body = ""
