@@ -74,6 +74,10 @@ _BAN_TEXT_RE = re.compile(
     r"marque\s+au\s+moins|à\s+tout\s+moment|buteur|passe\s+d[ée]cisive|\bassist"
     r"|coup\s+franc|remplac|score\s+exact|mi-?temps|1[eè]re?\s|2[eè]me?\s|p[ée]riode"
     r"|3-?way|\(\s*\d+\s*-\s*\d+\s*\)"
+    # PREMIÈRE/DERNIÈRE équipe à marquer · premier/prochain but (user 2026-09-14) : réglé sur la CHRONOLOGIE des
+    # buts (1er/dernier buteur), qu'on ne stocke PAS (seulement score final + mi-temps) -> non réglable -> banni
+    # (sinon lu « <équipe> vainqueur » et réglé au score final = faux).
+    r"|premi[eè]re?\s+[ée]quipe|derni[eè]re?\s+[ée]quipe|marquer\s+en\s+premier|premier\s+but|prochain\s+but"
     # BAN DUR (bug user 2026-09-14) : marchés « … par intervalle Opta » (« 40:00-44:59 (Réglé selon les données
     # Opta) ») — non réglables à ce grain (API-Football donne le TOTAL, pas le découpage par tranche de 5 min).
     # Le TOTAL fautes/hors-jeu/arrêts, lui, est désormais AUTORISÉ (cf. _extra_metric) — d'où le ban ciblé
