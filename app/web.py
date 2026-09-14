@@ -2820,13 +2820,13 @@ CSS = """
   .lph-p-cote b{color:#eaf2fb;font-weight:800;font-size:14px}
   /* BARRE de PROBABILITÉ MODÈLE par signal = jumelle de la barre « Chance live » (remplissage rouge->vert
      selon le %). Rend chaque signal aussi « lisible d'un coup d'œil » qu'une carte Confiance. */
-  .lph-bar{display:flex;align-items:center;gap:9px;margin:8px 0 0 26px}
+  .lph-bar{display:flex;align-items:center;gap:9px;margin:8px 0 0 41px}
   .lph-bar-tk{flex:1;height:7px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden;
        box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
   .lph-bar-tk i{display:block;height:100%;border-radius:5px}
   .lph-bar-v{flex:none;font-size:11px;font-weight:800;color:#cfe0f0;min-width:52px;text-align:right}
   .lph-bar-v s{color:#7f8fa2;font-weight:600;text-decoration:none;font-size:10px}
-  .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 26px;font-size:11px;color:#8aa0b6}
+  .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 41px;font-size:11px;color:#8aa0b6}
   .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:2px 8px}
   .lph-p-min{color:#6f8098}
   /* BADGE MINUTE de création à gauche (remplace le point) — NEUTRE (= « quand », pas le résultat) user 2026-09-14 */
