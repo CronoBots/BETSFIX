@@ -1094,6 +1094,36 @@ def settle_all() -> int:
     return n
 
 
+# familles dont le RÈGLEMENT est connu (source réelle) — toute autre famille réglée = anomalie à investiguer.
+_KNOWN_SETTLE_FAMILIES = (set(_FAM_BASE) | {
+    "Possession", "Vainqueur", "Double chance", "Handicap", "Total Over", "Total Under",
+    "Total équipe", "Les 2 marquent", "Résultat MT", "Total buts MT", "Les 2 marquent MT"})
+
+
+def audit() -> dict:
+    """SUIVI CONTINU de l'intégrité du track live (user 2026-09-14). Compte, sur les signaux RÉGLÉS, les
+    anomalies qui trahiraient un règlement fabriqué : prop joueur réglé sur un total d'équipe, stat non réglable
+    réglée sur le score, compteur sans ligne, famille de règlement inconnue. 0 partout = sain. Lecture seule."""
+    settled = bad_prop = bad_unsettleable = bad_noline = unknown_family = 0
+    for rec in _iter_records():
+        h, a = rec.get("home", ""), rec.get("away", "")
+        for s in rec.get("snaps", []):
+            if s.get("result") not in ("won", "lost", "push"):
+                continue
+            settled += 1
+            fam, sel, info = s.get("family", ""), (s.get("sel", "") or ""), (s.get("info") or {})
+            if fam not in _KNOWN_SETTLE_FAMILIES:
+                unknown_family += 1
+            if fam in _PROP_GUARD_FAMILIES and _looks_like_prop(sel, h, a):
+                bad_prop += 1
+            if _UNSETTLEABLE_STAT_RE.search(sel):
+                bad_unsettleable += 1
+            if fam in _FAM_BASE and info.get("line") is None:
+                bad_noline += 1
+    return {"settled": settled, "bad_prop": bad_prop, "bad_unsettleable": bad_unsettleable,
+            "bad_noline": bad_noline, "unknown_family": unknown_family}
+
+
 def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list[dict]:
     """Pour l'affichage « Test live — terminés » : matchs RÉGLÉS récents (≤ `hours`) avec, par match, les
     suggestions DISTINCTES (dédupées par libellé) et leur résultat won/lost/push -> répond à « ce qui avait

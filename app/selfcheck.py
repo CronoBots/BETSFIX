@@ -1154,6 +1154,36 @@ def _check_final_mechanical_bet_revealed(rows) -> dict:
             "items": bad}
 
 
+def _check_live_signals_integrity() -> dict:
+    """SUIVI CONTINU (user 2026-09-14) de l'intégrité du RÈGLEMENT des Signaux Live : aucun signal réglé ne doit
+    être un prop JOUEUR réglé sur un total d'équipe, une stat NON réglable réglée sur le score, un compteur sans
+    ligne, ou une famille de règlement inconnue (= règlement potentiellement fabriqué). 0 partout = sain."""
+    try:
+        from app import live_pick
+        a = live_pick.audit()
+    except Exception as e:
+        return {"key": "live_signals_integrity", "level": "warn",
+                "title": "Intégrité règlement Signaux Live",
+                "detail": f"audit indisponible ({e}).", "items": []}
+    bad = a["bad_prop"] + a["bad_unsettleable"] + a["bad_noline"] + a["unknown_family"]
+    items = []
+    if a["bad_prop"]:
+        items.append(f"{a['bad_prop']} prop(s) joueur réglé(s) sur un total d'équipe")
+    if a["bad_unsettleable"]:
+        items.append(f"{a['bad_unsettleable']} stat(s) non réglable(s) réglée(s) sur le score")
+    if a["bad_noline"]:
+        items.append(f"{a['bad_noline']} compteur(s) réglé(s) sans ligne")
+    if a["unknown_family"]:
+        items.append(f"{a['unknown_family']} règlement(s) de famille inconnue")
+    return {"key": "live_signals_integrity",
+            "level": "error" if bad else "ok",
+            "title": "Intégrité règlement Signaux Live (0 victoire fabriquée)",
+            "detail": (f"{bad} anomalie(s) de règlement sur {a['settled']} signaux réglés -> à corriger + purger."
+                       if bad else
+                       f"0 anomalie sur {a['settled']} signaux réglés (props/stats non réglables/compteurs sans ligne)."),
+            "items": items}
+
+
 def _check_live_shadow_isolated(rows) -> dict:
     """ISOLATION du track fantôme LIVE (app.live_pick, EXPÉRIMENTAL, jamais publié) : ses snapshots vivent
     dans un store SÉPARÉ (data/live_shadow/) et ne doivent JAMAIS toucher un sidecar de match — sinon ils
@@ -1206,6 +1236,7 @@ def run(persist: bool = False) -> dict:
         _check_final_mechanical_bet_revealed(rows),
         _check_stats_snapshot_drift(),
         _check_live_shadow_isolated(rows),
+        _check_live_signals_integrity(),
     ]
     worst = max((_LVL_RANK.get(c["level"], 0) for c in checks), default=0)
     status = {0: "ok", 1: "info", 2: "warn", 3: "error"}[worst]
