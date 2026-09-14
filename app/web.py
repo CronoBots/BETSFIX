@@ -7843,6 +7843,9 @@ _ZONE_ICON = {
     "lphs": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
              'stroke-linejoin="round"><path d="M8 3h8"/><path d="M9 3v6l-3.6 8.4A2 2 0 007.2 21h9.6a2 2 0 001.8-3.6L15 9V3"/>'
              '<path d="M7 16h10"/></svg>'),
+    "lphs-day": ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+                 'stroke-linejoin="round"><path d="M8 3h8"/><path d="M9 3v6l-3.6 8.4A2 2 0 007.2 21h9.6a2 2 0 001.8-3.6L15 9V3"/>'
+                 '<path d="M7 16h10"/></svg>'),
 }
 
 
@@ -9805,7 +9808,9 @@ def _signaux_live_prog_zone(sport: str = "foot") -> str:
     _p, _a, sig = _planning_cards(sport)
     if not sig:
         return ""
-    return _zone("lph", "Signaux Live", "en direct", len(sig), _join_cards(sig),
+    # PROGRAMME : pas de badge « Live » (user 2026-09-14) — icône devant le titre + compteur ; l'état live reste
+    # porté par les cartes elles-mêmes (score + horloge). Le mot « Live » est réservé à l'onglet Live.
+    return _zone("lph", "Signaux Live", "", len(sig), _join_cards(sig),
                  zk="prog-signaux", collapsible=True, open_=True)
 
 
@@ -12025,8 +12030,9 @@ def _signaux_day_matches(sport: str, day: str) -> str:
                   f'<span class="tm-fin">Terminé</span></span>')
         cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
                                          center, "", "".join(rows)))
-    # Badge « 🟢 Live » (comme l'onglet Live) au lieu du mot « test » (user 2026-09-14).
-    return _zone("lphs-day", "Signaux Live", "en direct", len(day_ms), _join_cards(cards),
+    # PROGRAMME : pas de badge « Live » (user 2026-09-14 : ces matchs sont réglés/historique) — juste l'icône
+    # devant le titre (via _ZONE_ICON["lphs-day"]) + le compteur. Le mot « test » est retiré (tag vide).
+    return _zone("lphs-day", "Signaux Live", "", len(day_ms), _join_cards(cards),
                  zk="sig-day", collapsible=True, open_=False)
 
 
