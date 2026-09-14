@@ -9989,7 +9989,10 @@ def _signaux_live_prog_zone(sport: str = "foot") -> str:
     produisent des signaux live). Cartes Signaux Live premium. '' si aucune (user 2026-09-14). Ouverte."""
     _p, _a, sig = _planning_cards(sport)
     if not sig:
-        return ""
+        # AUCUN signal live encore -> catégorie VISIBLE « en attente » (comme Confiance/Value), user 2026-09-14 :
+        # l'onglet n'est appelé que s'il y a un programme du jour, donc waiting=True est correct.
+        return _zone("lph", "Signaux Live", "", 0, "", zk="prog-signaux", collapsible=True,
+                     waiting=True, empty="Aucun signal live pour l'instant.")
     # PROGRAMME : pas de badge « Live » (user 2026-09-14) — icône devant le titre + compteur ; l'état live reste
     # porté par les cartes elles-mêmes (score + horloge). Le mot « Live » est réservé à l'onglet Live.
     return _zone("lph", "Signaux Live", "", len(sig), _join_cards(sig),
