@@ -991,6 +991,20 @@ def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None
     # COMPTEURS : réglés sur le total FINAL réel (jamais sur les buts).
     if fam in _FAM_BASE or fam == "Possession":
         return _settle_count(snap, vals or {})
+    info0 = dict(snap.get("info") or {})
+    # HANDICAP buts : la ligne signée (+0.5, -1.5) N'EST PAS stockée dans l'info (metric 'special') -> relue du
+    # libellé (bug : 0/85 réglés). Réglé sur le score final ajusté du handicap. Push si nul après ajustement.
+    if fam == "Handicap" or info0.get("handicap"):
+        ln = info0.get("line")
+        if ln is None:
+            ln = analyses._signed_line(sel)
+        side = info0.get("side")
+        if ln is not None and side in ("HOME", "AWAY"):
+            ah, aa = fh + (ln if side == "HOME" else 0.0), fa + (ln if side == "AWAY" else 0.0)
+            if ah == aa:
+                return "push"
+            return "won" if (side == "HOME") == (ah > aa) else "lost"
+        return None
     if fam == "Les 2 marquent":
         yes = "non" not in sel.lower()
         return "won" if ((fh >= 1 and fa >= 1) == yes) else "lost"
