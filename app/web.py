@@ -8975,6 +8975,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # AVANT les abstentions pré-match restantes.
     _sig_html = _signaux_live_prog_zone(sport or "foot") if _has_prog else ""
     out.append(_sig_html)
+    # SIGNAUX LIVE — TERMINÉS DU JOUR (user 2026-09-14 : « il n'y a pas les match signaux live terminé ») : les
+    # matchs du jour dont les signaux sont réglés, DIRECTEMENT sur l'onglet Programme (avant ils n'étaient QUE
+    # dans la vue /jour d'un jour tapé + repliés). Zone ouverte, titre distinct de la zone « en cours ».
+    _sigfin_html = _signaux_day_matches(sport or "foot", _sport_today().isoformat(),
+                                        title="Signaux Live — terminés", open_=True)
+    out.append(_sigfin_html)
     _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
     out.append(_abst_html)
     # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné) —
@@ -12217,9 +12223,10 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
                  zk="live-phantom-stats", collapsible=True, open_=open_)
 
 
-def _signaux_day_matches(sport: str, day: str) -> str:
+def _signaux_day_matches(sport: str, day: str, title: str = "Signaux Live", open_: bool = False) -> str:
     """Détail des matchs Signaux Live RÉGLÉS d'un JOUR SPORTIF donné (`day` = ISO), pour le Programme. Chaque
-    match = carte premium + ses suggestions (✓/✗). '' si aucun ce jour / flag off. EXPÉRIMENTAL, hors ROI."""
+    match = carte premium + ses suggestions (✓/✗). '' si aucun ce jour / flag off. EXPÉRIMENTAL, hors ROI.
+    `title`/`open_` : personnalisables (ex. « Signaux Live — terminés », ouvert, sur l'onglet Programme du jour)."""
     try:
         from app import live_pick as _lp
         if not _lp.SHOW_ON_SITE or sport != "foot":
@@ -12258,8 +12265,8 @@ def _signaux_day_matches(sport: str, day: str) -> str:
                                          center, "", "".join(rows)))
     # PROGRAMME : pas de badge « Live » (user 2026-09-14 : ces matchs sont réglés/historique) — juste l'icône
     # devant le titre (via _ZONE_ICON["lphs-day"]) + le compteur. Le mot « test » est retiré (tag vide).
-    return _zone("lphs-day", "Signaux Live", "", len(day_ms), _join_cards(cards),
-                 zk="sig-day", collapsible=True, open_=False)
+    return _zone("lphs-day", title, "", len(day_ms), _join_cards(cards),
+                 zk="sig-day", collapsible=True, open_=open_)
 
 
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
