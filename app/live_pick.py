@@ -106,7 +106,8 @@ exterieur extérieur plus moins over under superieur supérieur inferieur infér
 corner corners kick carton cartons jaune jaunes rouge rouges tir tirs cadre cadré cadres cadrés shot shots
 faute fautes foul fouls hors jeu horsjeu offside offsides arret arrêt arrets arrêts parade parades save saves
 gardien gardiens passe passes pass but buts goal goals point points possession pourcentage pct
-mi temps mitemps periode période premiere première seconde deuxieme deuxième 1re 1ere 2e 2eme oui non nul""".split())
+mi temps mitemps periode période premiere première seconde deuxieme deuxième 1re 1ere 2e 2eme oui non nul
+ere ère eme ème ieme ième nde but""".split())   # fragments d'ordinaux (« 1ère »->« ère » après retrait du chiffre)
 # familles réglées sur un TOTAL/COMPTEUR d'équipe -> exposées au piège du nom de joueur (résultat/DC/vainqueur non).
 _PROP_GUARD_FAMILIES = frozenset(_ALLOW_COUNTED | {"Total Over", "Total Under", "Total équipe", "Total buts MT"})
 
@@ -328,10 +329,12 @@ def _team_distinct_tokens(home: str, away: str):
 
 
 def _side_of(text: str, home: str, away: str):
-    """'HOME'/'AWAY'/None : quelle équipe le libellé cible (jetons PROPRES ≥3 lettres), None si total/ambigu."""
-    low = (text or "").lower()
+    """'HOME'/'AWAY'/None : quelle équipe le libellé cible (jetons PROPRES ≥3 lettres, comparés sur des MOTS
+    ENTIERS), None si total/ambigu. Le match par MOT (pas sous-chaîne) évite « real » (Real Betis) reconnu
+    DANS « villar-real » -> les 2 équipes vues -> None -> total = faux (bug user 2026-09-15)."""
+    words = set(re.split(r"\W+", (text or "").lower()))
     ht, at = _team_distinct_tokens(home, away)
-    h, a = any(t in low for t in ht), any(t in low for t in at)
+    h, a = any(t in words for t in ht), any(t in words for t in at)
     return "HOME" if (h and not a) else "AWAY" if (a and not h) else None
 
 
@@ -447,7 +450,7 @@ def _ht_pct(text, wside, info, hs, as_, minute, g90):
     return None
 
 
-def _settle_ht(snap: dict, ht):
+def _settle_ht(snap: dict, ht, home: str = "", away: str = ""):
     """'won'/'lost'/'push'/None d'un marché de 1re MT réglé sur le SCORE À LA MI-TEMPS `ht`=(hh,ha).
     None (=void) si score HT indispo : jamais fabriqué."""
     if not ht:
@@ -468,7 +471,8 @@ def _settle_ht(snap: dict, ht):
         return "won" if ok else "lost"
     if info.get("metric") in ("goals", "special") and info.get("dir") in ("OVER", "UNDER") \
             and info.get("line") is not None:
-        side, line, over = info.get("side"), info["line"], info["dir"] == "OVER"
+        side = _side_of(sel, home, away)               # côté robuste (jetons distincts), None = total MT
+        line, over = info["line"], info["dir"] == "OVER"
         cur = (hh if side == "HOME" else ha) if side in ("HOME", "AWAY") else hh + ha
         if cur == line:
             return "push"
@@ -656,6 +660,15 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
             if wside is None:                          # DC par NOM (catalogue sans jeton « 1X ») -> résolue ici
                 wside = _dc_pair(text, home, away)
             fam = _family(info, wside, text)
+            # SIDE robuste (bug user 2026-09-15) : `_leg_metric` rate parfois l'équipe d'un TOTAL de buts
+            # (« par Villarreal ») -> side=None -> marché d'équipe classé/réglé comme un total = faux. On relit
+            # via `_side_of` (jetons distincts) pour figer le bon côté + la bonne famille dès le pricing.
+            if wside is None and info.get("metric") in ("goals", "special") and info.get("dir") in ("OVER", "UNDER"):
+                _sd = _side_of(text, home, away)
+                if _sd and info.get("side") != _sd:
+                    info["side"] = _sd
+                    if fam in ("Total Over", "Total Under"):
+                        fam = "Total équipe"
         if fam not in _ALLOW_FAMILIES and not (ALL_MARKETS_ON and fam in _ALLOW_COUNTED):
             continue
         # PROP JOUEUR (bug user 2026-09-14) : un total/compteur au nom d'un joueur serait réglé sur le total
@@ -773,12 +786,13 @@ def _live_signal_status(sel: str, family: str, hs, as_, home: str, away: str, co
         return "open"
 
     def _team_val(hv, av):
-        """Valeur de l'ÉQUIPE citée dans le libellé (jetons PROPRES ≥3 c, le partagé « United »/« City » retiré
-        pour ne pas confondre Leeds United ↔ Newcastle United), sinon None (= total)."""
+        """Valeur de l'ÉQUIPE citée dans le libellé (jetons PROPRES ≥3 c, comparés sur des MOTS ENTIERS : le
+        partagé « United » retiré + « real » n'est pas reconnu dans « villarreal »), sinon None (= total)."""
         ht, at = _team_distinct_tokens(home, away)
-        if any(t in low for t in ht):
+        _w = set(_re.split(r"\W+", low))
+        if any(t in _w for t in ht):
             return hv
-        if any(t in low for t in at):
+        if any(t in _w for t in at):
             return av
         return None
 
@@ -838,10 +852,11 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
         return None
 
     def _tv(hv, av):
-        ht, at = _team_distinct_tokens(home, away)          # jetons PROPRES (le partagé « United » retiré)
-        if any(t in low for t in ht):
+        ht, at = _team_distinct_tokens(home, away)          # jetons PROPRES, comparés sur des MOTS ENTIERS
+        _w = set(_re.split(r"\W+", low))
+        if any(t in _w for t in ht):
             return hv
-        if any(t in low for t in at):
+        if any(t in _w for t in at):
             return av
         return None
     poss = "possession" in low
@@ -1031,7 +1046,7 @@ def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None
     sel = snap.get("sel", "") or ""
     # MI-TEMPS (1re période) : réglé sur le SCORE À LA MI-TEMPS, jamais sur le score final.
     if (snap.get("info") or {}).get("period") == "1h":
-        return _settle_ht(snap, ht)
+        return _settle_ht(snap, ht, home, away)
     # DÉFENSE (bug user 2026-09-14) : ne JAMAIS régler sur le score un marché qui parle d'une stat non réglable
     # (coups francs/dégagements/tacles…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
     if _BAN_TEXT_RE.search(sel) or (wside and _UNSETTLEABLE_STAT_RE.search(sel)):
@@ -1069,6 +1084,12 @@ def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None
         return "won" if ok else "lost"
     info = dict(snap.get("info") or {})
     info.setdefault("live_ok", True)                   # marché buts match-scope -> réglable au score final
+    # SIDE robuste (bug user 2026-09-15, Villarreal 1-2) : `analyses._leg_metric` rate parfois l'équipe
+    # (« par Villarreal ») -> side=None -> marché d'ÉQUIPE réglé sur le TOTAL = faux. On RELIT le côté du
+    # libellé via `_side_of` (jetons distincts) ; None = vrai total du match.
+    if info.get("metric") in ("goals", "special") and info.get("dir") in ("OVER", "UNDER"):
+        _sd = _side_of(sel, home, away)
+        info["side"] = _sd if _sd in ("HOME", "AWAY") else None
     st, _ = analyses._eval_leg(info, {"goals_h": fh, "goals_a": fa}, final=True)
     return st if st in ("won", "lost", "push") else None
 
