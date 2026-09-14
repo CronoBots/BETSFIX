@@ -467,9 +467,15 @@ async def account_page(request: Request, frag: int = 0):
                      'Les stats et résultats sont déjà ouverts.</div>')
         action = (head + '<form method=post action="/billing/subscribe"><button type=submit>'
                   "S'abonner</button></form>")
-    return HTMLResponse(_page("Mon compte", f"""<div class=acard><h1>Mon compte</h1>
+    # « Revoir l'intro » (user 2026-09-14) : rejoue l'onboarding — efface le drapeau localStorage + recharge en
+    # plein `/?onb=1` (la coquille SPA réinjecte le bloc onboarding qui se ré-affiche). Marche aussi en PWA.
+    revoir = ("<button class=ghost type=button style='margin-top:12px' "
+              "onclick=\"try{localStorage.removeItem('onb_seen_v1')}catch(e){};location.assign('/?onb=1')\">"
+              "Revoir l'intro</button>")
+    return HTMLResponse(_page("Mon compte", f"""<div class=acctwrap><div class=acard><h1>Mon compte</h1>
 <div class=arow><span>Email</span><b>{e(email)}</b></div>
 <div class=arow><span>Abonnement</span>{badge}</div>
 {action}
+{revoir}
 <form method=post action='/logout'><button class=ghost type=submit style='margin-top:12px'>Se déconnecter</button></form>
-</div>""", frag=bool(frag)))
+</div></div>""", frag=bool(frag)))
