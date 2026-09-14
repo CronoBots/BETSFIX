@@ -12080,7 +12080,9 @@ def _signaux_match_card(m: dict) -> str:
         center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
                   + _live_clock_html("foot", m.get("home", ""), m.get("away", "")) + '</span>')
     else:
-        center = '<span class="tm-live"><b>en direct</b></span>'
+        # Pas encore de score (fenêtre de coup d'envoi / rafraîchissement du flux ~12 s) : signaler que ça
+        # CHARGE, plutôt qu'un « en direct » sec qui a l'air d'un état final (user 2026-09-14).
+        center = '<span class="tm-live"><b>⏳ en direct</b><span class="tm-fin">score en cours…</span></span>'
     return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
                               center, "", "".join(rows), state_cls=" mc-r-live")
 
