@@ -734,13 +734,19 @@ def summary() -> dict:
     _hit = _SUMMARY_CACHE.get("all")
     if _hit and (_now_m - _hit[0]) < _SUMMARY_TTL:
         return _hit[1]
-    canon, allsnaps = [], []
+    canon, allsnaps, distinct = [], [], []
     matches = pending = 0
     for rec in _iter_records():
         matches += 1
         settled = [s for s in rec.get("snaps", []) if s.get("result") in ("won", "lost", "push")]
         pending += sum(1 for s in rec.get("snaps", []) if s.get("result") not in ("won", "lost", "push"))
         allsnaps.extend(settled)
+        # DISTINCT : 1 signal par (match, sel) = 1re détection (les snapshots d'un même signal sont corrélés ->
+        # ne pas les compter N fois). Sert au détail PAR MARCHÉ (tous les types séparés, stats justes).
+        _seen: dict = {}
+        for s in settled:
+            _seen.setdefault(s.get("sel"), s)
+        distinct.extend(_seen.values())
         cs = sorted((s for s in settled if s.get("minute", 0) >= MINUTE_CANON_MIN),
                     key=lambda s: (s["minute"], s.get("sel", "")))
         if cs:
@@ -778,6 +784,12 @@ def summary() -> dict:
     by_fam: dict[str, list] = {}
     for s in canon:
         by_fam.setdefault(s.get("family", "?"), []).append(s)
+    # PAR MARCHÉ (TOUS les types séparés, user 2026-09-14) — sur les signaux DISTINCTS (pas seulement le pick
+    # canonique) : chaque famille (Vainqueur / DC / Total Over / Under / Total équipe / BTTS / Corners / Cartons /
+    # Tirs / Tirs cadrés…) a sa ligne dès qu'elle a ≥1 signal réglé.
+    by_fam_all: dict[str, list] = {}
+    for s in distinct:
+        by_fam_all.setdefault(s.get("family", "?"), []).append(s)
 
     # MODÈLE COURANT (v2 = tempo+tirs) mesuré À PART des vieux snapshots (v1 = taux-ligue) -> calibration non
     # polluée. `mv` absent = legacy v1.
@@ -793,6 +805,9 @@ def summary() -> dict:
         "canonical": _roi(canon),
         "all_settled": _roi([s for s in allsnaps if s["result"] in ("won", "lost", "push")]),
         "by_family": {fam: _roi(rows) for fam, rows in sorted(by_fam.items())},
+        # tous les marchés séparés, triés par volume décroissant (le plus « travaillé » en tête).
+        "by_family_all": {fam: _roi(rows) for fam, rows
+                          in sorted(by_fam_all.items(), key=lambda kv: -len(kv[1]))},
         "calibration": _calib(allsnaps),
         # mesure du NOUVEAU modèle SEULEMENT (démarre à ~0, se remplit au fil des matchs post-optim) :
         "current_model": {"n_settled": len(_cur), "canonical": _roi(_cur_canon), "calibration": _calib(_cur)},

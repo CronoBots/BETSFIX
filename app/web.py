@@ -12158,15 +12158,15 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — termin
             reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
                     f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
                     f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
-        # PAR FAMILLE (pick canonique) : quel type de marché tient ?
-        _fam = _s.get("by_family") or {}
+        # PAR MARCHÉ : TOUS les types séparés (signaux distincts) — quel type de marché tient ? (user 2026-09-14)
+        _fam = _s.get("by_family_all") or _s.get("by_family") or {}
         if _fam:
             _fr = "".join(
                 f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
                 f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
                 for f, r in _fam.items())
-            reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par famille</span>'
-                     f'<span class="lph-min">pick canonique</span></div>{_fr}</div>')
+            reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par marché</span>'
+                     f'<span class="lph-min">tous les signaux</span></div>{_fr}</div>')
         # CALIBRATION : proba annoncée par le modèle vs réalisé (tous snapshots) -> révèle sur/sous-confiance.
         _cal = _s.get("calibration") or []
         if _cal:
@@ -12203,13 +12203,16 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
     reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
             f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
             f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
-    _fam = _s.get("by_family") or {}
+    # PAR MARCHÉ : TOUS les types séparés (user 2026-09-14) — sur les signaux distincts (pas juste le pick
+    # canonique), triés par volume. Chaque famille (Vainqueur/DC/Total Over/Under/Total équipe/BTTS/Corners/
+    # Cartons/Tirs/Tirs cadrés) a sa ligne dès ≥1 signal réglé.
+    _fam = _s.get("by_family_all") or _s.get("by_family") or {}
     if _fam:
         _fr = "".join(f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
                       f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
                       for f, r in _fam.items())
-        reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par famille</span>'
-                 f'<span class="lph-min">pick canonique</span></div>{_fr}</div>')
+        reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par marché</span>'
+                 f'<span class="lph-min">tous les signaux</span></div>{_fr}</div>')
     _cal = _s.get("calibration") or []
     if _cal:
         _cr = "".join(f'<div class="lph-row"><span class="lph-sel">{c["bucket"]}</span>'
