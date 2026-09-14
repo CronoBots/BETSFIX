@@ -92,6 +92,33 @@ _UNSETTLEABLE_STAT_RE = re.compile(
     r"|penalt|corners?\s+conc|but\s+contre",
     re.I)
 
+# PROPS JOUEUR (bug user 2026-09-14) : « Tirs cadrés - Lautaro Martinez », « Cartons Dumfries », « X - +0.5 but »…
+# On n'a QUE les stats d'ÉQUIPE (API-Football) -> un total/compteur au nom d'un JOUEUR serait réglé sur le total
+# d'ÉQUIPE = faux. Détection sans base de joueurs : un marché total/équipe LÉGITIME ne laisse AUCUN token une
+# fois retirés le vocabulaire de marché + les noms des 2 équipes ; s'il reste un token (= un nom), c'est un prop.
+_PROP_STOP = set("""nombre total totaux de des du d l la le les au aux a à et ou par sur selon opta data
+regle réglé reglee réglée regles réglés reglees réglées match matchs equipe équipe equipes équipes domicile
+exterieur extérieur plus moins over under superieur supérieur inferieur inférieur egal égal exactement entre
+corner corners kick carton cartons jaune jaunes rouge rouges tir tirs cadre cadré cadres cadrés shot shots
+faute fautes foul fouls hors jeu horsjeu offside offsides arret arrêt arrets arrêts parade parades save saves
+gardien gardiens passe passes pass but buts goal goals point points possession pourcentage pct
+mi temps mitemps periode période premiere première seconde deuxieme deuxième 1re 1ere 2e 2eme oui non nul""".split())
+# familles réglées sur un TOTAL/COMPTEUR d'équipe -> exposées au piège du nom de joueur (résultat/DC/vainqueur non).
+_PROP_GUARD_FAMILIES = frozenset(_ALLOW_COUNTED | {"Total Over", "Total Under", "Total équipe", "Total buts MT"})
+
+
+def _looks_like_prop(text: str, home: str, away: str) -> bool:
+    """Vrai si le libellé est probablement un PROP JOUEUR (nom résiduel après retrait du vocabulaire de marché
+    + des 2 équipes). Réservé aux familles total/compteur (cf. `_PROP_GUARD_FAMILIES`)."""
+    s = re.sub(r"\([^)]*\)", " ", text or "")               # retirer « (réglé selon Opta Data) »
+    s = re.sub(r"[0-9]+(?:[.,][0-9]+)?%?", " ", s)           # retirer nombres / %
+    s = re.sub(r"[+\-−:/.,–—]", " ", s)
+    team = set()
+    for nm in (home, away):
+        team |= {t for t in re.split(r"\W+", (nm or "").lower()) if len(t) >= 3}
+    return any(len(t) >= 3 and t not in _PROP_STOP and t not in team
+              for t in re.split(r"\W+", s.lower()))
+
 _STORE = os.path.join(os.path.dirname(analyses.DIR), "live_shadow")
 
 # Caches courts (monotonic) pour l'AFFICHAGE (l'onglet Live rend + auto-refresh 20 s) : les données ne bougent
@@ -591,6 +618,8 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
                 fam = "Résultat MT"
             elif binfo.get("metric") in ("goals", "special") and binfo.get("dir") in ("OVER", "UNDER") \
                     and binfo.get("line") is not None:
+                if _looks_like_prop(base, home, away):
+                    continue                           # « X marque en 1re MT » = prop joueur -> jeté
                 fam = "Total buts MT"
             else:
                 continue                               # marché MT non modélisable (compteur MT, etc.)
@@ -616,6 +645,10 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
                 wside = _dc_pair(text, home, away)
             fam = _family(info, wside, text)
         if fam not in _ALLOW_FAMILIES and not (ALL_MARKETS_ON and fam in _ALLOW_COUNTED):
+            continue
+        # PROP JOUEUR (bug user 2026-09-14) : un total/compteur au nom d'un joueur serait réglé sur le total
+        # d'ÉQUIPE = faux. On n'a pas la donnée par joueur -> jeté.
+        if fam in _PROP_GUARD_FAMILIES and _looks_like_prop(text, home, away):
             continue
         if xinfo:
             prob = _extra_count_pct(xinfo, vals, analyses._foot_remaining(minute))
@@ -975,7 +1008,7 @@ def _settle_count(snap: dict, vals: dict):
     return "won" if win else "lost"
 
 
-def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None):
+def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None, home: str = "", away: str = ""):
     """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL (+ totaux finaux `vals` pour les compteurs,
     + score mi-temps `ht` pour les marchés 1re MT). Résultat/DC à la main ; totaux/handicap buts via `_eval_leg` ;
     BTTS sur les deux scores ; compteurs sur leur vrai total final ; marchés MT sur le score de mi-temps."""
@@ -987,6 +1020,9 @@ def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None
     # DÉFENSE (bug user 2026-09-14) : ne JAMAIS régler sur le score un marché qui parle d'une stat non réglable
     # (coups francs/dégagements/tacles…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
     if _BAN_TEXT_RE.search(sel) or (wside and _UNSETTLEABLE_STAT_RE.search(sel)):
+        return None
+    # PROP JOUEUR : jamais réglable sur une stat d'équipe -> void (même défense qu'au pricing).
+    if fam in _PROP_GUARD_FAMILIES and _looks_like_prop(sel, home, away):
         return None
     # COMPTEURS : réglés sur le total FINAL réel (jamais sur les buts).
     if fam in _FAM_BASE or fam == "Possession":
@@ -1050,7 +1086,7 @@ def settle_all() -> int:
         for s in rec.get("snaps", []):
             if s.get("result") in ("won", "lost", "push"):
                 continue
-            s["result"] = _settle_snap(s, fh, fa, fvals, ht)
+            s["result"] = _settle_snap(s, fh, fa, fvals, ht, rec.get("home", ""), rec.get("away", ""))
         rec["settled"] = True
         rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
         _save(rec)
