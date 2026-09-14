@@ -627,6 +627,17 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
         _who = re.split(r"\s+(?:remporte|gagne)\b|\s+\+\s?1[.,]5", s, flags=re.I)[0].strip(" -–—:(")
         if _who and not re.search(r"nombre|total|score|\bset\s+\d", _who.lower()):
             return f"{_who} remporte au moins un set"
+    # TOTAL D'OBJETS COMPTÉS (corners / cartons / tirs / tirs cadrés) : garder l'UNITÉ correcte, jamais « buts »
+    # (bug user 2026-09-14 : « des corners : Moins de 10.5 buts » — le formateur buts-équipe ci-dessous prenait
+    # « des corners » pour une équipe et collait « buts »). Placé AVANT pour intercepter. « Moins de 10.5 corners ».
+    _mcnt = re.match(r"^(?:(?:nombre\s+)?total\s+)?(?:de\s+|des\s+|d')?"
+                     r"(corners?|cartons?|tirs?\s+cadr[ée]s|tirs?)\s*[—–:\-]*\s+"
+                     r"(plus|moins)\s+de\s+(\d+(?:\.\d+)?)\s*(?:corners?|cartons?|tirs?)?\s*$", s, re.I)
+    if _mcnt:
+        _obj = _mcnt.group(1).lower()
+        _unit = ("corners" if _obj.startswith("corner") else "cartons" if _obj.startswith("carton")
+                 else "tirs cadrés" if "cadr" in _obj else "tirs")
+        return f"{_mcnt.group(2).capitalize()} de {_mcnt.group(3)} {_unit}"
     # TOTAL DU MATCH : « Nombre total de buts – Moins de 2.5 » -> « Moins de 2.5 buts » (forme unique). Cible
     # buts/points/jeux uniquement (les objets nommés corners/cartons ont leur propre glose).
     _mtot = re.match(r"^(?:nombre\s+)?total\s+(?:de\s+|d')?(buts?|points?|jeux)\s*[—–:\-]*\s+"
