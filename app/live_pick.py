@@ -363,6 +363,81 @@ def _extra_count_pct(info: dict, vals: dict, rem: float):
     return p_over if over else 1.0 - p_over
 
 
+# --- MI-TEMPS (1re période) — stage 2, user 2026-09-14 -------------------------------------------------------
+# On ne traite QUE la 1re mi-temps et UNIQUEMENT avant la pause (minute < 43) : ainsi le score courant = score
+# de 1re période, un signal MT reste FORWARD-LOOKING (on ne parie pas sur du déjà connu) et on réutilise les
+# modèles buts existants avec la fenêtre de temps restante DE LA 1re MT. Réglé sur le VRAI score HT
+# (`result.raw.periods['1']`, déjà persisté au règlement). 2e mi-temps NON gérée (grain/gate différents).
+_HT_STRIP_RE = re.compile(
+    r"\b(?:à\s+la\s+|en\s+|de\s+la\s+)?(?:1[eè]re?|premi[eè]re)?\s*mi-?temps\b"
+    r"|\b(?:en\s+)?(?:1[eè]re?|premi[eè]re)\s+p[ée]riode\b"
+    r"|\b1st\s+half\b|\b1re\b", re.I)
+
+
+def _ht_period(text: str):
+    """'1h' si le marché porte sur la 1re mi-temps/période, None sinon (2e MT et combos MT/fin de match exclus)."""
+    low = (text or "").lower()
+    if re.search(r"2[eè]me?\b|seconde\s+(?:mi-?temps|p[ée]riode)|\b2e\s|second\s+half", low):
+        return None
+    if re.search(r"fin\s+de\s+match|temps\s+r[ée]glementaire", low):
+        return None                                        # « MT / fin de match » = marché combiné, hors périmètre
+    if re.search(r"mi-?temps|premi[eè]re\s+(?:mi-?temps|p[ée]riode)|1[eè]re?\s+(?:mi-?temps|p[ée]riode)"
+                 r"|\b1re\b|1st\s+half", low):
+        return "1h"
+    return None
+
+
+def _ht_pct(text, wside, info, hs, as_, minute, g90):
+    """Proba modèle d'un marché de 1re MT (résultat/DC/total buts) vu le score courant + le temps restant DE LA
+    1re MT. None si non modélisable / trop tard. `hs`/`as_` = score courant (= score 1re période, minute<43)."""
+    rem1 = max(0.0, (45.0 - (minute or 0)) / 90.0)
+    if rem1 <= 0.02:
+        return None
+    lam90 = (g90 if (isinstance(g90, (int, float)) and g90 > 0) else analyses._FOOT_GOALS_90) * 0.90
+    if wside is not None:                                  # résultat / double chance à la MT
+        return analyses._foot_result_pct(wside, hs, as_, rem1, goals90=lam90)
+    if info.get("metric") in ("goals", "special") and info.get("dir") in ("OVER", "UNDER") \
+            and info.get("line") is not None:
+        side, line, over = info.get("side"), info["line"], info["dir"] == "OVER"
+        if side in ("HOME", "AWAY"):
+            cur, lam = (hs if side == "HOME" else as_), (lam90 / 2.0) * rem1
+        else:
+            cur, lam = hs + as_, lam90 * rem1
+        p_over = 1.0 if cur > line else _sf(int(math.floor(line - cur)) + 1, lam)
+        return p_over if over else 1.0 - p_over
+    return None
+
+
+def _settle_ht(snap: dict, ht):
+    """'won'/'lost'/'push'/None d'un marché de 1re MT réglé sur le SCORE À LA MI-TEMPS `ht`=(hh,ha).
+    None (=void) si score HT indispo : jamais fabriqué."""
+    if not ht:
+        return None
+    hh, ha = ht
+    info = dict(snap.get("info") or {})
+    wside, sel = snap.get("wside"), (snap.get("sel", "") or "")
+    if "marquent" in (snap.get("family") or "") or analyses._is_btts(sel, ""):
+        yes = "non" not in sel.lower()
+        return "won" if ((hh >= 1 and ha >= 1) == yes) else "lost"
+    resht = "home" if hh > ha else "away" if ha > hh else "draw"
+    if wside in ("home", "away", "draw"):
+        return "won" if wside == resht else "lost"
+    if wside in ("1X", "12", "X2"):
+        ok = ((wside == "1X" and resht in ("home", "draw"))
+              or (wside == "12" and resht in ("home", "away"))
+              or (wside == "X2" and resht in ("away", "draw")))
+        return "won" if ok else "lost"
+    if info.get("metric") in ("goals", "special") and info.get("dir") in ("OVER", "UNDER") \
+            and info.get("line") is not None:
+        side, line, over = info.get("side"), info["line"], info["dir"] == "OVER"
+        cur = (hh if side == "HOME" else ha) if side in ("HOME", "AWAY") else hh + ha
+        if cur == line:
+            return "push"
+        win = (cur > line) if over else (cur < line)
+        return "won" if win else "lost"
+    return None
+
+
 def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False,
                    pre_g90=None) -> float | None:
     """Taux de buts/90 propre au match = mélange bayésien PRIOR (taux du MARCHÉ pour ce match si dispo, sinon
@@ -489,7 +564,44 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
             continue
         if not (isinstance(od, (int, float)) and od > 1):
             continue
-        if _BAN_TEXT_RE.search(text):                  # props/scoreline/mi-temps -> jetés
+        htp = _ht_period(text)                         # marché de 1re mi-temps ? (routé AVANT le ban)
+        if not htp and _BAN_TEXT_RE.search(text):      # props/scoreline/2e-MT/période -> jetés
+            continue
+        # MARCHÉ DE 1re MI-TEMPS (bloc autonome) : émis UNIQUEMENT avant la pause (score courant = score MT ->
+        # forward-looking), pricé sur la fenêtre restante de la 1re MT, réglé sur le score de mi-temps. On RETIRE
+        # les mots de période pour lire le marché de base (résultat/DC/total buts), que `_leg_metric` classerait
+        # sinon « Autre » (scope 1h) et que `_winner_side` ne lirait pas.
+        if htp:
+            if minute is None or minute >= 43 or text in seen:
+                continue
+            base = _HT_STRIP_RE.sub(" ", text).strip(" -–—:")
+            binfo = analyses._leg_metric({"sel": base}, home, away)
+            # DOUBLE CHANCE d'abord (sinon `_winner_side` lit « nul » et renvoie « draw » -> DC mal pricée) :
+            _mdc = re.search(r"\b(1X|12|X2)\b", base)
+            if _mdc:
+                bws = _mdc.group(1)
+            elif re.search(r"\bou\s+(?:match\s+)?nul\b", base.lower()):
+                _sd = _side_of(base, home, away)
+                bws = "1X" if _sd == "HOME" else "X2" if _sd == "AWAY" else None
+            else:
+                bws = analyses._winner_side(base, "", home, away, "foot") or _dc_pair(base, home, away)
+            if analyses._is_btts(base, ""):
+                fam = "Les 2 marquent MT"
+            elif bws is not None:
+                fam = "Résultat MT"
+            elif binfo.get("metric") in ("goals", "special") and binfo.get("dir") in ("OVER", "UNDER") \
+                    and binfo.get("line") is not None:
+                fam = "Total buts MT"
+            else:
+                continue                               # marché MT non modélisable (compteur MT, etc.)
+            prob = _ht_pct(base, bws, binfo, hs, as_, minute, g90)
+            if prob is None:
+                continue
+            seen.add(text)
+            _il = _info_lite(binfo)
+            _il["period"] = "1h"                       # -> règlement sur le score de MI-TEMPS (result.raw.periods['1'])
+            out.append({"sel": text, "family": fam, "wside": bws, "info": _il,
+                        "prob": float(prob), "odds": float(od), "ev": float(prob) * float(od) - 1.0})
             continue
         # Marché compté SUPPLÉMENTAIRE (fautes/hors-jeu/arrêts/passes/possession) — détecté/pricé/réglé LOCALEMENT
         # (jamais via analyses._leg_metric, partagé avec le pré-match). Prioritaire : un « Possession de Roma »
@@ -863,12 +975,15 @@ def _settle_count(snap: dict, vals: dict):
     return "won" if win else "lost"
 
 
-def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None):
-    """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL (+ totaux finaux `vals` pour les compteurs).
-    Résultat/DC résolus à la main ; totaux/handicap buts via `analyses._eval_leg` ; BTTS sur les deux scores ;
-    compteurs (corners/fautes/…) sur leur vrai total final."""
+def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None):
+    """'won'/'lost'/'push'/None pour un snapshot vu le score FINAL (+ totaux finaux `vals` pour les compteurs,
+    + score mi-temps `ht` pour les marchés 1re MT). Résultat/DC à la main ; totaux/handicap buts via `_eval_leg` ;
+    BTTS sur les deux scores ; compteurs sur leur vrai total final ; marchés MT sur le score de mi-temps."""
     fam, wside = snap.get("family"), snap.get("wside")
     sel = snap.get("sel", "") or ""
+    # MI-TEMPS (1re période) : réglé sur le SCORE À LA MI-TEMPS, jamais sur le score final.
+    if (snap.get("info") or {}).get("period") == "1h":
+        return _settle_ht(snap, ht)
     # DÉFENSE (bug user 2026-09-14) : ne JAMAIS régler sur le score un marché qui parle d'une stat non réglable
     # (coups francs/dégagements/tacles…), même s'il a été mal classé « Vainqueur/DC » jadis. -> void.
     if _BAN_TEXT_RE.search(sel) or (wside and _UNSETTLEABLE_STAT_RE.search(sel)):
@@ -913,10 +1028,15 @@ def settle_all() -> int:
                           and s.get("result") not in ("won", "lost", "push") for s in rec.get("snaps", []))
         fvals = (_live_vals(rec.get("match_id"), rec.get("home", ""), rec.get("away", ""),
                             rec.get("start"), allow_fetch=True) if need_counts else None)
+        # Score MI-TEMPS pour régler les marchés 1re période (déjà persisté au règlement : result.raw.periods['1']).
+        ht = None
+        _p1 = (((d.get("result") or {}).get("raw") or {}).get("periods") or {}).get("1")
+        if isinstance(_p1, (list, tuple)) and len(_p1) == 2 and _p1[0] is not None and _p1[1] is not None:
+            ht = (int(_p1[0]), int(_p1[1]))
         for s in rec.get("snaps", []):
             if s.get("result") in ("won", "lost", "push"):
                 continue
-            s["result"] = _settle_snap(s, fh, fa, fvals)
+            s["result"] = _settle_snap(s, fh, fa, fvals, ht)
         rec["settled"] = True
         rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
         _save(rec)
