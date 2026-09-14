@@ -382,7 +382,10 @@ CSS = """
           sous la barre). La barre est `position:fixed;bottom:0` et le body RÉSERVE sa hauteur via padding-bas. */
        min-height:100svh;overscroll-behavior-y:none;   /* svh STATIQUE (2026-09-10) : dvh recalculait à chaque frame pendant l'animation de la barre Safari = jank navigateur. Écart couvert par le fond fixe 100vh. */
        padding-bottom:calc(84px + env(safe-area-inset-bottom, 0px));   /* réserve la capsule flottante « Strava » + son décalage bas */
-       font-family:'Segoe UI',Roboto,Arial,sans-serif;   /* police des cartes Telegram (demande user 2026-07-12) */
+       /* Police NATIVE par plateforme (feel app, user 2026-09-14) : iOS -> San Francisco (-apple-system),
+          Android -> Roboto, Windows -> Segoe UI. Avant : 'Segoe UI' d'abord -> iOS retombait sur Arial
+          (pas natif). Les cartes Telegram gardent leur propre rendu (card_image.py, séparé). */
+       font-family:-apple-system,BlinkMacSystemFont,system-ui,'Segoe UI',Roboto,Arial,sans-serif;
        -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
        -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
        -webkit-tap-highlight-color:transparent;touch-action:manipulation;
@@ -398,6 +401,13 @@ CSS = """
      hauteur de la bannière en plus de celle de la barre. Togglé par le JS a2hs (classe posée à show/hide). */
   body.a2hs-open{padding-bottom:calc(150px + env(safe-area-inset-bottom, 0px))}
   a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
+  /* FEEDBACK TACTILE natif (user 2026-09-14) : léger enfoncement / surbrillance au tap sur les surfaces
+     cliquables -> l'app « répond » au doigt comme un natif. Transitoire (:active), donc n'affecte NI le
+     layout NI la barre fixe (transform seulement pendant l'appui, sur des éléments non-ancêtres du menu). */
+  .row.mc,.row.pick,summary.zone-h,.aset-i,.mc-manual{transition:transform .09s ease,opacity .09s ease,background .12s ease}
+  .row.mc:active,.row.pick:active{transform:scale(.988)}
+  summary.zone-h:active{opacity:.6}
+  .aset-i:active{background:rgba(255,255,255,.05)}
   /* Accessibilité clavier (audit 2026-09-02) : anneau de focus VISIBLE au clavier UNIQUEMENT
      (:focus-visible) — jamais au tap/souris, donc 0 changement pour l'usage tactile normal.
      Rétablit un repère que `-webkit-tap-highlight-color:transparent` (+ un `outline:none` sur les
