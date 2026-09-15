@@ -1173,6 +1173,44 @@ def _mark_notified(side: str, flags: list, result_msg: dict | None = None) -> No
         pass
 
 
+_NOTIFY_CLAIM_STALE_S = 180   # une revendication de notif plus vieille = process mort -> reprise
+
+
+def _claim_notify(side: str, kind: str = "res") -> bool:
+    """Revendication ATOMIQUE cross-process d'une notif de résultat pour CE match (fichier O_EXCL, à côté du
+    sidecar). Un SEUL process/instance l'obtient -> empêche le DOUBLE POST Telegram/PWA même s'il tourne 2
+    instances d'API (compte SYSTEM, invisibles sans admin ; user 2026-09-15 : doublon récurrent MALGRÉ la
+    re-lecture in-process, qui ne ferme la course que si l'autre a DÉJÀ écrit le flag). Reprend une
+    revendication PÉRIMÉE (process mort > `_NOTIFY_CLAIM_STALE_S`). True = on l'obtient (on poste) ; False =
+    un autre poste en ce moment (on saute cette passe ; le flag `notified_*` figé après envoi bloque ensuite).
+    Best-effort : si le FS empêche la revendication, on ne bloque JAMAIS la notif (True)."""
+    path = f"{side}.notify-{kind}.claim"
+    try:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if (datetime.now().timestamp() - os.path.getmtime(path)) < _NOTIFY_CLAIM_STALE_S:
+                return False                      # revendication FRAÎCHE d'un autre process -> on saute
+            os.remove(path)                       # périmée -> reprise
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False                              # un autre l'a reprise entre-temps -> on saute
+    except OSError:
+        return True                               # FS KO -> ne JAMAIS bloquer la notif (best-effort)
+
+
+def _release_notify_claim(side: str, kind: str = "res") -> None:
+    """Libère la revendication de notif (succès -> le flag figé protège désormais ; échec -> retry immédiat à
+    la passe suivante). No-op si absente."""
+    try:
+        os.remove(f"{side}.notify-{kind}.claim")
+    except OSError:
+        pass
+
+
 def backfill_stat_bets() -> int:
     """GARDE-FOU (demande user 2026-07-26) : fige `stat_bet` pour tout pari RETENU (for_history) sur un match
     TERMINÉ dont le résultat de pari est DÉJÀ connu (`result.pick_result`) mais qui n'a jamais été figé.
@@ -2182,6 +2220,11 @@ async def _settle_analyses_impl() -> int:
                                     continue
                             except (OSError, ValueError):
                                 pass
+                            # REVENDICATION ATOMIQUE (user 2026-09-15) : ferme la course même avec 2 instances
+                            # d'API concurrentes (la re-lecture ci-dessus ne suffit pas si aucune n'a encore
+                            # figé le flag). Un seul gagnant poste ; les autres sautent cette passe.
+                            if not _claim_notify(card["_side"]):
+                                continue
                         try:
                             # AUTO-RÉPARATION : une réponse résultat déjà postée (règlement corrigé) est SUPPRIMÉE
                             # avant de reposter la bonne (plus de « ❌ » fantôme qui traîne dans le fil).
@@ -2244,6 +2287,10 @@ async def _settle_analyses_impl() -> int:
                     # sera re-traité à la passe suivante (borné par notify_tries) : zéro perte, zéro doublon.
                     if _ok and card and card.get("_flags") and card.get("_side"):
                         _mark_notified(card["_side"], card["_flags"], sent if isinstance(sent, dict) else None)
+                    # LIBÈRE la revendication : succès -> le flag figé protège désormais ; échec -> retry
+                    # immédiat à la passe suivante (sinon attente ~stale). Idempotent.
+                    if card and card.get("_side"):
+                        _release_notify_claim(card["_side"])
         except Exception as exc:
             log.warning("notif règlement ignorée : %s", exc)
     return n
