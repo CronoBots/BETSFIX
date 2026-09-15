@@ -2847,6 +2847,21 @@ CSS = """
   .lph-p-lost{opacity:.62}
   .lph-p-lost .lph-p-sel{text-decoration:line-through;text-decoration-color:rgba(255,107,107,.5)}
   .lph-p.lph-none{color:#7f8fa2;font-style:italic;font-size:12px;text-align:center;padding:15px 0 9px}
+  /* GROUPES PAR MARCHÉ (pli déroulant, user 2026-09-15) : carte compacte ; l'en-tête résume ✓/•/✗ + le nombre
+     de lignes du marché ; fermé par défaut (rien n'est caché, 1 clic déplie). */
+  .lph-fg{border-top:1px solid rgba(255,255,255,.05)}
+  .lph-fg:first-child{border-top:none}
+  .lph-fg-h{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;padding:9px 0;font-size:12.5px}
+  .lph-fg-h::-webkit-details-marker{display:none}
+  .lph-fg-h::after{content:"▸";color:#7f8fa2;font-size:11px;transition:transform .15s;flex:none}
+  .lph-fg[open] .lph-fg-h::after{transform:rotate(90deg)}
+  .lph-fg-n{font-weight:700;color:#e6edf3}
+  .lph-fg-sum{display:flex;gap:5px;margin-left:auto}
+  .lph-fg-s{font-weight:800;font-size:10.5px;border-radius:6px;padding:2px 7px}
+  .lph-fg-o{color:#22b8ff;background:rgba(34,184,255,.14)}
+  .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
+  .lph-fg-b{padding-bottom:4px}
+  .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
   /* Analyse en PUCES (une par phrase) dans le pli « 💡 Pourquoi » — aère le texte, plus de pavé massif
      (demande user 2026-07-20). Puce ronde discrète, comme « Les faits ». */
   .why-ul{margin:8px 0 2px;padding:0;list-style:none}
@@ -12087,19 +12102,39 @@ def _signaux_match_card(m: dict) -> str:
     live `.row.mc` (logos/score/horloge) + pronos conseillés dessous (ou placeholder). PARTAGÉ entre l'onglet
     Live et le Programme (abstention live -> Signaux Live, user 2026-09-14)."""
     import html as _h
-    rows = []
+    from collections import OrderedDict
     # TRI (user 2026-09-14/15) : d'abord PAR STATUT (validé -> en cours -> tombé), puis, à statut égal, PAR
     # MINUTE d'émission du signal (`first_min`, croissant) — les plus anciens en tête dans chaque groupe.
     _ord = {"won": 0, "open": 1, "lost": 2}
     _picks = sorted(m.get("picks") or [],
                     key=lambda p: (_ord.get(p.get("status", "open"), 1),
                                    p.get("first_min") if isinstance(p.get("first_min"), int) else 999))
+    # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
+    # LIGNES redondantes d'un même marché). On regroupe par FAMILLE dans un pli déroulant : carte COMPACTE, rien
+    # de caché (1 clic déplie). Familles avec un signal validé/en cours d'abord, tout-tombé en dernier ; puis volume.
+    groups: "OrderedDict[str, list]" = OrderedDict()
     for p in _picks:
-        st = p.get("status", "open")
-        sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
-        cote = analyses.fmt_cote(p["odds"]) or "?"
-        rows.append(_lph_pick(sel, cote, p.get("ev"), p.get("prob"),
-                              f"{p.get('first_min', '?')}'", status=st, cur=p.get("cur")))
+        groups.setdefault(p.get("family") or "Autre", []).append(p)
+    fam_items = sorted(groups.items(),
+                       key=lambda kv: (min(_ord.get(x.get("status", "open"), 1) for x in kv[1]), -len(kv[1])))
+    rows = []
+    for fam, ps in fam_items:
+        nw = sum(1 for x in ps if x.get("status") == "won")
+        nl = sum(1 for x in ps if x.get("status") == "lost")
+        no = len(ps) - nw - nl
+        lines = "".join(
+            _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
+                      analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
+                      f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"))
+            for p in ps)
+        summ = ((f'<span class="lph-fg-s lph-tag-w">✓{nw}</span>' if nw else "")
+                + (f'<span class="lph-fg-s lph-fg-o">•{no}</span>' if no else "")
+                + (f'<span class="lph-fg-s lph-tag-l">✗{nl}</span>' if nl else ""))
+        rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
+                    f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
+                    f'<span class="lph-fg-sum">{summ}</span>'
+                    f'<span class="lph-fg-c">{len(ps)}</span></summary>'
+                    f'<div class="lph-fg-b">{lines}</div></details>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
