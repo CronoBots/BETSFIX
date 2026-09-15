@@ -911,12 +911,13 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
         return []
     from app import match_select
     home, away = d.get("home", ""), d.get("away", "")
-    ld = match_select.live_state_for("foot", home, away)
+    ld = _live_state(d, match_select.af_live_list("foot"))   # API-Football direct -> porte _ht (score de mi-temps)
     sc = (ld or {}).get("score") or {}
     hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
     minute = match_select.live_minute(ld)
     if hs is None or as_ is None or minute is None:
         return []
+    ht_live = _live_ht(ld)     # (hh,ha) si la 1re MT est FINIE (score.halftime peuplé), sinon None
     open_picks = current_picks(d, top=top)
     open_sels = {p["sel"] for p in open_picks}
     rec = _load("foot", d.get("id")) or {}
@@ -940,7 +941,17 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     for sel, s in last.items():
         if sel in open_sels:
             continue
-        st = _live_signal_status(sel, s.get("family"), hs, as_, home, away, counts)
+        st = None
+        # MARCHÉS 1re MI-TEMPS : dès que le score de mi-temps est connu (pause franchie), on TRANCHE tout de
+        # suite sur ce score (user 2026-09-15 : « pourquoi les mi-temps ne sont pas réglées plus vite ? ») —
+        # avant, `_live_signal_status` les gardait « open » jusqu'au règlement FINAL du match. Score HT figé
+        # (irréversible) -> pas de faux règlement sur score live en cours. push/None (rare, lignes en .5) -> open.
+        if ht_live and ((s.get("info") or {}).get("period") == "1h" or _ht_period(sel)):
+            _hts = _settle_ht(s, ht_live, home, away)
+            if _hts in ("won", "lost"):
+                st = _hts
+        if st is None:
+            st = _live_signal_status(sel, s.get("family"), hs, as_, home, away, counts)
         rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
                  "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
         if st == "won":
@@ -959,6 +970,18 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     lost.sort(key=lambda p: p.get("first_min") or 0)
     carried.sort(key=lambda p: p.get("first_min") or 0)
     return won + open_picks + carried + lost
+
+
+def _live_ht(ld: dict | None):
+    """Score À LA MI-TEMPS (hh, ha) depuis l'état live API-Football (`_ht`, cf. apifootball.live_clockdata), ou
+    None tant que la 1re MT n'est pas finie. Sa PRÉSENCE = la 1re période est terminée et son score est FIGÉ
+    -> on peut régler les marchés 1re MT sans attendre la fin du match (user 2026-09-15)."""
+    ht = (ld or {}).get("_ht") if isinstance(ld, dict) else None
+    if isinstance(ht, dict):
+        hh, ha = ht.get("home"), ht.get("away")
+        if isinstance(hh, int) and isinstance(ha, int):
+            return (hh, ha)
+    return None
 
 
 def _live_state(d: dict, af_list) -> dict | None:

@@ -475,9 +475,13 @@ def live_all(cl: httpx.Client) -> list:
             st = fxt.get("status") or {}
             g = x.get("goals") or {}
             tm = x.get("teams") or {}
+            _htsc = (x.get("score") or {}).get("halftime") or {}   # score À LA MI-TEMPS (peuplé dès la pause)
             out.append({"home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
                         "ko": fxt.get("date"),
                         "gh": g.get("home"), "ga": g.get("away"),
+                        # SCORE DE MI-TEMPS (score.halftime) : None tant que la 1re MT n'est pas finie, puis figé
+                        # -> permet de régler les marchés 1re MT DÈS la pause (pas à la fin du match, user 2026-09-15).
+                        "ht_h": _htsc.get("home"), "ht_a": _htsc.get("away"),
                         "elapsed": st.get("elapsed"), "short": st.get("short"),
                         "extra": st.get("extra") if isinstance(st.get("extra"), int) else None,
                         # timestamps epoch du coup d'envoi de chaque mi-temps -> horloge À LA SECONDE
@@ -520,11 +524,14 @@ def live_clockdata(home: str, away: str, ko_iso: str, live_list: list) -> dict |
         tot = int(time.time()) - int(anchor) + (45 * 60 if short == "2H" else 0)
         if tot >= 0 and abs(tot // 60 - minute) <= 3:      # cohérent avec elapsed -> on prend la seconde
             minute, second = tot // 60, tot % 60
+    _hth, _hta = best.get("ht_h"), best.get("ht_a")
     return {"score": {"home": best.get("gh"), "away": best.get("ga")},
             "matchClock": {"minute": minute, "second": second, "running": short in _RUNNING,
                            "periodId": _PERIOD_ID.get(short, "")},
             "_af": True, "_af_status": short, "_af_finished": short in FINISHED_STATUS,
-            "_af_extra": best.get("extra")}
+            "_af_extra": best.get("extra"),
+            # score À LA MI-TEMPS (None avant la pause) -> règlement live des marchés 1re MT (user 2026-09-15)
+            "_ht": {"home": _hth, "away": _hta} if isinstance(_hth, int) and isinstance(_hta, int) else None}
 
 
 # Types de stats API-Football -> clés normalisées du « Live Match Center » (§5bis docs/LIVE_DETECTOR.md).
