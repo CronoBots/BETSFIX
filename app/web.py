@@ -2860,16 +2860,21 @@ CSS = """
   .lph-fg-s{font-weight:800;font-size:10.5px;border-radius:6px;padding:2px 7px}
   .lph-fg-o{color:#22b8ff;background:rgba(34,184,255,.14)}
   .lph-fg-p{color:#e0b341;background:rgba(224,179,65,.14)}
-  /* TAUX DE RÉUSSITE (user 2026-09-15) : par marché (en-tête) + global du match (ligne en tête de carte). */
-  .lph-fg-pct{font-weight:800;font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  /* TAUX DE RÉUSSITE (user 2026-09-15) — ÉPURÉ + COLONNES ALIGNÉES : par marché = % coloré + ratio « gagnés/
+     réglés » alignés (chiffres tabulaires) ; + global du match en tête. Plus de pastilles ✓/✗ ni de total. */
+  .lph-fg-r{margin-left:auto;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+  .lph-fg-pct{font-weight:800;font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap;
+       min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
   .lph-pct-hi{color:#34d27b;background:rgba(52,210,123,.14)}
   .lph-pct-mid{color:#e0b341;background:rgba(224,179,65,.14)}
   .lph-pct-lo{color:#ff6b6b;background:rgba(255,107,107,.13)}
-  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 0 11px;border-bottom:1px solid rgba(255,255,255,.06);
-       margin-bottom:2px}
+  .lph-fg-ratio{flex:none;min-width:44px;text-align:right;color:#8aa0b6;font-size:12px;font-weight:700;
+       font-variant-numeric:tabular-nums}
+  .lph-fg-live{color:#22b8ff;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 2px 11px;
+       border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:2px}
   .lph-gpct-l{font-weight:800;font-size:12.5px;color:#e6edf3}
-  .lph-gpct .lph-fg-pct{margin-left:auto;font-size:12.5px}
-  .lph-gpct-n{flex:none;color:#7f8fa2;font-size:11px;font-weight:700}
+  .lph-gpct .lph-fg-pct{font-size:12.5px}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-b{padding-bottom:4px}
   .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
@@ -12164,25 +12169,26 @@ def _signaux_match_card(m: dict) -> str:
                       analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
                       f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"))
             for p in ps)
-        summ = ((f'<span class="lph-fg-s lph-tag-w">✓{nw}</span>' if nw else "")
-                + (f'<span class="lph-fg-s lph-fg-p">➖{npu}</span>' if npu else "")
-                + (f'<span class="lph-fg-s lph-fg-o">•{no}</span>' if no else "")
-                + (f'<span class="lph-fg-s lph-tag-l">✗{nl}</span>' if nl else ""))
-        # TAUX DE RÉUSSITE de la famille (user 2026-09-15) = validés / (validés + tombés), poussés/en cours exclus.
+        # ÉPURÉ + COLONNES ALIGNÉES (user 2026-09-15) : par marché = TAUX DE RÉUSSITE coloré + ratio « gagnés/
+        # réglés » (validés+tombés ; poussés exclus), alignés en colonnes (chiffres tabulaires). Plus de pastilles
+        # ✓/✗ ni de total redondant (total = ✓+✗, dérivable). Famille encore TOUTE en cours (live) -> « •N en cours ».
         _fset = nw + nl
-        _fpct = round(100 * nw / _fset) if _fset else None
-        pct = (f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>' if _fpct is not None else "")
+        if _fset:
+            _fpct = round(100 * nw / _fset)
+            right = (f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>'
+                     f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
+        else:
+            right = f'<span class="lph-fg-live">•{no} en cours</span>'
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
-                    f'<span class="lph-fg-sum">{summ}</span>{pct}'
-                    f'<span class="lph-fg-c">{len(ps)}</span></summary>'
+                    f'<span class="lph-fg-r">{right}</span></summary>'
                     f'<div class="lph-fg-b">{lines}</div></details>')
     # TAUX DE RÉUSSITE GLOBAL du match (user 2026-09-15) — en tête, toutes familles confondues (validés+tombés).
     if (gw + gl) > 0:
         _gpct = round(100 * gw / (gw + gl))
         rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Réussite du match</span>'
-                       f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
-                       f'<span class="lph-gpct-n">{gw}/{gw + gl}</span></div>')
+                       f'<span class="lph-fg-r"><span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
+                       f'<span class="lph-fg-ratio">{gw}/{gw + gl}</span></span></div>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
