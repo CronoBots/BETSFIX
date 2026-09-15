@@ -12100,6 +12100,19 @@ def _live_phantom_zone(sport: str) -> str:
                  zk="live-phantom", collapsible=True, open_=True)
 
 
+# ORDRE LOGIQUE d'affichage des TYPES de marché des Signaux Live (user 2026-09-15 : « un ordre logique des types
+# de marché ») : résultat de match -> buts -> mi-temps -> stats de jeu -> autre. Fixe (indépendant du statut/volume)
+# -> la carte a toujours la MÊME structure d'un match à l'autre. Famille hors liste = à la fin (99), puis alpha.
+_LPH_FAMILY_ORDER = {fam: i for i, fam in enumerate([
+    "Vainqueur", "Double chance", "Handicap",
+    "Total Under", "Total Over", "Total équipe", "Les 2 marquent",
+    "Résultat MT", "Total buts MT", "Les 2 marquent MT",
+    "Corners", "Tirs", "Tirs cadrés", "Cartons",
+    "Fautes", "Hors-jeu", "Arrêts", "Passes", "Possession",
+    "Autre",
+])}
+
+
 def _signaux_match_card(m: dict) -> str:
     """Carte Signaux Live d'UN match EN COURS (dict {home,away,comp,score,minute,picks,has_catalog}) : cadre
     live `.row.mc` (logos/score/horloge) + pronos conseillés dessous (ou placeholder). PARTAGÉ entre l'onglet
@@ -12118,8 +12131,10 @@ def _signaux_match_card(m: dict) -> str:
     groups: "OrderedDict[str, list]" = OrderedDict()
     for p in _picks:
         groups.setdefault(p.get("family") or "Autre", []).append(p)
+    # ORDRE LOGIQUE FIXE des marchés (user 2026-09-15) : résultat -> buts -> mi-temps -> stats -> autre (même
+    # structure d'un match à l'autre), plutôt que par statut/volume. Famille inconnue -> fin, puis alphabétique.
     fam_items = sorted(groups.items(),
-                       key=lambda kv: (min(_ord.get(x.get("status", "open"), 1) for x in kv[1]), -len(kv[1])))
+                       key=lambda kv: (_LPH_FAMILY_ORDER.get(kv[0], 99), kv[0]))
     rows = []
     for fam, ps in fam_items:
         nw = sum(1 for x in ps if x.get("status") == "won")
