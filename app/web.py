@@ -12088,9 +12088,12 @@ def _signaux_match_card(m: dict) -> str:
     Live et le Programme (abstention live -> Signaux Live, user 2026-09-14)."""
     import html as _h
     rows = []
-    # TRI PAR STATUT (user 2026-09-14) : validé (acquis en direct) -> en cours -> tombé.
+    # TRI (user 2026-09-14/15) : d'abord PAR STATUT (validé -> en cours -> tombé), puis, à statut égal, PAR
+    # MINUTE d'émission du signal (`first_min`, croissant) — les plus anciens en tête dans chaque groupe.
     _ord = {"won": 0, "open": 1, "lost": 2}
-    _picks = sorted(m.get("picks") or [], key=lambda p: _ord.get(p.get("status", "open"), 1))
+    _picks = sorted(m.get("picks") or [],
+                    key=lambda p: (_ord.get(p.get("status", "open"), 1),
+                                   p.get("first_min") if isinstance(p.get("first_min"), int) else 999))
     for p in _picks:
         st = p.get("status", "open")
         sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))

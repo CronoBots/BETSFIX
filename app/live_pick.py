@@ -740,9 +740,10 @@ def observe_match(d: dict) -> int:
 
 
 # --- suggestions COURANTES (affichage seul, sans écriture ni throttle) ------------------------------------
-def current_picks(d: dict, top: int = 3) -> list[dict]:
+def current_picks(d: dict, top: int = 50) -> list[dict]:
     """Suggestions live ACTUELLES d'un match EN COURS (mêmes marchés/gates que observe_match, mais SANS
-    écriture ni throttle) — pour l'AFFICHAGE. Triées par EV décroissant, `top` max. [] si pas de live/catalogue.
+    écriture ni throttle) — pour l'AFFICHAGE. Triées par EV décroissant, `top` max (défaut ~« tous » : user
+    2026-09-15 veut TOUS les signaux du match, pas un top 3). [] si pas de live/catalogue.
     100 % lecture des caches (0 réseau). N'écrit rien : ne peut pas contaminer le store ni les stats."""
     if not LIVE_PICK_ON or d.get("sport") != "foot":
         return []
@@ -901,7 +902,7 @@ def _signal_current(sel: str, family: str, hs, as_, home: str, away: str, counts
     return _fmt(val, "but", "buts")
 
 
-def enriched_signals(d: dict, top: int = 3) -> list[dict]:
+def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     """Signaux live d'un match + TRI PAR STATUT au score courant (user 2026-09-14) : chaque pick porte
     `status` = 'won' (validé, acquis en direct) / 'open' (en cours) / 'lost' (tombé). Liste triée : validés
     d'abord, puis en cours (meilleur EV), puis tombés. Les validés/tombés viennent des signaux DÉJÀ déclenchés
@@ -944,10 +945,14 @@ def enriched_signals(d: dict, top: int = 3) -> list[dict]:
             rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
                      "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
             (won if st == "won" else lost).append(rec_p)
-    return won[:4] + open_picks + lost[:2]                 # validés · en cours · tombés (caps lisibilité)
+    # TOUS les signaux du match (user 2026-09-15 : « affiche tout les signaux, pas seulement 3 »), classés par
+    # statut : validés · en cours · tombés. Plus de cap de lisibilité — la carte re-trie par statut de toute façon.
+    won.sort(key=lambda p: p.get("first_min") or 0)
+    lost.sort(key=lambda p: p.get("first_min") or 0)
+    return won + open_picks + lost
 
 
-def current_all(sport: str = "foot", top: int = 3) -> list[dict]:
+def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
     """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] de TOUS les matchs EN COURS
     pour lesquels on a la donnée live (score + minute + catalogue de cotes). `picks` PEUT être vide (aucune
     value live à cet instant) -> la zone reste PERSISTANTE (ne clignote plus quand rien ne qualifie
