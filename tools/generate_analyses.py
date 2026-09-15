@@ -1765,6 +1765,12 @@ def _apifootball_sharp(match: dict) -> dict | None:
         return None
 
 
+# En-dessous de ce nombre de betOffers, une réponse Unibet FOOT est jugée tronquée (transitoire) -> une relance.
+# Un match foot réellement fourni en compte des dizaines ; 0-3 = réponse partielle. Seuil bas = 0 retry sur les
+# matchs normaux (coût nul en régime nominal), 1 seule relance sur les réponses anormalement maigres.
+_THIN_BETOFFERS = 6
+
+
 async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "foot",
                         sofa_id: str | None = None) -> str | None:
     """Dossier compact : marchés Unibet utiles (hors bruit) + séries/H2H/votes SofaScore. None si indispo."""
@@ -1772,6 +1778,20 @@ async def build_dossier(client: httpx.AsyncClient, match: dict, sport: str = "fo
         r = await client.get(f"{UNIBET_B}/betoffer/event/{match['id']}.json",
                              params=UNIBET_PARAMS, headers=UA)
         bo = r.json()
+        # RETRY anti-réponse PARTIELLE (user 2026-09-15 — cas Middlesbrough-Millwall « MANQUÉ ») : Unibet renvoie
+        # parfois une réponse TRONQUÉE (2-3 betOffers) pour un match pourtant richement doté -> `by_crit` vide ->
+        # build_dossier ressort None -> le match est sauté et compté MANQUÉ au QC. Pour du FOOT, une réponse aussi
+        # maigre est quasi toujours transitoire (un gros Championship a des dizaines d'offres) -> UNE relance
+        # récupère le catalogue complet. Un vrai match sans marché reste maigre après relance -> skip légitime.
+        if sport == "foot" and len((bo or {}).get("betOffers") or []) < _THIN_BETOFFERS:
+            await asyncio.sleep(1.5)
+            r = await client.get(f"{UNIBET_B}/betoffer/event/{match['id']}.json",
+                                 params=UNIBET_PARAMS, headers=UA)
+            _bo2 = r.json()
+            if len((_bo2 or {}).get("betOffers") or []) > len((bo or {}).get("betOffers") or []):
+                print(f"  ↻ Unibet réponse partielle ({len((bo or {}).get('betOffers') or [])} offres) "
+                      f"-> relance OK ({len(_bo2.get('betOffers') or [])}) : {match.get('name', '?')}")
+                bo = _bo2
     except Exception as _fe:
         # DIAGNOSTIC (user 2026-08-31) : un fetch Unibet KO -> dossier None ET omap vide. L'ancien diagnostic
         # (plus bas) était APRÈS ce return -> une panne de fetch était TOTALEMENT SILENCIEUSE (on ne voyait
