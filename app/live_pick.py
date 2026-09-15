@@ -936,20 +936,29 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
         p["first_min"] = first.get(p["sel"], minute)
         # valeur COURANTE de la métrique (nb déjà obtenu) à afficher à côté du signal en cours (user 2026-09-14).
         p["cur"] = _signal_current(p.get("sel"), p.get("family"), hs, as_, home, away, counts)
-    won, lost = [], []
+    won, lost, carried = [], [], []
     for sel, s in last.items():
         if sel in open_sels:
             continue
         st = _live_signal_status(sel, s.get("family"), hs, as_, home, away, counts)
-        if st in ("won", "lost"):
-            rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
-                     "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
-            (won if st == "won" else lost).append(rec_p)
+        rec_p = {"sel": sel, "ev": s.get("ev"), "prob": s.get("prob"), "odds": s.get("odds"),
+                 "family": s.get("family"), "status": st, "first_min": first.get(sel, minute)}
+        if st == "won":
+            won.append(rec_p)
+        elif st == "lost":
+            lost.append(rec_p)
+        else:
+            # Signal DÉJÀ PROPOSÉ (dans le store) sorti de la bande EV mais NON encore tranché (marché non-monotone :
+            # résultat/DC/handicap/période). User 2026-09-15 : « tous les signaux proposés pour un match doivent
+            # rester visibles » -> on le GARDE en « en cours » jusqu'à son règlement (avant il disparaissait).
+            rec_p["cur"] = _signal_current(sel, s.get("family"), hs, as_, home, away, counts)
+            carried.append(rec_p)
     # TOUS les signaux du match (user 2026-09-15 : « affiche tout les signaux, pas seulement 3 »), classés par
-    # statut : validés · en cours · tombés. Plus de cap de lisibilité — la carte re-trie par statut de toute façon.
+    # statut : validés · en cours (courants + reportés) · tombés. Plus de cap — la carte re-trie par statut+minute.
     won.sort(key=lambda p: p.get("first_min") or 0)
     lost.sort(key=lambda p: p.get("first_min") or 0)
-    return won + open_picks + lost
+    carried.sort(key=lambda p: p.get("first_min") or 0)
+    return won + open_picks + carried + lost
 
 
 def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
