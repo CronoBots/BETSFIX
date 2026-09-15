@@ -2860,6 +2860,16 @@ CSS = """
   .lph-fg-s{font-weight:800;font-size:10.5px;border-radius:6px;padding:2px 7px}
   .lph-fg-o{color:#22b8ff;background:rgba(34,184,255,.14)}
   .lph-fg-p{color:#e0b341;background:rgba(224,179,65,.14)}
+  /* TAUX DE RÉUSSITE (user 2026-09-15) : par marché (en-tête) + global du match (ligne en tête de carte). */
+  .lph-fg-pct{font-weight:800;font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .lph-pct-hi{color:#34d27b;background:rgba(52,210,123,.14)}
+  .lph-pct-mid{color:#e0b341;background:rgba(224,179,65,.14)}
+  .lph-pct-lo{color:#ff6b6b;background:rgba(255,107,107,.13)}
+  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 0 11px;border-bottom:1px solid rgba(255,255,255,.06);
+       margin-bottom:2px}
+  .lph-gpct-l{font-weight:800;font-size:12.5px;color:#e6edf3}
+  .lph-gpct .lph-fg-pct{margin-left:auto;font-size:12.5px}
+  .lph-gpct-n{flex:none;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-b{padding-bottom:4px}
   .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
@@ -12113,6 +12123,11 @@ _LPH_FAMILY_ORDER = {fam: i for i, fam in enumerate([
 ])}
 
 
+def _lph_pct_cls(pct: int) -> str:
+    """Classe couleur d'un taux de réussite (même règle que le calendrier : <50 rouge · 50–75 orange · >75 vert)."""
+    return "lph-pct-lo" if pct < 50 else "lph-pct-mid" if pct <= 75 else "lph-pct-hi"
+
+
 def _signaux_match_card(m: dict) -> str:
     """Carte Signaux Live d'UN match EN COURS (dict {home,away,comp,score,minute,picks,has_catalog}) : cadre
     live `.row.mc` (logos/score/horloge) + pronos conseillés dessous (ou placeholder). PARTAGÉ entre l'onglet
@@ -12136,11 +12151,14 @@ def _signaux_match_card(m: dict) -> str:
     fam_items = sorted(groups.items(),
                        key=lambda kv: (_LPH_FAMILY_ORDER.get(kv[0], 99), kv[0]))
     rows = []
+    gw = gl = 0                                          # cumul global du match (validés / tombés)
     for fam, ps in fam_items:
         nw = sum(1 for x in ps if x.get("status") == "won")
         nl = sum(1 for x in ps if x.get("status") == "lost")
         npu = sum(1 for x in ps if x.get("status") == "push")
         no = len(ps) - nw - nl - npu
+        gw += nw
+        gl += nl
         lines = "".join(
             _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
                       analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
@@ -12150,11 +12168,21 @@ def _signaux_match_card(m: dict) -> str:
                 + (f'<span class="lph-fg-s lph-fg-p">➖{npu}</span>' if npu else "")
                 + (f'<span class="lph-fg-s lph-fg-o">•{no}</span>' if no else "")
                 + (f'<span class="lph-fg-s lph-tag-l">✗{nl}</span>' if nl else ""))
+        # TAUX DE RÉUSSITE de la famille (user 2026-09-15) = validés / (validés + tombés), poussés/en cours exclus.
+        _fset = nw + nl
+        _fpct = round(100 * nw / _fset) if _fset else None
+        pct = (f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>' if _fpct is not None else "")
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
-                    f'<span class="lph-fg-sum">{summ}</span>'
+                    f'<span class="lph-fg-sum">{summ}</span>{pct}'
                     f'<span class="lph-fg-c">{len(ps)}</span></summary>'
                     f'<div class="lph-fg-b">{lines}</div></details>')
+    # TAUX DE RÉUSSITE GLOBAL du match (user 2026-09-15) — en tête, toutes familles confondues (validés+tombés).
+    if (gw + gl) > 0:
+        _gpct = round(100 * gw / (gw + gl))
+        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Réussite du match</span>'
+                       f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
+                       f'<span class="lph-gpct-n">{gw}/{gw + gl}</span></div>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
