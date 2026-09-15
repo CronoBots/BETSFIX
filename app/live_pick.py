@@ -961,6 +961,23 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     return won + open_picks + carried + lost
 
 
+def _live_state(d: dict, af_list) -> dict | None:
+    """État live (score + horloge) d'un match : API-Football DIRECT en PRIORITÉ (user 2026-09-15 : le score et
+    le temps de match doivent venir d'API-Football et s'afficher même sans signal), repli Unibet
+    `live_state_for`. Renvoie un objet façon liveData ({score:{home,away}, matchClock:{...}}) ou None. La
+    résolution API-Football utilise le KO (`start`) -> fenêtre ±90 min (pas de faux appariement par nom seul)."""
+    from app import match_select as _ms
+    ld = None
+    try:
+        from app import apifootball as _AF
+        ld = _AF.live_clockdata(d.get("home", ""), d.get("away", ""), d.get("start"), af_list)
+    except Exception:
+        ld = None
+    if not ld:
+        ld = _ms.live_state_for("foot", d.get("home", ""), d.get("away", ""))
+    return ld
+
+
 def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
     """Pour l'onglet Live : [{home, away, comp, minute, score, picks:[...]}] de TOUS les matchs EN COURS
     pour lesquels on a la donnée live (score + minute + catalogue de cotes). `picks` PEUT être vide (aucune
@@ -978,6 +995,7 @@ def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
     except Exception:
         _now = None
     out = []
+    af_list = match_select.af_live_list(sport)   # liste live API-Football (cachée 12 s), lue 1× par rendu
     # PERF (user 2026-09-13 « test live lent à s'afficher ») : on itère `iter_meta` (cache 2 s PARTAGÉ avec tout
     # le rendu) au lieu de globber+charger les ~900 sidecars nous-mêmes (184 ms/rendu), + PRÉ-FILTRE par heure de
     # coup d'envoi (fenêtre ~3 h) -> status_of/live-cache seulement sur les rares matchs plausiblement en cours.
@@ -996,7 +1014,7 @@ def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
         # (boucle de fond) -> attendre le faisait apparaître en retard. Le match s'affiche TOUT DE SUITE ; sans
         # catalogue, `current_picks` renvoie [] -> placeholder « ⏳ cotes live en cours… » et les pronos se
         # remplissent dès que le catalogue est chaud. Reste persistant tant que le match est en direct.
-        ld = match_select.live_state_for(sport, d.get("home", ""), d.get("away", ""))
+        ld = _live_state(d, af_list)      # API-Football DIRECT (score+minute), repli Unibet — user 2026-09-15
         sc = (ld or {}).get("score") or {}
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
@@ -1004,7 +1022,7 @@ def current_all(sport: str = "foot", top: int = 50) -> list[dict]:
         # Signaux + STATUT (validé / en cours / tombé), triés — `first_min` déjà posé par enriched_signals.
         picks = enriched_signals(d, top=top)
         out.append({"home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""),
-                    "mid": d.get("id"), "minute": minute, "score": score, "picks": picks,
+                    "mid": d.get("id"), "minute": minute, "score": score, "picks": picks, "_ld": ld,
                     "has_catalog": bool(analyses.live_catalog(d.get("id")))})   # cotes live chaudes ou non
     out.sort(key=lambda m: m.get("minute") or 0, reverse=True)
     _CURRENT_ALL_CACHE[sport] = (_now_m, out)

@@ -424,6 +424,27 @@ def _af_live_all_sync():
         return None
 
 
+_AF_LIVE_LIST_CACHE: tuple | None = None    # (monotonic_ts, list) — liste live API-Football partagée
+_AF_LIVE_LIST_TTL = 12
+
+
+def af_live_list(sport: str = "foot") -> list:
+    """Liste des matchs EN DIRECT API-Football (cf. apifootball.live_all), CACHÉE ~12 s. Permet de lire le
+    score+minute d'un match DIRECTEMENT depuis API-Football (via apifootball.live_clockdata) SANS dépendre du
+    listView Unibet — un match en cours absent d'Unibet a quand même son score/horloge (user 2026-09-15).
+    Note : `/fixtures?live=all` ne renvoie QUE les matchs réellement en cours -> pas de « live résiduel » sur
+    un match fini. [] si off / non-foot / non configuré. Best-effort (jamais bloquant)."""
+    global _AF_LIVE_LIST_CACHE
+    if sport != "foot" or not _af_live_on():
+        return []
+    hit = _AF_LIVE_LIST_CACHE
+    if hit and (_time.monotonic() - hit[0]) < _AF_LIVE_LIST_TTL:
+        return hit[1]
+    lst = _af_live_all_sync() or []
+    _AF_LIVE_LIST_CACHE = (_time.monotonic(), lst)
+    return lst
+
+
 async def fetch_live_odds(sport: str, client=None) -> dict:
     """Cotes Unibet FRAÎCHES (vainqueur du match) pour tout un sport, en UN appel listView,
     clé = noms d'équipes. Mis en cache 25 s. Sert à actualiser les cotes affichées à chaque page

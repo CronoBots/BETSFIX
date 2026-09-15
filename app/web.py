@@ -7386,12 +7386,14 @@ def _teams_vs_html(home, away, center: str = "VS") -> str:
             f'<span class="tm-n">{html.escape(a)}</span></span></span>')
 
 
-def _live_clock_html(sport_key, home, away) -> str:
+def _live_clock_html(sport_key, home, away, ld: dict | None = None) -> str:
     """Horloge live « M:SS » (défile via le ticker JS : data-min/sec/cap/run) — « HT » en mi-temps,
     « 92:27 (+3') » en prolongation. '' si pas d'horloge. PARTAGÉ carte normale (_sport_row) ET jambe de
-    combiné (_leg_card) -> même horloge partout (user 2026-08-17 : jambes présentées comme une carte)."""
+    combiné (_leg_card) -> même horloge partout (user 2026-08-17 : jambes présentées comme une carte).
+    `ld` = état live DÉJÀ résolu (ex. API-Football direct des Signaux Live, user 2026-09-15) -> évite un 2e
+    lookup et garantit que l'horloge suit la MÊME source que le score affiché ; None -> résolution Unibet."""
     try:
-        _ld = match_select.live_state_for(sport_key, home, away)
+        _ld = ld if ld is not None else match_select.live_state_for(sport_key, home, away)
         _clk = match_select.live_clock(_ld)
     except Exception:
         _ld, _clk = None, None
@@ -12142,7 +12144,7 @@ def _signaux_match_card(m: dict) -> str:
     _sc = (m.get("score") or "").strip()
     if _sc:
         center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
-                  + _live_clock_html("foot", m.get("home", ""), m.get("away", "")) + '</span>')
+                  + _live_clock_html("foot", m.get("home", ""), m.get("away", ""), ld=m.get("_ld")) + '</span>')
     else:
         # Pas encore de score (fenêtre de coup d'envoi / rafraîchissement du flux ~12 s) : signaler que ça
         # CHARGE, plutôt qu'un « en direct » sec qui a l'air d'un état final (user 2026-09-14).
@@ -12168,13 +12170,13 @@ def _signaux_live_card_for_sidecar(d: dict) -> str:
         if not _lp.SHOW_ON_SITE or d.get("sport") != "foot":
             return ""
         picks = _lp.enriched_signals(d)                     # signaux + statut validé/en cours/tombé, triés
-        ld = match_select.live_state_for("foot", d.get("home", ""), d.get("away", ""))
+        ld = _lp._live_state(d, match_select.af_live_list("foot"))   # API-Football direct (score+minute), repli Unibet
         sc = (ld or {}).get("score") or {}
         hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
         minute = match_select.live_minute(ld)
         return _signaux_match_card({
             "home": d.get("home", ""), "away": d.get("away", ""), "comp": d.get("comp", ""), "mid": d.get("id"),
-            "minute": minute, "score": f"{hs}-{as_}" if (hs is not None and as_ is not None) else "",
+            "minute": minute, "score": f"{hs}-{as_}" if (hs is not None and as_ is not None) else "", "_ld": ld,
             "picks": picks, "has_catalog": bool(analyses.live_catalog(d.get("id")))})
     except Exception:
         return ""
