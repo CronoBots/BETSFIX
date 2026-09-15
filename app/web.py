@@ -2859,6 +2859,7 @@ CSS = """
   .lph-fg-sum{display:flex;gap:5px;margin-left:auto}
   .lph-fg-s{font-weight:800;font-size:10.5px;border-radius:6px;padding:2px 7px}
   .lph-fg-o{color:#22b8ff;background:rgba(34,184,255,.14)}
+  .lph-fg-p{color:#e0b341;background:rgba(224,179,65,.14)}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-b{padding-bottom:4px}
   .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
@@ -12107,7 +12108,7 @@ def _signaux_match_card(m: dict) -> str:
     from collections import OrderedDict
     # TRI (user 2026-09-14/15) : d'abord PAR STATUT (validé -> en cours -> tombé), puis, à statut égal, PAR
     # MINUTE d'émission du signal (`first_min`, croissant) — les plus anciens en tête dans chaque groupe.
-    _ord = {"won": 0, "open": 1, "lost": 2}
+    _ord = {"won": 0, "open": 1, "push": 2, "lost": 3}
     _picks = sorted(m.get("picks") or [],
                     key=lambda p: (_ord.get(p.get("status", "open"), 1),
                                    p.get("first_min") if isinstance(p.get("first_min"), int) else 999))
@@ -12123,13 +12124,15 @@ def _signaux_match_card(m: dict) -> str:
     for fam, ps in fam_items:
         nw = sum(1 for x in ps if x.get("status") == "won")
         nl = sum(1 for x in ps if x.get("status") == "lost")
-        no = len(ps) - nw - nl
+        npu = sum(1 for x in ps if x.get("status") == "push")
+        no = len(ps) - nw - nl - npu
         lines = "".join(
             _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
                       analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
                       f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"))
             for p in ps)
         summ = ((f'<span class="lph-fg-s lph-tag-w">✓{nw}</span>' if nw else "")
+                + (f'<span class="lph-fg-s lph-fg-p">➖{npu}</span>' if npu else "")
                 + (f'<span class="lph-fg-s lph-fg-o">•{no}</span>' if no else "")
                 + (f'<span class="lph-fg-s lph-tag-l">✗{nl}</span>' if nl else ""))
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
@@ -12142,7 +12145,10 @@ def _signaux_match_card(m: dict) -> str:
                else "Aucun signal live actuellement")
         rows.append(f'<div class="lph-p lph-none">{msg}</div>')
     _sc = (m.get("score") or "").strip()
-    if _sc:
+    if m.get("settled"):                                # carte TERMINÉE (zone « Signaux Live — terminés ») : même
+        center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - ")) if _sc else ""}</b>'
+                  f'<span class="tm-fin">Terminé</span></span>')   # rendu groupé/trié que le live, score final figé
+    elif _sc:
         center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - "))}</b>'
                   + _live_clock_html("foot", m.get("home", ""), m.get("away", ""), ld=m.get("_ld")) + '</span>')
     else:
@@ -12159,7 +12165,8 @@ def _signaux_match_card(m: dict) -> str:
     except Exception:
         badge = ""
     return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                              center, badge, "".join(rows), state_cls=" mc-r-live")
+                              center, badge, "".join(rows),
+                              state_cls=("" if m.get("settled") else " mc-r-live"))
 
 
 def _signaux_live_card_for_sidecar(d: dict) -> str:
@@ -12198,21 +12205,18 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — termin
     import html as _h
     cards, won_n, tot_n = [], 0, 0
     for m in matches:
-        rows = []
+        # Signaux TRIÉS + GROUPÉS PAR MARCHÉ comme le live (user 2026-09-15 : « il faut trier aussi les terminés »)
+        # -> on réutilise _signaux_match_card en mode `settled` (statut = résultat won/lost/push, minute d'émission).
+        picks = []
         for p in m["picks"]:
             tot_n += 1
             r = p.get("result")
             won_n += 1 if r == "won" else 0
-            _st = r if r in ("won", "lost", "push") else "open"
-            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
-            cote = analyses.fmt_cote(p["odds"]) or "?"
-            rows.append(_lph_pick(sel, cote, p.get("ev"), p.get("prob"),
-                                  f"{p.get('minute', '?')}'", status=_st))
-        _fin = (m.get("final") or "").strip()
-        center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
-                  f'<span class="tm-fin">Terminé</span></span>')
-        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                                         center, "", "".join(rows)))
+            picks.append({**p, "status": r if r in ("won", "lost", "push") else "open",
+                          "first_min": p.get("minute")})
+        cards.append(_signaux_match_card({
+            "home": m.get("home", ""), "away": m.get("away", ""), "comp": m.get("comp", ""),
+            "mid": m.get("mid"), "score": (m.get("final") or "").strip(), "settled": True, "picks": picks}))
     # styles `.lph-*`/`.lphr-*`/`.lph-reco` -> CSS GLOBAL (toujours présents, même quand la zone live est vide).
     # BILAN HONNÊTE = track record CANONIQUE (1 pari INDÉPENDANT/match, tout l'historique) — le seul taux qui
     # veut dire qqch. Le brut won/tot ci-dessous compte des lignes CORRÉLÉES du même match (Under 3.5/4.5/5.5…)
@@ -12329,19 +12333,12 @@ def _signaux_day_matches(sport: str, day: str, title: str = "Signaux Live", open
         return ""
     cards = []
     for m in day_ms:
-        rows = []
-        for p in m["picks"]:
-            r = p.get("result")
-            _st = r if r in ("won", "lost", "push") else "open"
-            sel = _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", "")))
-            cote = analyses.fmt_cote(p["odds"]) or "?"
-            rows.append(_lph_pick(sel, cote, p.get("ev"), p.get("prob"),
-                                  f"{p.get('minute', '?')}'", status=_st))
-        _fin = (m.get("final") or "").strip()
-        center = (f'<span class="tm-live"><b>{_h.escape(_fin.replace("-", " - ")) if _fin else ""}</b>'
-                  f'<span class="tm-fin">Terminé</span></span>')
-        cards.append(_phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                                         center, "", "".join(rows)))
+        # TRIÉS + GROUPÉS PAR MARCHÉ comme le live (user 2026-09-15) via _signaux_match_card en mode `settled`.
+        picks = [{**p, "status": p.get("result") if p.get("result") in ("won", "lost", "push") else "open",
+                  "first_min": p.get("minute")} for p in m["picks"]]
+        cards.append(_signaux_match_card({
+            "home": m.get("home", ""), "away": m.get("away", ""), "comp": m.get("comp", ""),
+            "mid": m.get("mid"), "score": (m.get("final") or "").strip(), "settled": True, "picks": picks}))
     # PROGRAMME : pas de badge « Live » (user 2026-09-14 : ces matchs sont réglés/historique) — juste l'icône
     # devant le titre (via _ZONE_ICON["lphs-day"]) + le compteur. Le mot « test » est retiré (tag vide).
     return _zone("lphs-day", title, "", len(day_ms), _join_cards(cards),
