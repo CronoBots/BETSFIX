@@ -756,6 +756,39 @@ def _check_uniform_labels(rows) -> dict:
             "items": diverg[:20]}
 
 
+def _check_played_bet_label_coherent(rows) -> dict:
+    """LIBELLÉ COHÉRENT (user 2026-09-15, bug Elche–Real Madrid) : un pari PUBLIÉ non réglé ne doit pas mêler une
+    glose DOUBLE CHANCE (« ou nul »/1X/X2/12) à un code HANDICAP qui dit l'INVERSE — ex. « … ou nul (X2) » avec
+    code HCAP AWAY -0.5 (= doit GAGNER, un nul PERD). L'affichage est déjà neutralisé (pretty_sel strippe la glose
+    devant un handicap) ; ce garde-fou SURFACE le cas À LA SOURCE (bavure LLM) pour revue. WARN (bénin au runtime :
+    le règlement suit le CODE). Le +0.5 (« ne perd pas » = DC LÉGITIME) est toléré ; seul un handicap ≠ +0.5 sous
+    glose DC est signalé. Réglé (stat_bet) = figé/immuable -> hors périmètre (n'alerte que tant que c'est actionnable)."""
+    import re as _re
+    bad = []
+    for _p, d in rows:
+        if d.get("stat_bet"):
+            continue
+        for key in ("confidence_bet", "value_bet"):
+            b = d.get(key)
+            if not isinstance(b, dict):
+                continue
+            sel, code = str(b.get("sel") or ""), str(b.get("code") or "")
+            if not _re.search(r"\bou nul\b|double chance|\b1x\b|\bx2\b|\b12\b", sel, _re.I):
+                continue
+            m = _re.match(r"HCAP\s+(?:HOME|AWAY)\s+([+\-]?\d+(?:[.,]\d+)?)", code)
+            if not m or float(m.group(1).replace(",", ".")) == 0.5:   # pas un handicap, ou +0.5 = DC légitime
+                continue
+            bad.append(f"{d.get('home', '?')}–{d.get('away', '?')} : « {sel[:48]} » (code {code})")
+            break
+    return {"key": "played_bet_label_coherent",
+            "level": "warn" if bad else "ok",
+            "title": "Libellé du pari cohérent (pas de glose DC sur un handicap ≠ +0.5)",
+            "detail": (f"{len(bad)} pari(s) publié(s) avec une glose double chance CONTREDISANT un code handicap "
+                       "-> vérifier la sélection (l'affichage est déjà corrigé par pretty_sel)." if bad
+                       else "Aucun libellé DC/handicap contradictoire sur les paris publiés non réglés."),
+            "items": bad[:10]}
+
+
 def _check_settled_display_coherence(rows) -> dict:
     """AFFICHAGE == STATS pour les RÉGLÉS DU JOUR (régression user 2026-08-30). Un pari COMPTÉ (stat_bet figé
     won/lost/push) DOIT apparaître comme CARTE dans « Résultats du jour » ET être compté dans le RECORD de sa
@@ -1227,6 +1260,7 @@ def run(persist: bool = False) -> dict:
         _check_extratime_regulation(rows),
         _check_bet_gloss_coverage(rows),
         _check_uniform_labels(rows),
+        _check_played_bet_label_coherent(rows),
         _check_settled_display_coherence(rows),
         _check_verdict_reads_played_bet(rows),
         _check_settled_prono_card_reads_played_bet(rows),
