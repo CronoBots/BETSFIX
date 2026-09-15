@@ -597,6 +597,15 @@ def pretty_sel(sel: str, home: str = "", away: str = "") -> str:
     # 3.5 buts @1.36 ») → la cote est DÉJÀ dans la colonne COTE, donc redondante dans le titre. On la retire de
     # l'AFFICHAGE (le `sel` stocké reste intact → règlement/code inchangés).
     s = re.sub(r"\s*@\s*\d+(?:[.,]\d+)?\s*$", "", s).strip()
+    # CONTRADICTION « double chance — handicap » (bug user 2026-09-15, Elche-Real Madrid : le sel stocké
+    # « Real Madrid ou nul (X2) — Real Madrid -0.5 » AFFICHAIT « ou nul (X2) » alors que le code de règlement
+    # est HCAP AWAY -0.5 = Real doit GAGNER, un nul PERD). Le LLM colle parfois une glose DC (« ou nul (X2) »)
+    # devant un HANDICAP signé -> la glose MENT sur l'issue. `code_from_pick`/le règlement suivent le HANDICAP,
+    # donc l'AFFICHAGE aussi : on ne garde QUE la partie handicap (le règlement/`sel` stocké restent intacts).
+    _mc = re.match(r"^.*?(?:ou nul|double chance|\b1x\b|\bx2\b|\b12\b|vainqueur|gagne)\b.*?[—–-]\s*"
+                   r"(.+?[+\-−–]\s?\d+[.,]\d\b.*)$", s, re.I)
+    if _mc:
+        s = _mc.group(1).strip()
     # UNIFORMISATION AMONT (demande user 2026-07-23, IMPÉRATIVE « ça ne doit plus JAMAIS arriver ») : deux
     # écritures d'une MÊME issue doivent converger. Normalisations génériques AVANT les cas précis :
     s = re.sub(r"(?<=\d),(?=\d)", ".", s)                               # décimale FR « 2,5 » -> « 2.5 »
