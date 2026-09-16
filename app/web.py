@@ -2834,6 +2834,10 @@ CSS = """
   /* BADGE MINUTE de création à gauche (remplace le point) — NEUTRE (= « quand », pas le résultat) user 2026-09-14 */
   .lph-tm{flex:none;min-width:32px;text-align:center;margin-top:1px;font-size:11px;font-weight:800;
        border-radius:7px;padding:3px 6px;line-height:1;background:rgba(255,255,255,.07);color:#9fb0c6}
+  /* SIGNAL RÉCENT (émis dans les ~15 dernières min du match en cours, user 2026-09-17) : mis en avant -> minute
+     dorée + libellé plus vif. Trié en tête de son groupe (récents d'abord en live). */
+  .lph-tm-rec{color:#0b1220;background:linear-gradient(180deg,#ffd66b,#e0b341);box-shadow:0 0 0 1px rgba(224,179,65,.4)}
+  .lph-p-rec .lph-p-sel{color:#fff}
   /* COLONNE DROITE de l'entête : cote (+ badge résultat en dessous si réglé), alignée à droite */
   .lph-p-rt{flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
   /* VALEUR COURANTE de la métrique (ex. « 8 / 16.5 corners ») à côté du signal en cours */
@@ -12045,8 +12049,18 @@ def _combo_leg_cards(sport: str = "foot", want_live: bool = True) -> list:
     return rows
 
 
+def _is_recent(m: dict, p: dict, live: bool, window: int = 15) -> bool:
+    """Signal « récent » = EN COURS et émis dans les `window` dernières minutes de jeu (met en avant les picks
+    FRAIS quand le match a avancé — un pari de la 70' compte plus qu'un de la 15'). False hors live / minute
+    inconnue / signal déjà réglé. `first_min` = 1re détection -> marque les signaux NOUVELLEMENT apparus."""
+    if not live or p.get("status") != "open":
+        return False
+    _mn, _fm = m.get("minute"), p.get("first_min")
+    return isinstance(_mn, int) and isinstance(_fm, int) and 0 <= (_mn - _fm) <= window
+
+
 def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, min_txt: str,
-              status: str = "open", cur: str | None = None) -> str:
+              status: str = "open", cur: str | None = None, recent: bool = False) -> str:
     """Item PREMIUM d'un signal live (calqué sur Confiance/Value en direct). GAUCHE = **minute de création**
     du signal, colorée par statut (bleu en cours / vert validé / rouge tombé) — remplace le point (user
     2026-09-14 : « le temps de match lors de la création, pour s'y retrouver »). EN COURS : barre de proba
@@ -12055,7 +12069,7 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
     # RÉPARTITION CLAIRE (user 2026-09-14) : minute NEUTRE à gauche (le « quand ») · pronostic au centre ·
     # à DROITE en colonne : cote + (si réglé) badge résultat ✓ validé / ✗ tombé. Le résultat n'est plus
     # confondu avec la minute (avant la minute était colorée comme le statut).
-    badge = f'<span class="lph-tm">{html.escape(str(min_txt))}</span>'
+    badge = f'<span class="lph-tm{" lph-tm-rec" if recent else ""}">{html.escape(str(min_txt))}</span>'
     cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
     cur_html = f'<span class="lph-cur">{html.escape(str(cur))}</span>' if cur else ""
     if status in ("won", "lost", "push"):
@@ -12077,7 +12091,7 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
                    if isinstance(ev, (int, float)) else "")
         rt = cote_html
         meta = f'{ev_html}{cur_html}'
-    return (f'<div class="lph-p lph-p-{html.escape(status)}"><div class="lph-p-h">'
+    return (f'<div class="lph-p lph-p-{html.escape(status)}{" lph-p-rec" if recent else ""}"><div class="lph-p-h">'
             f'{badge}<span class="lph-p-sel">{sel_html}</span><span class="lph-p-rt">{rt}</span></div>'
             f'{body}' + (f'<div class="lph-p-m">{meta}</div>' if meta else "") + "</div>")
 
@@ -12143,9 +12157,18 @@ def _signaux_match_card(m: dict) -> str:
     # TRI (user 2026-09-14/15) : d'abord PAR STATUT (validé -> en cours -> tombé), puis, à statut égal, PAR
     # MINUTE d'émission du signal (`first_min`, croissant) — les plus anciens en tête dans chaque groupe.
     _ord = {"won": 0, "open": 1, "push": 2, "lost": 3}
-    _picks = sorted(m.get("picks") or [],
-                    key=lambda p: (_ord.get(p.get("status", "open"), 1),
-                                   p.get("first_min") if isinstance(p.get("first_min"), int) else 999))
+    # TRI : d'abord PAR STATUT (validé -> en cours -> tombé). Puis PAR MINUTE d'émission : en LIVE les signaux
+    # RÉCENTS d'abord (décroissant) — un pari détecté à la 70' est plus pertinent qu'un de la 15' quand le match a
+    # avancé (user 2026-09-17) ; sur un match TERMINÉ on garde le CHRONOLOGIQUE (croissant) pour relire dans l'ordre.
+    _live = not bool(m.get("settled"))
+
+    def _pick_sort(p):
+        _st = _ord.get(p.get("status", "open"), 1)
+        _fm = p.get("first_min")
+        if isinstance(_fm, int):
+            return (_st, -_fm if _live else _fm)
+        return (_st, 0 if _live else 999)     # minute inconnue -> fin du groupe
+    _picks = sorted(m.get("picks") or [], key=_pick_sort)
     # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
     # LIGNES redondantes d'un même marché). On regroupe par FAMILLE dans un pli déroulant : carte COMPACTE, rien
     # de caché (1 clic déplie). Familles avec un signal validé/en cours d'abord, tout-tombé en dernier ; puis volume.
@@ -12169,7 +12192,8 @@ def _signaux_match_card(m: dict) -> str:
         lines = "".join(
             _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
                       analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
-                      f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"))
+                      f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"),
+                      recent=_is_recent(m, p, _live))
             for p in ps)
         # ÉPURÉ + COLONNES ALIGNÉES (user 2026-09-15) : par marché = TAUX DE RÉUSSITE coloré + ratio « gagnés/
         # réglés » (validés+tombés ; poussés exclus), alignés en colonnes (chiffres tabulaires). Plus de pastilles
