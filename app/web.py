@@ -2852,7 +2852,7 @@ CSS = """
   .lph-fg:first-child{border-top:none}
   .lph-fg-h{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;padding:9px 0;font-size:12.5px}
   .lph-fg-h::-webkit-details-marker{display:none}
-  .lph-fg-h::after{content:"▸";color:#7f8fa2;font-size:11px;transition:transform .15s;flex:none}
+  .lph-fg-h::after{content:"▸";color:#7f8fa2;font-size:11px;transition:transform .15s;flex:none;width:12px;text-align:center}
   .lph-fg[open] .lph-fg-h::after{transform:rotate(90deg)}
   .lph-fg-n{font-weight:700;color:#e6edf3}
   .lph-fg-sum{display:flex;gap:5px;margin-left:auto}
@@ -2862,16 +2862,18 @@ CSS = """
   /* TAUX DE RÉUSSITE (user 2026-09-15) — ÉPURÉ + COLONNES ALIGNÉES : par marché = % coloré + ratio « gagnés/
      réglés » alignés (chiffres tabulaires) ; + global du match en tête. Plus de pastilles ✓/✗ ni de total. */
   .lph-fg-r{margin-left:auto;flex:none;display:flex;align-items:center;justify-content:flex-end;gap:10px}
-  .lph-fg-pct{font-weight:800;font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap;
-       min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+  /* % de réussite : LARGEUR FIXE (user 2026-09-17) -> tous les badges identiques (0% == 100%), colonnes alignées */
+  .lph-fg-pct{flex:none;font-weight:800;font-size:11px;border-radius:6px;padding:2px 0;white-space:nowrap;
+       width:50px;box-sizing:border-box;text-align:center;font-variant-numeric:tabular-nums}
   .lph-pct-hi{color:#34d27b;background:rgba(52,210,123,.14)}
   .lph-pct-mid{color:#e0b341;background:rgba(224,179,65,.14)}
   .lph-pct-lo{color:#ff6b6b;background:rgba(255,107,107,.13)}
-  .lph-fg-ratio{flex:none;min-width:44px;text-align:right;color:#8aa0b6;font-size:12px;font-weight:700;
-       font-variant-numeric:tabular-nums}
+  .lph-fg-ratio{flex:none;width:46px;text-align:right;color:#8aa0b6;font-size:12px;font-weight:700;
+       font-variant-numeric:tabular-nums}   /* largeur FIXE -> colonne « paris joués » alignée (user 2026-09-17) */
   .lph-fg-live{color:#22b8ff;font-size:11.5px;font-weight:700;white-space:nowrap}
-  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 2px 11px;
+  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 0 11px;
        border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:2px}
+  .lph-gpct::after{content:"";flex:none;width:12px}   /* espaceur = chevron ▸ des familles -> % du match aligné */
   .lph-gpct-l{font-weight:800;font-size:12.5px;color:#e6edf3}
   .lph-gpct .lph-fg-pct{font-size:12.5px}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
@@ -12155,6 +12157,7 @@ def _signaux_match_card(m: dict) -> str:
     fam_items = sorted(groups.items(),
                        key=lambda kv: (_LPH_FAMILY_ORDER.get(kv[0], 99), kv[0]))
     rows = []
+    _finished = bool(m.get("settled"))                  # match TERMINÉ ? -> le % de réussite ne s'affiche qu'alors
     gw = gl = 0                                          # cumul global du match (validés / tombés)
     for fam, ps in fam_items:
         nw = sum(1 for x in ps if x.get("status") == "won")
@@ -12173,28 +12176,41 @@ def _signaux_match_card(m: dict) -> str:
         # ✓/✗ ni de total redondant (total = ✓+✗, dérivable).
         # user 2026-09-16 : ratio réglé ET « •N en cours » CUMULÉS (avant : exclusifs -> « Cartons 1/1 » masquait
         # 7 signaux encore ouverts ; capture IMG_5969). On montre les deux dès que les deux existent.
-        # user 2026-09-17 : % de réussite TOUT À DROITE (colonne alignée, badge largeur fixe .lph-fg-pct min-width) ;
-        # ratio + « •N en cours » à sa GAUCHE. Ordre = ratio · •N en cours · [ % ].
+        # user 2026-09-17 : le % de réussite ne s'affiche QU'UNE FOIS LE MATCH TERMINÉ (prématuré en live).
+        #  · EN COURS  -> pas de %, fraction = paris RÉGLÉS (gagnés+perdus) / TOTAL joué.
+        #  · TERMINÉ   -> ratio gagnés/réglés + % de réussite TOUT À DROITE (badge largeur fixe, colonne alignée).
         _fset = nw + nl
-        _parts = []
-        if _fset:
-            _parts.append(f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
-        if no:
-            _parts.append(f'<span class="lph-fg-live">•{no} en cours</span>')
-        if _fset:
-            _fpct = round(100 * nw / _fset)
-            _parts.append(f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>')
-        right = "".join(_parts) or '<span class="lph-fg-live">➖</span>'
+        _ftot = len(ps)
+        if _finished:
+            if _fset:
+                _fpct = round(100 * nw / _fset)
+                right = (f'<span class="lph-fg-ratio">{nw}/{_fset}</span>'
+                         f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>')
+            else:
+                right = '<span class="lph-fg-live">➖</span>'
+        else:
+            # EN COURS : fraction réglés/total + on GARDE le texte « •N en cours » (user 2026-09-17).
+            right = f'<span class="lph-fg-ratio">{_fset}/{_ftot}</span>'
+            if no:
+                right += f'<span class="lph-fg-live">•{no} en cours</span>'
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
                     f'<span class="lph-fg-r">{right}</span></summary>'
                     f'<div class="lph-fg-b">{lines}</div></details>')
-    # TAUX DE RÉUSSITE GLOBAL du match (user 2026-09-15) — en tête, toutes familles confondues (validés+tombés).
-    if (gw + gl) > 0:
-        _gpct = round(100 * gw / (gw + gl))
+    # EN TÊTE (user 2026-09-17) : % de réussite du match SEULEMENT une fois TERMINÉ (prématuré en live) ; EN COURS
+    # -> « Paris réglés » = réglés (gagnés+perdus) / total joué, sans %.
+    _gset = gw + gl
+    _gtot = len(_picks)
+    if _finished and _gset > 0:
+        _gpct = round(100 * gw / _gset)
         rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Réussite du match</span>'
-                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{gw + gl}</span>'
+                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{_gset}</span>'
                        f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span></span></div>')
+    elif not _finished and _gtot > 0:
+        _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push"))
+        _gen = f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen else ""
+        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Paris réglés</span>'
+                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{_gset}/{_gtot}</span>{_gen}</span></div>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
