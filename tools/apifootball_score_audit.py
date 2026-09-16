@@ -102,6 +102,13 @@ def main() -> int:
                 if not best or bs < 0.6 or best["final"].get("home") is None:
                     miss += 1                     # seuil 0.6 : évite les homonymes (CSKA Sofia vs CSKA 1948…)
                     continue
+                # FIXTURE NON TERMINÉ côté API-Football = score NON FINAL -> ne PAS le prendre pour l'autorité
+                # (2026-09-16 : Barcelone-Racing Santander figé à « 2H » 4-2 à la 65' un jour après, alors que le vrai
+                # final était 7-2 — MT 4-1 identique des deux côtés. L'audit criait « ACTION REQUISE » sur un flux
+                # gelé). On ne compare QUE contre FT/AET/PEN ; sinon on traite comme « non résolu ».
+                if best.get("status") not in AF.FINISHED_STATUS:
+                    miss += 1
+                    continue
                 af = f"{best['final']['home']}-{best['final']['away']}"
                 bf = str(d["result"]["score"]).split(" (")[0].strip()   # retire « (a.p.) » / suffixes
                 if af == bf:
