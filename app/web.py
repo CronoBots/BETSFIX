@@ -12177,10 +12177,10 @@ def _signaux_match_card(m: dict) -> str:
         # user 2026-09-16 : ratio réglé ET « •N en cours » CUMULÉS (avant : exclusifs -> « Cartons 1/1 » masquait
         # 7 signaux encore ouverts ; capture IMG_5969). On montre les deux dès que les deux existent.
         # user 2026-09-17 : le % de réussite ne s'affiche QU'UNE FOIS LE MATCH TERMINÉ (prématuré en live).
-        #  · EN COURS  -> pas de %, fraction = paris RÉGLÉS (gagnés+perdus) / TOTAL joué.
-        #  · TERMINÉ   -> ratio gagnés/réglés + % de réussite TOUT À DROITE (badge largeur fixe, colonne alignée).
+        #  · TERMINÉ  -> ratio gagnés/réglés + % de réussite TOUT À DROITE (badge largeur fixe, colonne alignée).
+        #  · EN COURS -> QUE « •N en cours » (pas de fraction réglés/total : trompeuse, ressemble à un score en
+        #    direct — user 2026-09-17). Famille entièrement réglée en direct (rare) -> son ratio, SANS %.
         _fset = nw + nl
-        _ftot = len(ps)
         if _finished:
             if _fset:
                 _fpct = round(100 * nw / _fset)
@@ -12188,11 +12188,12 @@ def _signaux_match_card(m: dict) -> str:
                          f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>')
             else:
                 right = '<span class="lph-fg-live">➖</span>'
+        elif no:
+            right = f'<span class="lph-fg-live">•{no} en cours</span>'
+        elif _fset:
+            right = f'<span class="lph-fg-ratio">{nw}/{_fset}</span>'
         else:
-            # EN COURS : fraction réglés/total + on GARDE le texte « •N en cours » (user 2026-09-17).
-            right = f'<span class="lph-fg-ratio">{_fset}/{_ftot}</span>'
-            if no:
-                right += f'<span class="lph-fg-live">•{no} en cours</span>'
+            right = ''
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
                     f'<span class="lph-fg-r">{right}</span></summary>'
@@ -12207,10 +12208,12 @@ def _signaux_match_card(m: dict) -> str:
                        f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{_gset}</span>'
                        f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span></span></div>')
     elif not _finished and _gtot > 0:
+        # EN COURS : label neutre + « •N en cours » SEUL (pas de fraction réglés/total trompeuse, user 2026-09-17).
         _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push"))
-        _gen = f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen else ""
-        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Paris réglés</span>'
-                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{_gset}/{_gtot}</span>{_gen}</span></div>')
+        _gright = (f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen
+                   else f'<span class="lph-fg-ratio">{gw}/{_gset}</span>')
+        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
+                       f'<span class="lph-fg-r">{_gright}</span></div>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
