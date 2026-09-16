@@ -12171,14 +12171,18 @@ def _signaux_match_card(m: dict) -> str:
             for p in ps)
         # ÉPURÉ + COLONNES ALIGNÉES (user 2026-09-15) : par marché = TAUX DE RÉUSSITE coloré + ratio « gagnés/
         # réglés » (validés+tombés ; poussés exclus), alignés en colonnes (chiffres tabulaires). Plus de pastilles
-        # ✓/✗ ni de total redondant (total = ✓+✗, dérivable). Famille encore TOUTE en cours (live) -> « •N en cours ».
+        # ✓/✗ ni de total redondant (total = ✓+✗, dérivable).
+        # user 2026-09-16 : ratio réglé ET « •N en cours » CUMULÉS (avant : exclusifs -> « Cartons 1/1 » masquait
+        # 7 signaux encore ouverts ; capture IMG_5969). On montre les deux dès que les deux existent.
         _fset = nw + nl
+        _parts = []
         if _fset:
             _fpct = round(100 * nw / _fset)
-            right = (f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>'
-                     f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
-        else:
-            right = f'<span class="lph-fg-live">•{no} en cours</span>'
+            _parts.append(f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>'
+                          f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
+        if no:
+            _parts.append(f'<span class="lph-fg-live">•{no} en cours</span>')
+        right = "".join(_parts) or '<span class="lph-fg-live">➖</span>'
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
                     f'<span class="lph-fg-r">{right}</span></summary>'
