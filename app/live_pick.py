@@ -721,6 +721,16 @@ def observe_match(d: dict) -> int:
     # taux de tirs live utilisé (xG-proxy /90) — LOGGÉ dans chaque snapshot pour pouvoir BACKTESTER l'effet des
     # tirs plus tard (le cache est déjà chaud : price_catalog l'a rempli). None si stats indispo.
     srate = _stats_rate90(mid, home, away, d.get("start"), minute)
+    # COMPTEURS LIVE (corners/cartons/tirs) PERSISTÉS dans le store (user 2026-09-16, capture IMG_5971 « 14 corners
+    # en cours à 90' »). Le RENDU lit un cache FROID (allow_fetch=False) -> souvent aucun compte -> il ne pouvait ni
+    # afficher « 8 corners » ni TRANCHER les marchés comptés en direct. Ici le cache est déjà chaud (price_catalog a
+    # fetché) : on fige le dernier compte connu ; le rendu retombe dessus. Compteurs MONOTONES (ne font que monter)
+    # -> aucun faux règlement même si le compte a 1-2' de retard. Le règlement FINAL reste settle_all (vrai fetch).
+    _cnt_changed = False
+    _vals = _live_vals(mid, home, away, d.get("start"), allow_fetch=False)
+    if _vals and (rec.get("counts") or {}).get("vals") != _vals:
+        rec["counts"] = {"vals": _vals, "minute": minute}
+        _cnt_changed = True
     added = 0
     for p in qual:
         last = max((s["minute"] for s in rec["snaps"] if s.get("sel") == p["sel"]), default=None)
@@ -734,7 +744,7 @@ def observe_match(d: dict) -> int:
             "srate": round(srate, 3) if isinstance(srate, (int, float)) else None,   # tirs live (backtest futur)
         })
         added += 1
-    if added:
+    if added or _cnt_changed:
         _save(rec)
     return added
 
@@ -932,6 +942,9 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     # compteurs live PAR ÉQUIPE (corners/cartons/tirs) depuis le CACHE (allow_fetch=False -> 0 réseau au rendu)
     # pour trancher les marchés comptés en direct (total ET par équipe).
     counts = _live_vals(d.get("id"), home, away, d.get("start"), allow_fetch=False)
+    if not counts:                                     # cache froid au rendu -> repli sur le dernier compte
+        counts = (rec.get("counts") or {}).get("vals")  # PERSISTÉ à l'observe (user 2026-09-16) : « 8 corners »
+    #                                                    # s'affiche + les corners/cartons se tranchent en live
     for p in open_picks:
         p["status"] = "open"
         p["first_min"] = first.get(p["sel"], minute)
