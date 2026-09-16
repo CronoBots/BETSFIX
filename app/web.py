@@ -404,8 +404,9 @@ CSS = """
   /* FEEDBACK TACTILE natif (user 2026-09-14) : léger enfoncement / surbrillance au tap sur les surfaces
      cliquables -> l'app « répond » au doigt comme un natif. Transitoire (:active), donc n'affecte NI le
      layout NI la barre fixe (transform seulement pendant l'appui, sur des éléments non-ancêtres du menu). */
-  .row.mc,.row.pick,summary.zone-h,.aset-i,.mc-manual{transition:transform .09s ease,opacity .09s ease,background .12s ease}
-  .row.mc:active,.row.pick:active{transform:scale(.988)}
+  summary.zone-h,.aset-i,.mc-manual{transition:transform .09s ease,opacity .09s ease,background .12s ease}
+  /* Cartes de pari (.row.mc / .row.pick) : PLUS d'effet d'appui « qui s'enfonce » au tap (user 2026-09-17,
+     tous types de cartes). Le clic-partout pour (dé)plier reste géré par le JS card-tap (indépendant du :active). */
   summary.zone-h:active{opacity:.6}
   .aset-i:active{background:rgba(255,255,255,.05)}
   /* Accessibilité clavier (audit 2026-09-02) : anneau de focus VISIBLE au clavier UNIQUEMENT
@@ -1107,9 +1108,7 @@ CSS = """
        text-overflow:ellipsis;line-height:1.25}   /* ligue sur UNE seule ligne (user 2026-09-12), ellipse si trop long */
   .mc-r-live .mc-line-c .mc-comp{padding:0 10px}
   .mc-line-c .mc-badge{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
-  /* BADGE DOUBLON : match déjà couvert par un pari pré-match Confiance/Value (user 2026-09-14, transparence) */
-  .mc-pmb{margin-left:8px;font-size:9.5px;font-weight:800;letter-spacing:.02em;color:#e0b341;
-       background:rgba(224,179,65,.12);border:1px solid rgba(224,179,65,.28);border-radius:6px;padding:1px 6px;white-space:nowrap}
+  /* (badge doublon .mc-pmb « déjà en Confiance/Value » retiré le 2026-09-17) */
   /* Ligue des cartes de PARI (Confiance/Value, à venir ET terminé, _sport_row) : calée EN HAUT À GAUCHE
      et colorée comme les jambes de combiné (.cleg-comp #8fa2b8), au lieu du BLANC CENTRÉ (user 2026-09-03).
      Modificateur scopé -> n'affecte PAS les autres cartes (programme .mc-tg, combiné, accueil). Le badge
@@ -12174,14 +12173,17 @@ def _signaux_match_card(m: dict) -> str:
         # ✓/✗ ni de total redondant (total = ✓+✗, dérivable).
         # user 2026-09-16 : ratio réglé ET « •N en cours » CUMULÉS (avant : exclusifs -> « Cartons 1/1 » masquait
         # 7 signaux encore ouverts ; capture IMG_5969). On montre les deux dès que les deux existent.
+        # user 2026-09-17 : % de réussite TOUT À DROITE (colonne alignée, badge largeur fixe .lph-fg-pct min-width) ;
+        # ratio + « •N en cours » à sa GAUCHE. Ordre = ratio · •N en cours · [ % ].
         _fset = nw + nl
         _parts = []
         if _fset:
-            _fpct = round(100 * nw / _fset)
-            _parts.append(f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>'
-                          f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
+            _parts.append(f'<span class="lph-fg-ratio">{nw}/{_fset}</span>')
         if no:
             _parts.append(f'<span class="lph-fg-live">•{no} en cours</span>')
+        if _fset:
+            _fpct = round(100 * nw / _fset)
+            _parts.append(f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>')
         right = "".join(_parts) or '<span class="lph-fg-live">➖</span>'
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
                     f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
@@ -12191,8 +12193,8 @@ def _signaux_match_card(m: dict) -> str:
     if (gw + gl) > 0:
         _gpct = round(100 * gw / (gw + gl))
         rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Réussite du match</span>'
-                       f'<span class="lph-fg-r"><span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
-                       f'<span class="lph-fg-ratio">{gw}/{gw + gl}</span></span></div>')
+                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{gw + gl}</span>'
+                       f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span></span></div>')
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
@@ -12208,15 +12210,9 @@ def _signaux_match_card(m: dict) -> str:
         # Pas encore de score (fenêtre de coup d'envoi / rafraîchissement du flux ~12 s) : signaler que ça
         # CHARGE, plutôt qu'un « en direct » sec qui a l'air d'un état final (user 2026-09-14).
         center = '<span class="tm-live"><b>⏳ en direct</b><span class="tm-fin">score en cours…</span></span>'
-    # BADGE DOUBLON (user 2026-09-14) : ce match a-t-il déjà un pari pré-match confiance/value ? -> marqué.
+    # BADGE DOUBLON « déjà en Confiance/Value » RETIRÉ de la carte (user 2026-09-17) : jugé inutile à l'affichage.
+    # La ventilation « signaux sur match avec/sans pari pré-match » reste dans les STATS Signaux Live (by_prematch).
     badge = ""
-    try:
-        from app import live_pick as _lp
-        _pt = _lp._prematch_tier(str(m.get("mid"))) if m.get("mid") else None
-        if _pt in ("confiance", "value"):
-            badge = f'<span class="mc-pmb">déjà en {_pt.capitalize()}</span>'
-    except Exception:
-        badge = ""
     return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
                               center, badge, "".join(rows),
                               state_cls=("" if m.get("settled") else " mc-r-live"))
