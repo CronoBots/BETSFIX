@@ -9122,16 +9122,10 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ABSTENTIONS masquées quand le PROGRAMME est TERMINÉ (plus aucun match à jouer, user 2026-08-27) : une
     # abstention n'a de sens que tant qu'il reste des matchs à venir. Journée finie -> on ne montre plus ce
     # qu'on n'a pas joué. Même condition `_has_prog` que le badge « en attente ».
-    # SIGNAUX LIVE (user 2026-09-14) : les abstentions EN DIRECT deviennent leur carte Signaux Live -> zone à part,
-    # AVANT les abstentions pré-match restantes.
-    _sig_html = _signaux_live_prog_zone(sport or "foot") if _has_prog else ""
-    out.append(_sig_html)
-    # SIGNAUX LIVE — TERMINÉS DU JOUR (user 2026-09-14 : « il n'y a pas les match signaux live terminé ») : les
-    # matchs du jour dont les signaux sont réglés, DIRECTEMENT sur l'onglet Programme (avant ils n'étaient QUE
-    # dans la vue /jour d'un jour tapé + repliés). Zone ouverte, titre distinct de la zone « en cours ».
-    _sigfin_html = _signaux_day_matches(sport or "foot", _sport_today().isoformat(),
-                                        title="Signaux (test)", open_=True)
-    out.append(_sigfin_html)
+    # SIGNAUX (user 2026-09-17) : UNE seule zone « Signaux » = matchs EN COURS à signaux (en haut) + matchs
+    # RÉGLÉS du jour (en dessous), dans le même cadre — miroir de Confiance/Value (à venir + terminés). Remplace
+    # les 2 anciennes zones séparées « Signaux Live » + « Signaux (test) ». Affichage seul, hors ROI.
+    out.append(_signaux_zone(sport or "foot", _has_prog))
     # (zone « Abstention » RETIRÉE le 2026-09-17 : les matchs sans pari restent dans le Programme en carte neutre
     #  `prog` puis passent en Signaux Live au coup d'envoi. `_abstention_zone` conservée dormante = renvoie '' ).
     # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné) —
@@ -10177,19 +10171,22 @@ def _abstention_zone(sport: str = "foot") -> str:
                  collapsible=True, open_=False)
 
 
-def _signaux_live_prog_zone(sport: str = "foot") -> str:
-    """Zone « Signaux Live » du PROGRAMME = les abstentions EN DIRECT (matchs analysés sans pari joué mais qui
-    produisent des signaux live). Cartes Signaux Live premium. '' si aucune (user 2026-09-14). Ouverte."""
-    _p, _a, sig = _planning_cards(sport)
-    if not sig:
-        # AUCUN signal live encore -> catégorie VISIBLE « en attente » (comme Confiance/Value), user 2026-09-14 :
-        # l'onglet n'est appelé que s'il y a un programme du jour, donc waiting=True est correct.
-        return _zone("lph", "Signaux Live", "", 0, "", zk="prog-signaux", collapsible=True,
-                     waiting=True, empty="Aucun signal live pour l'instant.")
-    # PROGRAMME : pas de badge « Live » (user 2026-09-14) — icône devant le titre + compteur ; l'état live reste
-    # porté par les cartes elles-mêmes (score + horloge). Le mot « Live » est réservé à l'onglet Live.
-    return _zone("lph", "Signaux Live", "", len(sig), _join_cards(sig),
-                 zk="prog-signaux", collapsible=True, open_=True)
+def _signaux_zone(sport: str, has_prog: bool) -> str:
+    """Zone UNIQUE « Signaux » du Programme (user 2026-09-17) : matchs EN COURS à signaux (en HAUT) + matchs
+    RÉGLÉS du jour (en DESSOUS), dans le MÊME cadre — miroir exact de la zone Confiance/Value (à venir +
+    terminés). Remplace les 2 anciennes zones séparées « Signaux Live » + « Signaux (test) ». Les réglés
+    persistent en fin de journée (comme les résultats Confiance) ; le placeholder « en attente » n'apparaît que
+    tant qu'il reste un programme. AFFICHAGE seul — hors ROI, `SHOW_ON_SITE` inchangé."""
+    live = _planning_cards(sport)[2] if has_prog else []
+    settled = _signaux_settled_cards(sport, _sport_today().isoformat())
+    cards = list(live) + list(settled)                          # EN COURS d'abord, puis TERMINÉS (comme Confiance)
+    if cards:
+        return _zone("lph", "Signaux", "", len(cards), _join_cards(cards),
+                     zk="prog-signaux", collapsible=True, open_=True)
+    if has_prog:                                                # aucun signal encore mais journée en cours -> « en attente »
+        return _zone("lph", "Signaux", "", 0, "", zk="prog-signaux", collapsible=True,
+                     waiting=True, empty="Aucun signal pour l'instant.")
+    return ""                                                   # journée finie sans aucun signal -> pas de zone orpheline
 
 
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
@@ -12564,18 +12561,17 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
                  zk="live-phantom-stats", collapsible=True, open_=open_)
 
 
-def _signaux_day_matches(sport: str, day: str, title: str = "Signaux Live", open_: bool = False) -> str:
-    """Détail des matchs Signaux Live RÉGLÉS d'un JOUR SPORTIF donné (`day` = ISO), pour le Programme. Chaque
-    match = carte premium + ses suggestions (✓/✗). '' si aucun ce jour / flag off. EXPÉRIMENTAL, hors ROI.
-    `title`/`open_` : personnalisables (ex. « Signaux Live — terminés », ouvert, sur l'onglet Programme du jour)."""
+def _signaux_settled_cards(sport: str, day: str) -> list:
+    """Cartes des matchs Signaux RÉGLÉS d'un JOUR SPORTIF donné (`day` = ISO), triées par taux de réussite ↓.
+    Renvoie la LISTE des cartes HTML (pas une zone) -> permet de fusionner « en cours » + « terminés » dans une
+    SEULE zone « Signaux » (cf. `_signaux_zone`, user 2026-09-17). [] si aucun ce jour / flag off. Hors ROI."""
     try:
         from app import live_pick as _lp
         if not _lp.SHOW_ON_SITE or sport != "foot":
-            return ""
+            return []
         matches = _lp.recent_settled(sport, hours=24 * 14, limit=200)   # large -> on filtre par jour ci-dessous
     except Exception:
-        return ""
-    import html as _h
+        return []
     import datetime as _dt
     day_ms = []
     for m in matches:
@@ -12602,10 +12598,7 @@ def _signaux_day_matches(sport: str, day: str, title: str = "Signaux Live", open
         cards.append(_signaux_match_card({
             "home": m.get("home", ""), "away": m.get("away", ""), "comp": m.get("comp", ""),
             "mid": m.get("mid"), "score": (m.get("final") or "").strip(), "settled": True, "picks": picks}))
-    # PROGRAMME : pas de badge « Live » (user 2026-09-14 : ces matchs sont réglés/historique) — juste l'icône
-    # devant le titre (via _ZONE_ICON["lphs-day"]) + le compteur. Le mot « test » est retiré (tag vide).
-    return _zone("lphs-day", title, "", len(day_ms), _join_cards(cards),
-                 zk="sig-day", collapsible=True, open_=open_)
+    return cards
 
 
 def render_directs(play_live: list, prov_live: list, sport: str | None = None, frag: bool = False) -> str:
