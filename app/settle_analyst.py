@@ -1359,22 +1359,29 @@ def _apifootball_score(d: dict, af_cache: dict) -> dict | None:
             "final_home": fh, "final_away": fa, "label": label}
 
 
-async def settle_analyses() -> int:
+async def settle_analyses(af_only: bool = False) -> int:
     """Règle TOUS les matchs analysés terminés. Code = `pick_code` sinon dérivé. Score via
     event/{id} (id Sofa valide : donne aussi jeux par set + 1er service) ; repli scheduled-events
     par noms (foot non résolu). HOLD1 -> point-by-point. Renvoie le nombre de sidecars écrits.
     En fin de passe : clôt en `void` les fantômes NON RÉGLABLES (essais épuisés / match vieux) pour ne
-    jamais laisser de « en attente » à vie (demande user)."""
+    jamais laisser de « en attente » à vie (demande user).
+    `af_only` (passe RAPIDE, user 2026-09-17 « ce qu'API-Football peut récupérer, traité tout de suite ») :
+    ne règle QUE ce qu'API-Football fournit seul (foot fini FT : pick/paris affichés + gel stat_bet + notif),
+    SANS replis SofaScore/livescore/flashscore, SANS enrichissement stats/périodes, SANS votes ni fantômes,
+    et SANS incrémenter les compteurs d'essai (rien n'est « abandonné » plus vite). Tout le reste (sources de
+    secours, votes, fantômes, void) reste à la boucle lente 10 min. Un match non résolu par API-Football est
+    simplement laissé intact pour la boucle lente -> aucune régression, juste moins d'attente sur les résultats."""
     if _settle_lock.locked():          # une passe tourne déjà -> ne pas en lancer une 2e en parallèle
         return 0
     async with _settle_lock:
-        n = await _settle_analyses_impl()
-        n += backfill_stat_bets()      # garde-fou : fige les paris réglés-mais-non-figés (trou hérité)
-        n += void_exhausted_shadows()
+        n = await _settle_analyses_impl(af_only=af_only)
+        if not af_only:                # nettoyage lourd (gel hérité + void fantômes) réservé à la boucle lente
+            n += backfill_stat_bets()  # garde-fou : fige les paris réglés-mais-non-figés (trou hérité)
+            n += void_exhausted_shadows()
         return n
 
 
-async def _settle_analyses_impl() -> int:
+async def _settle_analyses_impl(af_only: bool = False) -> int:
     pending = []
     for side in glob.glob(os.path.join(analyses.DIR, "*.json")):
         try:
@@ -1473,6 +1480,8 @@ async def _settle_analyses_impl() -> int:
                     log.info("règlement via API-Football (primaire) : %s_%s %s",
                              sport, d.get("id"), score.get("label"))
             if not score:
+                if af_only:
+                    continue           # passe rapide : rien d'autre qu'API-Football -> replis + void = boucle lente
                 if sofa and len(sofa) <= 8:
                     score = await _event_data(sport, sofa)
                 if not score:                       # repli : scheduled-events du jour, par noms
@@ -1606,7 +1615,7 @@ async def _settle_analyses_impl() -> int:
                 c.startswith(fam) and any(k not in _cur_st for k in keys)
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c
                 for fam, keys in _STAT_KEYS.items())
-            if need_stats and (not score.get("stats") or cmb_inc or _stat_missing):
+            if need_stats and not af_only and (not score.get("stats") or cmb_inc or _stat_missing):
                 st = await _event_stats(sofa) if (sofa and len(sofa) <= 8) else None
                 if st:
                     score["stats"] = {**(score.get("stats") or {}), **st}   # complète sans rien perdre
@@ -1661,7 +1670,7 @@ async def _settle_analyses_impl() -> int:
                               "BQHCAP", "GAMESHCAP", "TIEBREAK", "REGTIME"))   # REGTIME : 90 min (somme des mi-temps)
                 or "1H" in c or "2H" in c
                 for c in [code, *bet_codes, *combo_codes, *shadow_codes] if c)
-            if need_periods:
+            if need_periods and not af_only:
                 from app import livescore as _lsmod
                 lsc = await asyncio.to_thread(_lsmod.final_score, sport, d)
                 if lsc and lsc.get("periods"):
@@ -1808,6 +1817,8 @@ async def _settle_analyses_impl() -> int:
                 return settle_pick(c, score)
 
             pr = await _settle_one(code)
+            if af_only and pr is None:
+                continue               # passe rapide : pick non réglable purement -> boucle lente (0 churn/notif)
             d["result"] = {"score": score.get("label"), "pick_result": pr, "raw": score}
             if pr is None and analyses.status_of(d) == "finished":   # non réglable (abandon…) -> compte l'essai
                 d["pick_tries"] = (d.get("pick_tries") or 0) + 1
@@ -1960,7 +1971,7 @@ async def _settle_analyses_impl() -> int:
             # PRÉDICTIONS FANTÔMES (calibrage) : on règle CHAQUE prédiction (métrique live OU code) ->
             # result. Elles ne pèsent QUE dans la calibration — jamais dans l'affichage/ROI/forme.
             shadow = d.get("shadow")
-            if shadow:
+            if shadow and not af_only:   # passe rapide : fantômes (calibration, non urgents) -> boucle lente
                 svals = {"goals_h": score.get("home"), "goals_a": score.get("away"),
                          **(score.get("stats") or {})}
                 for sp in shadow:
@@ -2003,7 +2014,7 @@ async def _settle_analyses_impl() -> int:
             # bloqué au scan) -> FIGÉ une fois dans le sidecar, ne bouge plus ensuite. Si le sofa_id
             # n'est pas exploitable (résolution échouée au scan), on le RÉSOUT par noms via
             # scheduled-events (et on le fige) pour pouvoir lire les votes.
-            if d.get("pub_home") is None:
+            if d.get("pub_home") is None and not af_only:   # passe rapide : backfill votes SofaScore -> boucle lente
                 vsofa = sofa if (sofa.isdigit() and len(sofa) <= 8) else None
                 if not vsofa:
                     day = (d.get("start") or "")[:10]

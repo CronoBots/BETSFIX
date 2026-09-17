@@ -314,6 +314,27 @@ async def _live_shadow_settle_loop():
         await asyncio.sleep(75)
 
 
+async def _fast_settle_loop():
+    """Règlement RAPIDE des VRAIS paris via API-Football (user 2026-09-17 « ce qu'API-Football peut récupérer,
+    traité tout de suite, éviter les attentes inutiles »). API-Football est déjà la source PRIMAIRE de règlement
+    du foot ; seule la cadence 10 min de `_settle_loop` retardait le résultat/ROI/notif. Cette passe (~90 s)
+    appelle `settle_analyses(af_only=True)` : ne règle QUE les matchs foot FT chez API-Football, SANS replis ni
+    votes ni fantômes (laissés à la boucle lente), sans marteler les sources de secours ni brûler les compteurs
+    d'essai. Coût gaté : `_apifootball_score` (1 appel `/fixtures?date` couvre TOUT le jour) n'est touché QUE s'il
+    existe un match foot fini non réglé (sinon `pending` vide -> 0 appel). Notif idempotente (verrou + flags)."""
+    from app import settle_analyst
+    await asyncio.sleep(110)       # laisse l'app démarrer (après le settle-loop lent qui démarre à 90 s)
+    while True:
+        try:
+            if _become_settle_leader():
+                nn = await settle_analyst.settle_analyses(af_only=True)
+                if nn:
+                    log.info("règlement rapide (API-Football FT) : %s pari(s) réglé(s)", nn)
+        except Exception as exc:
+            log.debug("fast settle loop: %s", exc)
+        await asyncio.sleep(90)
+
+
 def _apply_pending_reset(data: str | None = None) -> bool:
     """Si data/.reset-pending existe : vide les stores de suivi (tennis/foot/basket) + les analyses,
     puis retire la sentinelle. Permet une remise à zéro PROPRE au PROCHAIN démarrage, sans devoir
@@ -364,7 +385,8 @@ async def lifespan(app: FastAPI):
                   asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
                   asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
                   asyncio.create_task(_match_events_loop()),  # 🔔 notifs par match (début/but/MT/fin), PWA
-                  asyncio.create_task(_live_shadow_settle_loop())]  # clôture rapide des signaux (API-Football FT)
+                  asyncio.create_task(_live_shadow_settle_loop()),  # clôture rapide des signaux (API-Football FT)
+                  asyncio.create_task(_fast_settle_loop())]   # règlement rapide des vrais paris (API-Football FT)
     else:
         log.info("RÔLE=server : boucles de collecte désactivées (le cloud sert, ne scrape pas).")
     yield
