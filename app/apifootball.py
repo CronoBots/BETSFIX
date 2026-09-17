@@ -540,7 +540,13 @@ def live_clockdata(home: str, away: str, ko_iso: str, live_list: list) -> dict |
     anchor = p2 if (short == "2H" and p2) else (p1 if short == "1H" else None)
     if anchor:
         tot = int(time.time()) - int(anchor) + (45 * 60 if short == "2H" else 0)
-        if tot >= 0 and abs(tot // 60 - minute) <= 3:      # cohérent avec elapsed -> on prend la seconde
+        _ex = best.get("extra") if isinstance(best.get("extra"), int) else 0
+        _diff = tot // 60 - minute
+        # PROLONGATION (temps additionnel, user 2026-09-17) : `elapsed` CAPE à 45/90 mais l'horloge réelle continue
+        # -> `tot` dépasse LÉGITIMEMENT `elapsed` de ~`extra` min. On élargit la tolérance CÔTÉ POSITIF (sinon le
+        # garde `<=3` rejetait la reconstruction en prolongation -> horloge FIGÉE à 45:00/90:00, redémarrant à
+        # chaque refresh). Côté négatif (anchor douteux/dans le futur) : on garde -3.
+        if tot >= 0 and -3 <= _diff <= 3 + _ex:
             minute, second = tot // 60, tot % 60
     _hth, _hta = best.get("ht_h"), best.get("ht_a")
     return {"score": {"home": best.get("gh"), "away": best.get("ga")},
