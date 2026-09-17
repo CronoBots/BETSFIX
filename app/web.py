@@ -12260,7 +12260,7 @@ def _live_phantom_zone(sport: str) -> str:
     cards = [_signaux_match_card(m) for m in matches]
     # Cartes SÉPARÉES comme Confiance/Value (via `_join_cards` = `.mc-sep`) ; PLUS de description sous la zone
     # (user 2026-09-13 : catégorie épurée comme les autres).
-    return _zone("lph", "Signaux Live", "en direct", len(matches), _join_cards(cards),
+    return _zone("lph", "Signaux", "en direct", len(matches), _join_cards(cards),
                  zk="live-phantom", collapsible=True, open_=True)
 
 
