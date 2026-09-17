@@ -976,6 +976,8 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
             # résultat/DC/handicap/période). User 2026-09-15 : « tous les signaux proposés pour un match doivent
             # rester visibles » -> on le GARDE en « en cours » jusqu'à son règlement (avant il disparaissait).
             rec_p["cur"] = _signal_current(sel, s.get("family"), hs, as_, home, away, counts)
+            rec_p["stale"] = True   # DÉPASSÉ (user 2026-09-17) : proposé plus tôt, sorti de la vue ACTUELLE du
+            #                         modèle (plus dans current_picks) -> affiché grisé, pas comme une reco active.
             carried.append(rec_p)
     # TOUS les signaux du match (user 2026-09-15 : « affiche tout les signaux, pas seulement 3 »), classés par
     # statut : validés · en cours (courants + reportés) · tombés. Plus de cap — la carte re-trie par statut+minute.

@@ -2849,6 +2849,12 @@ CSS = """
   .lph-p-won .lph-p-sel{color:#d7f5e4}
   .lph-p-lost{opacity:.62}
   .lph-p-lost .lph-p-sel{text-decoration:line-through;text-decoration-color:rgba(255,107,107,.5)}
+  /* SIGNAL DÉPASSÉ (user 2026-09-17) : le modèle ne le tient plus -> grisé, barré, tag « dépassé », pas de barre/value */
+  .lph-p-stale{opacity:.5}
+  .lph-p-stale .lph-p-sel{color:#8494a6;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.22)}
+  .lph-stale-tag{font-size:10px;font-weight:800;color:#8494a6;background:rgba(255,255,255,.06);border-radius:6px;
+       padding:2px 8px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+  .lph-fg-stale{color:#7f8fa2;font-size:11.5px;font-weight:700;white-space:nowrap}
   .lph-p.lph-none{color:#7f8fa2;font-style:italic;font-size:12px;text-align:center;padding:15px 0 9px}
   /* GROUPES PAR MARCHÉ (pli déroulant, user 2026-09-15) : carte compacte ; l'en-tête résume ✓/•/✗ + le nombre
      de lignes du marché ; fermé par défaut (rien n'est caché, 1 clic déplie). */
@@ -12053,14 +12059,15 @@ def _is_recent(m: dict, p: dict, live: bool, window: int = 15) -> bool:
     """Signal « récent » = EN COURS et émis dans les `window` dernières minutes de jeu (met en avant les picks
     FRAIS quand le match a avancé — un pari de la 70' compte plus qu'un de la 15'). False hors live / minute
     inconnue / signal déjà réglé. `first_min` = 1re détection -> marque les signaux NOUVELLEMENT apparus."""
-    if not live or p.get("status") != "open":
+    if not live or p.get("status") != "open" or p.get("stale"):
         return False
     _mn, _fm = m.get("minute"), p.get("first_min")
     return isinstance(_mn, int) and isinstance(_fm, int) and 0 <= (_mn - _fm) <= window
 
 
 def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, min_txt: str,
-              status: str = "open", cur: str | None = None, recent: bool = False) -> str:
+              status: str = "open", cur: str | None = None, recent: bool = False,
+              stale: bool = False) -> str:
     """Item PREMIUM d'un signal live (calqué sur Confiance/Value en direct). GAUCHE = **minute de création**
     du signal, colorée par statut (bleu en cours / vert validé / rouge tombé) — remplace le point (user
     2026-09-14 : « le temps de match lors de la création, pour s'y retrouver »). EN COURS : barre de proba
@@ -12070,6 +12077,12 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
     # à DROITE en colonne : cote + (si réglé) badge résultat ✓ validé / ✗ tombé. Le résultat n'est plus
     # confondu avec la minute (avant la minute était colorée comme le statut).
     badge = f'<span class="lph-tm{" lph-tm-rec" if recent else ""}">{html.escape(str(min_txt))}</span>'
+    if stale:
+        # DÉPASSÉ (user 2026-09-17) : le modèle ne tient plus ce pari (sorti de sa vue actuelle). Ligne COMPACTE
+        # grisée, barrée, SANS barre de proba ni value figée -> ne ressemble plus à une reco active.
+        return (f'<div class="lph-p lph-p-stale"><div class="lph-p-h">{badge}'
+                f'<span class="lph-p-sel">{sel_html}</span>'
+                f'<span class="lph-p-rt"><span class="lph-stale-tag">dépassé</span></span></div></div>')
     cote_html = f'<span class="lph-p-cote">cote <b>{cote}</b></span>' if cote else ""
     cur_html = f'<span class="lph-cur">{html.escape(str(cur))}</span>' if cur else ""
     if status in ("won", "lost", "push"):
@@ -12156,14 +12169,14 @@ def _signaux_match_card(m: dict) -> str:
     from collections import OrderedDict
     # TRI (user 2026-09-14/15) : d'abord PAR STATUT (validé -> en cours -> tombé), puis, à statut égal, PAR
     # MINUTE d'émission du signal (`first_min`, croissant) — les plus anciens en tête dans chaque groupe.
-    _ord = {"won": 0, "open": 1, "push": 2, "lost": 3}
-    # TRI : d'abord PAR STATUT (validé -> en cours -> tombé). Puis PAR MINUTE d'émission : en LIVE les signaux
-    # RÉCENTS d'abord (décroissant) — un pari détecté à la 70' est plus pertinent qu'un de la 15' quand le match a
-    # avancé (user 2026-09-17) ; sur un match TERMINÉ on garde le CHRONOLOGIQUE (croissant) pour relire dans l'ordre.
+    _ord = {"won": 0, "open": 1, "push": 3, "lost": 4}   # dépassé = 2 (entre actifs et push/tombés)
+    # TRI : d'abord PAR STATUT (validé -> ACTIF en cours -> DÉPASSÉ -> tombé). Puis PAR MINUTE d'émission : en LIVE
+    # les signaux RÉCENTS d'abord (décroissant) — un pari de la 70' est plus pertinent qu'un de la 15' quand le
+    # match a avancé (user 2026-09-17) ; match TERMINÉ -> CHRONOLOGIQUE (croissant) pour relire dans l'ordre.
     _live = not bool(m.get("settled"))
 
     def _pick_sort(p):
-        _st = _ord.get(p.get("status", "open"), 1)
+        _st = 2 if p.get("stale") else _ord.get(p.get("status", "open"), 1)   # dépassé sous les actifs
         _fm = p.get("first_min")
         if isinstance(_fm, int):
             return (_st, -_fm if _live else _fm)
@@ -12186,14 +12199,16 @@ def _signaux_match_card(m: dict) -> str:
         nw = sum(1 for x in ps if x.get("status") == "won")
         nl = sum(1 for x in ps if x.get("status") == "lost")
         npu = sum(1 for x in ps if x.get("status") == "push")
+        nst = sum(1 for x in ps if x.get("stale"))          # DÉPASSÉS (sous-ensemble des 'open')
         no = len(ps) - nw - nl - npu
+        noa = no - nst                                       # en cours ACTIFS (hors dépassés)
         gw += nw
         gl += nl
         lines = "".join(
             _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
                       analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
                       f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"),
-                      recent=_is_recent(m, p, _live))
+                      recent=_is_recent(m, p, _live), stale=bool(p.get("stale")))
             for p in ps)
         # ÉPURÉ + COLONNES ALIGNÉES (user 2026-09-15) : par marché = TAUX DE RÉUSSITE coloré + ratio « gagnés/
         # réglés » (validés+tombés ; poussés exclus), alignés en colonnes (chiffres tabulaires). Plus de pastilles
@@ -12212,10 +12227,12 @@ def _signaux_match_card(m: dict) -> str:
                          f'<span class="lph-fg-pct {_lph_pct_cls(_fpct)}">{_fpct}%</span>')
             else:
                 right = '<span class="lph-fg-live">➖</span>'
-        elif no:
-            right = f'<span class="lph-fg-live">•{no} en cours</span>'
+        elif noa:
+            right = f'<span class="lph-fg-live">•{noa} en cours</span>'
         elif _fset:
             right = f'<span class="lph-fg-ratio">{nw}/{_fset}</span>'
+        elif nst:
+            right = f'<span class="lph-fg-stale">{nst} dépassé{"s" if nst > 1 else ""}</span>'
         else:
             right = ''
         rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
@@ -12233,7 +12250,7 @@ def _signaux_match_card(m: dict) -> str:
                        f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span></span></div>')
     elif not _finished and _gtot > 0:
         # EN COURS : label neutre + « •N en cours » SEUL (pas de fraction réglés/total trompeuse, user 2026-09-17).
-        _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push"))
+        _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push") and not p.get("stale"))
         _gright = (f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen
                    else f'<span class="lph-fg-ratio">{gw}/{_gset}</span>')
         rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
