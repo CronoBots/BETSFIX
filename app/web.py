@@ -1027,7 +1027,7 @@ CSS = """
      `auto <h>` = estimation qui devient exacte après 1er rendu -> pas de saut de scrollbar. */
   .row.mc{content-visibility:auto;contain-intrinsic-size:auto 300px;
        padding:0;margin:7px 0;overflow:hidden;position:relative;
-       background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);   /* GLOW halo comme le graphe ROI (user 2026-09-10) : lumière cyan douce, cohérente quelle que soit la position de scroll */
+       background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%) #080d15;   /* GLOW cyan doux SUR base OPAQUE #080d15 (user 2026-09-17) : le filigrane fixe/dégradé ne transparaît PLUS à travers la carte -> sa LUMINOSITÉ NE CHANGE PAS au dépli (avant : la carte translucide couvrait une autre partie du fond fixe en grandissant). Le filigrane reste fixe DERRIÈRE, visible autour/entre les cartes */
        border:1px solid var(--st-soon);
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO AUTOUR cyan comme les cadres stats (user 2026-09-10) — intensité relevée pour être VISIBLE dans la liste (contexte déjà teinté) */
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
@@ -9062,7 +9062,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # matchs du jour dont les signaux sont réglés, DIRECTEMENT sur l'onglet Programme (avant ils n'étaient QUE
     # dans la vue /jour d'un jour tapé + repliés). Zone ouverte, titre distinct de la zone « en cours ».
     _sigfin_html = _signaux_day_matches(sport or "foot", _sport_today().isoformat(),
-                                        title="Signaux Live — terminés", open_=True)
+                                        title="Signaux (test)", open_=True)
     out.append(_sigfin_html)
     # (zone « Abstention » RETIRÉE le 2026-09-17 : les matchs sans pari restent dans le Programme en carte neutre
     #  `prog` puis passent en Signaux Live au coup d'envoi. `_abstention_zone` conservée dormante = renvoie '' ).
@@ -12280,7 +12280,7 @@ def _signaux_match_card(m: dict) -> str:
     _gtot = len(_picks)
     if _finished and _gset > 0:
         _gpct = round(100 * gw / _gset)
-        _sum = (f'<summary class="lph-gpct lph-gpct-sum"><span class="lph-gpct-l">Réussite du match</span>'
+        _sum = (f'<summary class="lph-gpct lph-gpct-sum"><span class="lph-gpct-l">Réussite des signaux</span>'
                 f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{_gset}</span>'
                 f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
                 f'<span class="lph-mf-chev">▸</span></span></summary>')
@@ -12481,6 +12481,12 @@ def _signaux_day_matches(sport: str, day: str, title: str = "Signaux Live", open
             day_ms.append(m)
     if not day_ms:
         return ""
+
+    def _msucc(mm):                                          # taux de réussite du match (won/réglés), -1 si rien réglé
+        _w = sum(1 for p in mm.get("picks", []) if p.get("result") == "won")
+        _l = sum(1 for p in mm.get("picks", []) if p.get("result") == "lost")
+        return (_w / (_w + _l)) if (_w + _l) else -1.0
+    day_ms.sort(key=_msucc, reverse=True)                    # PLUS HAUT TAUX DE RÉUSSITE EN PREMIER (user 2026-09-17)
     cards = []
     for m in day_ms:
         # TRIÉS + GROUPÉS PAR MARCHÉ comme le live (user 2026-09-15) via _signaux_match_card en mode `settled`.
