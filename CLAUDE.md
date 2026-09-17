@@ -389,7 +389,15 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
     est RETIRÉE (métrique de value d'avant-match, inutile une fois réglé) via `hide_context=True`
     (`analyses.verdict_line` / `web._verdict_block`), passé par `_leg_card` quand won/lost/push/void. Avant
     règlement (à venir/live) : légende inchangée.
-  - **FILIGRANE logo (MAJ 2026-09-06)** : sur **toutes** les cartes, **opacité .05** (discret, validé user),
+  - **FILIGRANE logo — MAJ 2026-09-17 : FIXÉ À LA VUE, plus par carte, EMBLÈME SEUL.** Sur le SITE, le filigrane
+    est désormais un **`body::before`** fixe (`position:fixed`, centré à l'écran, **ne bouge pas au scroll**, un
+    par onglet), en **`logo_mark.png`** (emblème « BK » recadré, **sans le mot BETSFIX**), opacité .06. Le fond des
+    cartes est translucide → il transparaît. ⚠️ **Telegram inchangé** : la base `.row.mc::before` garde
+    position/taille MAIS **sans `background-image` côté web** ; `tools/card_image` y réinjecte
+    `background-image:url(data-uri)!important` → la carte Telegram garde son filigrane PAR CARTE (logo.png complet).
+    Le reste ci-dessous (135px, `.cleg::before`, exceptions) décrit l'ANCIEN filigrane par carte, conservé pour
+    Telegram. Historique :
+  - **FILIGRANE logo (par carte, ANCIEN — 2026-09-06, gardé pour Telegram)** : sur **toutes** les cartes, **opacité .05** (discret, validé user),
     **taille UNIFIÉE 135px** (`.row.mc::before` ET `.cleg::before` ; avant 150 vs 120 = tailles différentes).
     `.row.mc::before` + **`.cleg::before`** (jambes/cartes-résultat). Pour les **combinés**, le logo vit
     dans le **cadre des JAMBES**, PAS sur le cadre global doré (`.row.mc.mc-tg-gold::before{content:none}`).
