@@ -1877,6 +1877,27 @@ def _is_btts(sel: str, code: str) -> bool:
 #     passe, INDÉPENDANTE de la cote. Poisson sur les événements restants. C'est la composante « live ». ---
 _RATE90 = {"goals": 2.7, "corners": 10.0, "cards": 4.6, "redcards": 0.25, "sot": 8.5, "shots": 25.0}
 
+# RYTHME PROPRE AU MATCH pour les marchés COMPTÉS (corners/cartons/tirs/fautes/… — user 2026-09-17 « peut-on
+# calculer mieux avec les stats dispo ? »). Avant : la projection du RESTANT utilisait un taux-ligue FIXE
+# (`_RATE90`/`_XCOUNT_RATE90`) -> un match nerveux (30 fautes en 1re MT) ou fermé était mal projeté. Désormais
+# on estime le taux/90 du RESTANT par un MÉLANGE BAYÉSIEN du rythme OBSERVÉ (compte live sur la fraction écoulée)
+# et du prior-ligue — MÊME schéma que `_match_goals90` pour les buts. AFFICHAGE/SIGNAUX seulement (barre « chance
+# live » + track fantôme) : n'entre PAS dans la sélection Confiance/Value/combos (pré-match). Tagué par
+# MODEL_VERSION côté signaux -> mesurable. Réversible : COUNT_TEMPO_ON=False rend le taux-ligue fixe d'avant.
+COUNT_TEMPO_ON = True
+_COUNT_TEMPO_W = 0.65     # poids du prior-ligue (en « matchs »), cf. _GOALS90_PRIOR_W=1.0 pour les buts
+
+
+def _blend_count_rate90(cur, prior90: float, rem: float, w: float = _COUNT_TEMPO_W) -> float:
+    """Taux/90 d'un événement compté AJUSTÉ au match, pour projeter le RESTANT : mélange bayésien du rythme
+    OBSERVÉ (`cur` sur la fraction écoulée `f=1-rem`) et du prior-ligue `prior90`, pondéré (f, w). f→0 (tôt) ->
+    ~prior (aucune donnée) ; f→1 -> ~rythme observé. Renvoie prior90 tel quel si COUNT_TEMPO_ON=False (ancien
+    comportement) ou compteur illisible."""
+    if not COUNT_TEMPO_ON or cur is None or cur < 0:
+        return prior90
+    f = max(0.05, min(1.0, 1.0 - rem))
+    return (cur + w * prior90) / (f + w)
+
 
 def _poisson_pmf(k: int, lam: float) -> float:
     if lam <= 0:
@@ -1944,9 +1965,10 @@ def _foot_count_pct(info: dict, vals: dict, rem: float) -> float | None:
         return None
     side = info.get("side")
     if side in ("HOME", "AWAY"):
-        cur, lam = (ch if side == "HOME" else ca), (rate / 2.0) * rem
+        cur, prior90 = (ch if side == "HOME" else ca), rate / 2.0
     else:
-        cur, lam = ch + ca, rate * rem
+        cur, prior90 = ch + ca, rate
+    lam = _blend_count_rate90(cur, prior90, rem) * rem   # rythme PROPRE au match (Bayes) × temps restant
     line, over = info["line"], info["dir"] == "OVER"
     if cur > line:
         p_over = 1.0

@@ -209,7 +209,9 @@ STATS_INJECT_ON = True
 # 2026-09-13. Estampillée sur chaque snapshot (`mv`) -> on mesure la calibration du NOUVEAU modèle SÉPARÉMENT
 # des vieux snapshots (v1 = taux-ligue), sinon la calibration reste polluée des semaines. Incrémenter à chaque
 # changement de modèle qui invalide la calibration passée.
-MODEL_VERSION = 3         # v3 (2026-09-13) = v2 (tempo+tirs+surcote-fin) + TAUX DE BASE pré-match (omap O/U)
+MODEL_VERSION = 4         # v4 (2026-09-17) = v3 + RYTHME PROPRE au match pour les marchés comptés (corners/
+#                           cartons/tirs/fautes/… : projection du restant = mélange bayésien observé+prior-ligue,
+#                           cf. analyses._blend_count_rate90 ; v3 = taux-ligue fixe). Tag -> mesure séparée du v4.
 _XG_PER_SOT = 0.32        # xG-proxy par tir CADRÉ (ordre de grandeur usuel)
 _XG_PER_OFF = 0.04        # xG-proxy par tir NON cadré
 _STATS_RATE_TTL = 180.0   # cache stats live 3 min (user 2026-09-14 « trop d'appels ») : les tirs/corners montent
@@ -404,9 +406,10 @@ def _extra_count_pct(info: dict, vals: dict, rem: float):
         return None
     side = info.get("side")
     if side in ("HOME", "AWAY"):
-        cur, lam = (ch if side == "HOME" else ca), (rate / 2.0) * rem
+        cur, prior90 = (ch if side == "HOME" else ca), rate / 2.0
     else:
-        cur, lam = ch + ca, rate * rem
+        cur, prior90 = ch + ca, rate
+    lam = analyses._blend_count_rate90(cur, prior90, rem) * rem   # rythme PROPRE au match (Bayes) × temps restant
     if cur > line:
         p_over = 1.0
     else:
