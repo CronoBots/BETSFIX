@@ -43,3 +43,27 @@ def test_top_n_cap():
     top = rank_important(events, top_n=10)
     assert len(top) == 10
     assert top[0]["markets"] == 19 and top[-1]["markets"] == 10   # les 10 plus profonds
+
+
+def test_is_excluded_comp_targets_only_afc_two():
+    """AFC Champions League TWO = marché Pinnacle mou (marge médiane ~11%, 75% rejeté) -> hors slate.
+    L'ELITE (~5%) et tout le reste RESTENT. Ciblage sur le libellé précis, jamais le mot-clé « afc » nu."""
+    from app.match_select import is_excluded_comp
+    assert is_excluded_comp("AFC Champions League 2") is True        # libellé Unibet
+    assert is_excluded_comp("AFC Champions League Two") is True       # libellé API-Football
+    assert is_excluded_comp("Ligue des Champions AFC") is False       # Elite -> gardée
+    assert is_excluded_comp("AFC Champions League Elite") is False    # Elite -> gardée
+    assert is_excluded_comp("EFL League Two") is False                # 4e div anglaise (pas AFC)
+    assert is_excluded_comp("UEFA Champions League") is False
+    assert is_excluded_comp("CAF Champions League Qualification") is False
+
+
+def test_rank_important_drops_afc_two_keeps_elite():
+    events = [
+        _ev("Shenhua-Tampines", "AFC Champions League 2", 200),   # Two -> exclue
+        _ev("AlHilal-AlNassr", "Ligue des Champions AFC", 150),   # Elite -> gardée
+        _ev("Real-Bayern", "UEFA Champions League", 300),
+    ]
+    comps = [r["comp"] for r in rank_important(events, top_n=10)]
+    assert "AFC Champions League 2" not in comps
+    assert "Ligue des Champions AFC" in comps and "UEFA Champions League" in comps

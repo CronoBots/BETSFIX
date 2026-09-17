@@ -111,6 +111,29 @@ def is_elite_comp(comp: str) -> bool:
     return any(k in c for k in _BIG_TOURNEY_KW)
 
 
+# COMPÉTITION RETIRÉE DU SLATE — marché Pinnacle structurellement MOU (user 2026-09-17, MESURÉ /odds
+# API-Football). L'AFC Champions League TWO (2e division continentale asiatique) est bien priced par
+# Pinnacle mais avec une marge dé-vig médiane de 11.3% (12/16 = 75% des matchs > le seuil de fiabilité
+# 8% `_SHARP_MAX_MARGIN`) -> l'ancre est rejetée À RAISON -> 0 pari possible (0 pari historique, pur coût
+# Claude + bruit QC « ancre ❌ »). ⚠️ NE vise QUE la Two : l'AFC Champions League ELITE (« Ligue des
+# Champions AFC », gros clubs Al Hilal/Al Nassr) a une marge médiane 5.4% / 0% rejeté = VRAI marché sharp
+# -> GARDÉE, peut produire des paris. Ciblage sur le libellé PRÉCIS (« champions league 2 »/« two » + AFC),
+# JAMAIS le mot-clé « afc » nu (qui balaierait l'Elite). Réversible : EXCLUDE_SOFT_COMPS=False.
+EXCLUDE_SOFT_COMPS = True
+
+
+def is_excluded_comp(comp: str) -> bool:
+    """Compétition RETIRÉE du vivier de sélection (marché sans ancre sharp FIABLE = marge Pinnacle trop
+    large). Vise UNIQUEMENT l'AFC Champions League Two (marge médiane ~11%), JAMAIS l'Elite (~5%). Couvre
+    les deux libellés vus (Unibet « AFC Champions League 2 », API-Football « ... Two »). Cf. note ci-dessus."""
+    if not EXCLUDE_SOFT_COMPS:
+        return False
+    c = (comp or "").lower()
+    is_afc = ("afc" in c) or ("asian" in c)
+    is_two_tier = ("league 2" in c) or ("league two" in c)
+    return is_afc and is_two_tier
+
+
 def _is_covered_comp(comp: str) -> bool:
     """La ligue est-elle ancrée par le sharp / bien enrichie ? Proxy CHEAP (0 réseau) : mappée par The Odds
     API (`_sport_key_for`, ~68 grandes ligues) OU gros tournoi international. Repli prudent : import KO -> False
@@ -139,6 +162,8 @@ def rank_important(events: list, top_n: int = 10, within_hours: int | None = Non
         group = ev.get("group") or ""
         path_names = [p.get("name", "") for p in (ev.get("path") or [])]
         if _is_esport(group, path_names):
+            continue
+        if is_excluded_comp(group):                      # marché mou sans ancre sharp fiable (AFC CL Two) -> hors slate
             continue
         if horizon is not None:                          # fenêtre : futur uniquement (jamais commencé)
             dt = _start_dt(ev.get("start"))

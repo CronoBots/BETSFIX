@@ -308,6 +308,16 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   `_MINOR_CONFED_KW` (0 pari historique retiré). Elles peuvent encore entrer via le top-N si leur profondeur de
   marché les classe (elle ne le fait pas). Mémoire `daily-construction-methodology`
   (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
+- **EXCLUSION DURE DU SLATE = AFC Champions League Two SEULEMENT (user 2026-09-17, MESURÉ)** :
+  `match_select.is_excluded_comp` retire du **vivier** (filtre dans `rank_important`, avant top-N ET pack élite)
+  la seule **AFC CL Two**. Cause **vérifiée** (pas une supposition) : Pinnacle price bien ces matchs, mais avec une
+  **marge dé-vig médiane 11,3 %** (12/16 = 75 % > seuil 8 % `_SHARP_MAX_MARGIN`) → ancre rejetée à raison → 0 pari
+  possible (0 pari historique). ⚠️ **NE vise QUE la Two** : l'**AFC CL Elite** (« Ligue des Champions AFC », gros
+  clubs) a une marge **5,4 % / 0 % rejeté = vrai marché sharp → GARDÉE**. Ciblage sur le **libellé précis**
+  (« champions league 2/two » + AFC), **jamais** le mot-clé « afc » nu (balaierait l'Elite). Réversible :
+  `EXCLUDE_SOFT_COMPS=False`. ⛔ Piège tranché ce soir-là : « API-Football n'est pas la source primaire ?! » — SI,
+  elle l'est ; l'ancre sharp qu'elle livre = **Pinnacle acheminé** (extrait de `/odds` id 4), pas son opinion propre.
+  Mémoire `afc-cl-two-soft-market-excluded`.
 - **⛔ LE NOMBRE DE MATCHS N'AFFAIBLIT PAS L'ANALYSE/SÉLECTION (garantie, user 2026-09-12)** — décision tranchée,
   ne pas re-débattre : chaque match a son PROPRE `run_claude` (timeout INDÉPENDANT, `generate_analyses.py`
   boucle `for … in top`), **aucun budget token/temps PARTAGÉ ni retry réduit** selon le nombre. Les sélecteurs
