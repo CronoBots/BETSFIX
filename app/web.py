@@ -1027,7 +1027,7 @@ CSS = """
      `auto <h>` = estimation qui devient exacte après 1er rendu -> pas de saut de scrollbar. */
   .row.mc{content-visibility:auto;contain-intrinsic-size:auto 300px;
        padding:0;margin:7px 0;overflow:hidden;position:relative;
-       background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%) #080d15;   /* GLOW cyan doux SUR base OPAQUE #080d15 (user 2026-09-17) : le filigrane fixe/dégradé ne transparaît PLUS à travers la carte -> sa LUMINOSITÉ NE CHANGE PAS au dépli (avant : la carte translucide couvrait une autre partie du fond fixe en grandissant). Le filigrane reste fixe DERRIÈRE, visible autour/entre les cartes */
+       background:radial-gradient(135% 130% at 50% 0%,rgba(34,184,255,.12),rgba(34,184,255,.045) 52%,rgba(34,184,255,.018) 100%);   /* GLOW halo cyan doux (translucide -> le filigrane fixe transparaît). Cartes NON opaques (user 2026-09-17 : opacité annulée). */
        border:1px solid var(--st-soon);
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO AUTOUR cyan comme les cadres stats (user 2026-09-10) — intensité relevée pour être VISIBLE dans la liste (contexte déjà teinté) */
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
@@ -2889,6 +2889,10 @@ CSS = """
   .lph-pct-hi{color:#34d27b;background:rgba(52,210,123,.14)}
   .lph-pct-mid{color:#e0b341;background:rgba(224,179,65,.14)}
   .lph-pct-lo{color:#ff6b6b;background:rgba(255,107,107,.13)}
+  /* % de réussite par match dans l'HISTORIQUE de l'onglet Signaux (user 2026-09-17) : badge coloré à droite,
+     couleur via .lph-pct-hi/mid/lo. Aligné comme le badge résultat des derniers paris (.spf-rec-b). */
+  .sig-hist-pct{flex:none;align-self:center;font-weight:800;font-size:11.5px;border-radius:6px;padding:3px 8px;
+       min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
   .lph-fg-ratio{flex:none;width:46px;text-align:center;color:#8aa0b6;font-size:12px;font-weight:700;
        font-variant-numeric:tabular-nums}   /* largeur FIXE + contenu CENTRÉ -> colonne « paris joués » (user 2026-09-17) */
   .lph-fg-live{color:#22b8ff;font-size:11.5px;font-weight:700;white-space:nowrap}
@@ -5645,10 +5649,34 @@ def _avantage_block(ov: dict) -> str:
         '</div></div>')
 
 
+def _signaux_history_html(rows: list) -> str:
+    """Historique des matchs avec signaux (plus récent en haut) : date · match · nb réglés · % de réussite à
+    DROITE (même style que les derniers paris Confiance/Value). '' si vide."""
+    if not rows:
+        return ""
+    out = []
+    for r in reversed(rows):                           # plus récent en haut (comme les derniers paris)
+        _wr = r.get("winrate")
+        _pct = f'{_wr:.0f}%' if isinstance(_wr, (int, float)) else "—"
+        _cls = _lph_pct_cls(_wr) if isinstance(_wr, (int, float)) else ""
+        try:
+            _dd = datetime.fromisoformat(r["start"])
+            _date = (_dd.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and _dd.tzinfo is not None) else _dd).strftime("%d/%m")
+        except (ValueError, TypeError, KeyError):
+            _date = (r.get("start") or "")[:10]
+        _nm = html.escape(f'{r.get("home", "")} — {r.get("away", "")}')
+        out.append(
+            f'<div class="spf-rec">'
+            f'<span class="spf-rec-d"><b>{html.escape(_date)}</b></span>'
+            f'<span class="spf-rec-m"><b>{_nm}</b><span class="spf-rec-s">{r.get("won", 0)}/{r.get("settled", 0)} signaux</span></span>'
+            f'<span class="sig-hist-pct {_cls}">{_pct}</span></div>')
+    return f'<div class="spf-rec-lbl">Matchs avec signaux</div><div class="spf-recent">{"".join(out)}</div>'
+
+
 def _signaux_stats_block() -> str:
-    """Onglet « Signaux » des Stats (user 2026-09-17) : COURBE d'évolution du taux de réussite des signaux live
-    (par match, cumulé) + réussite / paris réglés / cote moyenne. Track EXPÉRIMENTAL, HORS ROI (recherche).
-    '' si flag off ou rien de réglé."""
+    """Onglet « Signaux » des Stats (user 2026-09-17) : TAUX DE RÉUSSITE en grand, puis Matchs / Paris (tout
+    confondu) / Cote moyenne, la COURBE d'évolution du taux de réussite, et l'HISTORIQUE des matchs (% à droite).
+    PAS de rentabilité/ROI (track de recherche, ni ROI ni rentabilité). '' si flag off ou rien de réglé."""
     try:
         from app import live_pick as _lps
         if not _lps.SHOW_ON_SITE:
@@ -5658,11 +5686,20 @@ def _signaux_stats_block() -> str:
         return ""
     if not _ss.get("settled"):
         return ""
-    return ('<div class="combo-horsroi">Track expérimental — <b>non compté au ROI</b></div>'
-            + render_tracking_curve(
-                emoji="🧪", title="SIGNAUX (TEST)", roi=None, hit=_ss.get("winrate"),
-                n=_ss.get("settled"), points=_ss.get("points"), dates=_ss.get("dates"),
-                avg_cote=_ss.get("avg_cote"), uid="sig-test", compact=True, warmup=3))
+    _wr = _ss.get("winrate")
+    _wc = ("#34d27b" if (isinstance(_wr, (int, float)) and _wr > 75)
+           else "#e0b341" if (isinstance(_wr, (int, float)) and _wr >= 50) else "#ff6b6b")
+    _chart = _hero_chart(_ss.get("points") or [], uid="sig-test", dates=_ss.get("dates") or [])
+    _head = (
+        '<div class="spf-hero-lbl">Taux de réussite</div>'
+        f'<div class="spf-hero-roi" style="color:{_wc}">{_wr}%</div>'
+        '<div class="spf-hero-kpis">'
+        f'<div><span class="v">{_ss.get("matches")}</span><span class="l">Matchs</span></div>'
+        f'<div><span class="v">{_ss.get("bets")}</span><span class="l">Paris</span></div>'
+        f'<div><span class="v">{_ss.get("avg_cote") or "—"}</span><span class="l">Cote moyenne</span></div>'
+        '</div>')
+    return (f'<div class="spf-hero">{_head}<div class="sx-equity">{_chart}</div>'
+            f'{_signaux_history_html(_ss.get("rows") or [])}</div>')
 
 
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:

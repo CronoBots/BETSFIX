@@ -1477,35 +1477,45 @@ def summary() -> dict:
 
 
 def success_series() -> dict:
-    """Données pour la COURBE « évolution du taux de réussite des signaux » (onglet Stats, user 2026-09-17).
-    Unité = un pick CANONIQUE par match réglé v3 (1/match, honnête), ordonné par date de coup d'envoi -> taux de
-    réussite CUMULÉ en %. Renvoie aussi l'agrégat (réglés, réussite %, cote moyenne). Hors ROI (recherche)."""
-    canon = []
-    for rec in _iter_records():
-        settled = [s for s in rec.get("snaps", []) if s.get("mv", 1) >= MODEL_VERSION
-                   and s.get("result") in ("won", "lost", "push")]
-        cs = sorted((s for s in settled if s.get("minute", 0) >= MINUTE_CANON_MIN),
-                    key=lambda s: (s["minute"], s.get("sel", "")))
-        if cs:
-            canon.append((str(rec.get("start") or ""), cs[0]))
-    canon.sort(key=lambda kv: kv[0])
-    pts, dates = [], []
-    w = l = 0
+    """Données de l'onglet « Signaux » des Stats (user 2026-09-17). PAR MATCH réglé v3 (signaux DISTINCTS,
+    tout marché confondu) : taux de réussite du match + agrégat (matchs, paris tout confondu, réussite %, cote
+    moyenne) + COURBE d'évolution du taux de réussite CUMULÉ (ordonné par date) + `rows` (historique par match).
+    Hors ROI (recherche)."""
+    rows = []
+    aw = al = apu = 0
     codds = 0.0
-    for start, s in canon:
-        if s["result"] == "won":
-            w += 1
-        elif s["result"] == "lost":
-            l += 1
-        else:
-            continue                                   # push : hors taux de réussite
-        codds += s.get("odds", 0.0)
-        pts.append(round(100.0 * w / (w + l), 1))      # taux de réussite CUMULÉ à ce match
-        dates.append(start[:10])
-    _dec = w + l
-    return {"points": pts, "dates": dates, "settled": _dec,
-            "winrate": round(100.0 * w / _dec, 1) if _dec else 0.0,
-            "avg_cote": round(codds / _dec, 2) if _dec else 0.0}
+    for rec in _iter_records():
+        seen: dict = {}                                # 1 signal par (match, sel) = 1re détection
+        for s in rec.get("snaps", []):
+            if s.get("mv", 1) >= MODEL_VERSION and s.get("result") in ("won", "lost", "push"):
+                seen.setdefault(s.get("sel"), s)
+        dv = list(seen.values())
+        mw = sum(1 for s in dv if s["result"] == "won")
+        ml = sum(1 for s in dv if s["result"] == "lost")
+        mpu = sum(1 for s in dv if s["result"] == "push")
+        if not (mw or ml or mpu):
+            continue
+        rows.append({"home": rec.get("home", ""), "away": rec.get("away", ""),
+                     "start": str(rec.get("start") or ""), "final": rec.get("final"),
+                     "won": mw, "lost": ml, "settled": mw + ml,
+                     "winrate": round(100.0 * mw / (mw + ml), 1) if (mw + ml) else None})
+        aw += mw
+        al += ml
+        apu += mpu
+        codds += sum(s.get("odds", 0.0) for s in dv if s["result"] in ("won", "lost"))
+    rows.sort(key=lambda r: r["start"])
+    pts, dates = [], []
+    cw = cl = 0
+    for r in rows:
+        cw += r["won"]
+        cl += r["settled"] - r["won"]
+        if cw + cl:
+            pts.append(round(100.0 * cw / (cw + cl), 1))
+            dates.append(r["start"][:10])
+    _dec = aw + al
+    return {"points": pts, "dates": dates, "matches": len(rows), "bets": _dec + apu,
+            "settled": _dec, "winrate": round(100.0 * aw / _dec, 1) if _dec else 0.0,
+            "avg_cote": round(codds / _dec, 2) if _dec else 0.0, "rows": rows}
 
 
 if __name__ == "__main__":
