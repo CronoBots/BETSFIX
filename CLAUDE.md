@@ -473,7 +473,11 @@ Après plusieurs allers-retours, la logique est figée. **Ne jamais les mélange
 
 1. **AFFICHAGE** (listes À venir / Terminés) = `analyses.list_for()`. On ne montre QUE ce sur quoi on
    mise : **combiné OU simple retenu**. Les **abstentions** (favori analysé mais SANS value → non retenu)
-   sont **CACHÉES**. Mode par état : **à venir = publication** (avec exclusions, = Telegram) ·
+   sont **CACHÉES** de ces listes. ⚠️ **Catégorie « Abstention » RETIRÉE (2026-09-17)** : un match sans pari
+   reste dans le **Programme du jour** (carte neutre `prog` « Pas de pari · suivi en direct au coup d'envoi »)
+   puis passe en **Signaux Live** au coup d'envoi — plus de zone « Abstention » ni de badge « aurait gagné »
+   (il mesurait le pick brut, trompeur). PUREMENT AFFICHAGE : sélection/fantômes/calibration inchangés.
+   Mémoire `abstention-category-removed`. Mode par état : **à venir = publication** (avec exclusions, = Telegram) ·
    **terminé = for_history** (sans exclusions, = ce qui a été joué). `_sport_row`, `_result_badge`,
    `bets_html` s'alignent. **Confiance ≠ value** : un favori à cote courte (76 %@1.21) a une value
    NÉGATIVE → jamais affiché comme « à jouer ». Titres : « 📊 Le pari joué / à venir » / « Analyse du match ».
