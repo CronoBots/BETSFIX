@@ -2988,9 +2988,11 @@ CSS = """
   /* CADRE des cartes sans pari (user 2026-08-17) : Programme = BLEU, Abstention = GRIS (au lieu du doré par défaut). */
   .mc-statcard.mc-st-wait{border-color:#22b8ff}
   .mc-statcard.mc-st-abst{border-color:#9fb6cf}
+  .mc-statcard.mc-st-prog{border-color:#9fb6cf}   /* match sans pari DANS le Programme (user 2026-09-17) : neutre gris */
   .mc-stat{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.02em}
   .mc-stat-wait{color:var(--gold)}
   .mc-stat-abst{color:#9fb6cf}
+  .mc-stat-prog{color:#9fb6cf}
   .mc-stat-sub{display:block;margin-top:3px;font-size:10.5px;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0}
   .zone-live{margin-left:8px}   /* badge « 🟢 Live » TOUT à droite, APRÈS le compteur (user 2026-08-17 : « badge à droite, nombre à sa gauche ») */
   /* RECORD du jour par type — pastilles compactes collées au titre. TOUS les états en BADGE COLORÉ plein
@@ -9044,8 +9046,8 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     _sigfin_html = _signaux_day_matches(sport or "foot", _sport_today().isoformat(),
                                         title="Signaux Live — terminés", open_=True)
     out.append(_sigfin_html)
-    _abst_html = _abstention_zone(sport or "foot") if _has_prog else ""
-    out.append(_abst_html)
+    # (zone « Abstention » RETIRÉE le 2026-09-17 : les matchs sans pari restent dans le Programme en carte neutre
+    #  `prog` puis passent en Signaux Live au coup d'envoi. `_abstention_zone` conservée dormante = renvoie '' ).
     # PROGRAMME FERMÉ par défaut dès qu'un PARI apparaît dans ≥1 catégorie (Confiance/Value/Combiné) —
     # user 2026-08-31. Tant qu'aucun pari : OUVERT (l'user voit le programme à venir).
     _any_bet = bool(play_conf or _res_conf or play_value or _res_value or _n_combos)
@@ -9054,7 +9056,7 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # Confiance/Value repliés sur un grand vide (message caché), on montre un ÉTAT VIDE PREMIUM (orbe + timing).
     _day_empty = not (play_conf or _res_conf or play_value or _res_value
                       or prov or _prov_res or combo_daily
-                      or (_prog_html and _prog_html.strip()) or (_abst_html and _abst_html.strip()))
+                      or (_prog_html and _prog_html.strip()))
     inner = _paj_hero() if _day_empty else (_prog_html + "".join(x for x in out if x))
     # COMPACT (user 2026-08-19) : toutes les catégories + leur phrase doivent tenir VISIBLES sur l'écran (plus de
     # répartition `space-between` qui poussait Combiné/Abstention hors écran). Empilement serré (CSS compacte les
@@ -9859,7 +9861,7 @@ def _status_card(m: dict, dt, kind: str) -> str:
     # On aligne : si le match joue -> score+horloge au centre, tableau de score, badge 🟢 Live, bord doré, et le
     # même « Aperçu du match » (stats live API-Football, pari-indépendant). Foot uniquement (source live foot).
     _is_live = False; _lscore = ""; _mcx = ""
-    if kind == "abst" and _sp == "foot":
+    if kind in ("abst", "prog") and _sp == "foot":
         try:
             _lf = live_fields(match_select.live_state_for(_sp, home, away), _sp)
             _lsc = str(_lf.get("score") or "").strip()
@@ -9878,6 +9880,11 @@ def _status_card(m: dict, dt, kind: str) -> str:
     if kind == "wait":
         _sub = (f'<div class="mc-stat mc-stat-wait">À analyser'
                 f'<span class="mc-stat-sub">analyse prévue ~{(ld - timedelta(hours=1)).strftime("%H:%M")}</span></div>')
+    elif kind == "prog":
+        # Match analysé SANS pari Confiance/Value (user 2026-09-17 : plus de catégorie « Abstention ») : reste
+        # NEUTRE dans le Programme, deviendra une carte Signaux Live au coup d'envoi.
+        _sub = ('<div class="mc-stat mc-stat-prog">Pas de pari'
+                '<span class="mc-stat-sub">suivi en direct au coup d\'envoi</span></div>')
     else:
         _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
                 '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
@@ -9948,7 +9955,7 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             # ~19:00 » affiché à 23:08 sur un match de 20:00 jamais analysé faute de budget). On le RETIRE. user 2026-08-21.
             if dt is not None and dt <= _now:
                 continue
-            pending.append((m, dt))                        # à venir + pas analysé -> PROGRAMME (grille)
+            pending.append((m, dt, "wait"))                # à venir + pas analysé -> PROGRAMME (grille)
             continue
         if analyses.is_settled(d):
             _sb = analyses.stat_bet(d)
@@ -9961,15 +9968,16 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             # ré-analyse décisive n'a pas eu lieu, on la laisse au PROGRAMME (« à analyser ~1 h avant ») au lieu
             # de la classer « Abstention — non joué » prématurément. Passée la vague (mtime récent) -> ferme.
             if _awaiting_prematch_reanalysis(sport, mid, dt, _now):
-                pending.append((m, dt))
+                pending.append((m, dt, "wait"))
             else:
-                # ABSTENTION EN DIRECT -> devient sa carte SIGNAUX LIVE (user 2026-09-14 : « les abstentions
-                # produisent des signaux live »). Pré-match / pas de signal -> reste en Abstention classique.
+                # ABSTENTION EN DIRECT -> sa carte SIGNAUX LIVE (zone à part). PRÉ-MATCH sans pari (user 2026-09-17 :
+                # plus de catégorie « Abstention ») -> reste dans le PROGRAMME en carte NEUTRE `prog` jusqu'au coup
+                # d'envoi, où il bascule en Signaux Live. Sélection Confiance/Value + fantômes/calibration INCHANGÉS.
                 _scard = _signaux_live_card_for_sidecar(d) if analyses.status_of(d) == "inprogress" else ""
                 if _scard:
                     sig.append(_scard)
                 else:
-                    abst.append(_status_card(m, dt, "abst"))
+                    pending.append((m, dt, "prog"))
         # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst, sig
 
@@ -9996,7 +10004,7 @@ def _programme_grille(pending: list) -> str:
     -> les noms d'équipes prennent la PLEINE LARGEUR (fin des troncatures). `pending` = liste de (match, dt)."""
     from collections import OrderedDict
     slots: "OrderedDict[str, list]" = OrderedDict()
-    for m, dt in pending:                                  # `pending` déjà trié par coup d'envoi
+    for m, dt, *_ in pending:                              # `pending` déjà trié par coup d'envoi (tuples (m,dt,kind))
         ld = dt.astimezone(LOCAL_TZ) if (LOCAL_TZ is not None and dt.tzinfo is not None) else dt
         slots.setdefault(ld.strftime("%H:%M"), []).append((m, ld))
     out = []
@@ -10062,7 +10070,7 @@ def _programme_schedule(sport: str = "foot", collapse: bool = False) -> str:
     # PRÉSENTATION EN CARTES (user 2026-09-12) : les matchs à analyser sont montrés COMME LES ABSTENTIONS
     # (mêmes cartes `_status_card`, ligue + logos + heure de coup d'envoi centrée), avec l'HEURE D'ANALYSE
     # (~1 h avant le KO, = la vague) en bas de chaque carte. (Ex-grille horaire `_programme_grille` remplacée.)
-    _cards = _MC_SEP.join(_status_card(m, dt, "wait") for m, dt in pending)
+    _cards = _MC_SEP.join(_status_card(m, dt, k) for m, dt, k in pending)
     return _zone("prog", "Programme du jour", "", len(pending), _cards,
                  collapsible=True, open_=(not collapse))
 
