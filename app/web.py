@@ -12167,6 +12167,20 @@ def _is_recent(m: dict, p: dict, live: bool, window: int = 15) -> bool:
     return isinstance(_mn, int) and isinstance(_fm, int) and 0 <= (_mn - _fm) <= window
 
 
+def _sig_disp(p: dict, prob_map: dict | None):
+    """(proba_affichée, value_affichée) RECALIBRÉES d'un signal — AFFICHAGE SEUL (user 2026-09-17) : le « % modèle »
+    et la value collent au taux RÉEL (modèle sur-confiant). La SÉLECTION/le store/le ROI restent sur la proba brute.
+    Identité si pas de mapping. value = proba_calibrée × cote − 1 (peut devenir ≤0 -> badge value masqué)."""
+    _p = p.get("prob")
+    if not isinstance(_p, (int, float)) or not prob_map:
+        return _p, p.get("ev")
+    from app import live_pick as _lpc
+    _cp = _lpc.calibrate_display(_p, prob_map)
+    _o = p.get("odds")
+    _ev = round(_cp * _o - 1.0, 4) if isinstance(_o, (int, float)) and _o else None
+    return round(_cp, 4), _ev
+
+
 def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, min_txt: str,
               status: str = "open", cur: str | None = None, recent: bool = False,
               stale: bool = False) -> str:
@@ -12202,8 +12216,10 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
             fill = f"linear-gradient(180deg,hsl({hue},74%,54%),hsl({hue},68%,42%))"
             body = (f'<div class="lph-bar"><span class="lph-bar-tk"><i style="width:{pct}%;background:{fill}"></i></span>'
                     f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
+        # value MASQUÉE si ≤ 0 (user 2026-09-17) : après recalibration d'affichage, beaucoup de « value » deviennent
+        # nulles/négatives (le modèle était sur-confiant) -> on n'affiche PAS un « value +0% » mensonger.
         ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
-                   if isinstance(ev, (int, float)) else "")
+                   if isinstance(ev, (int, float)) and ev > 0 else "")
         rt = cote_html
         meta = f'{ev_html}{cur_html}'
     return (f'<div class="lph-p lph-p-{html.escape(status)}{" lph-p-rec" if recent else ""}"><div class="lph-p-h">'
@@ -12276,6 +12292,11 @@ def _signaux_match_card(m: dict) -> str:
     # les signaux RÉCENTS d'abord (décroissant) — un pari de la 70' est plus pertinent qu'un de la 15' quand le
     # match a avancé (user 2026-09-17) ; match TERMINÉ -> CHRONOLOGIQUE (croissant) pour relire dans l'ordre.
     _live = not bool(m.get("settled"))
+    try:                                                    # RECALIBRATION D'AFFICHAGE (user 2026-09-17) : « % modèle »
+        from app import live_pick as _lpm                  # + value collent au réel. Sélection/ROI inchangés. 1 map/carte.
+        _pmap = _lpm.display_prob_map()
+    except Exception:
+        _pmap = {}
 
     def _pick_sort(p):
         _st = 2 if p.get("stale") else _ord.get(p.get("status", "open"), 1)   # dépassé sous les actifs
@@ -12307,12 +12328,15 @@ def _signaux_match_card(m: dict) -> str:
         noa = no - nst                                       # en cours ACTIFS (hors dépassés)
         gw += nw
         gl += nl
-        lines = "".join(
-            _lph_pick(_h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
-                      analyses.fmt_cote(p["odds"]) or "?", p.get("ev"), p.get("prob"),
-                      f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"),
-                      recent=_is_recent(m, p, _live), stale=bool(p.get("stale")))
-            for p in ps)
+        _lparts = []
+        for p in ps:
+            _dp, _de = _sig_disp(p, _pmap)                  # proba/value RECALIBRÉES pour l'affichage (sélection intacte)
+            _lparts.append(_lph_pick(
+                _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
+                analyses.fmt_cote(p["odds"]) or "?", _de, _dp,
+                f"{p.get('first_min', '?')}'", status=p.get("status", "open"), cur=p.get("cur"),
+                recent=_is_recent(m, p, _live), stale=bool(p.get("stale"))))
+        lines = "".join(_lparts)
         # ÉPURÉ + COLONNES ALIGNÉES (user 2026-09-15) : par marché = TAUX DE RÉUSSITE coloré + ratio « gagnés/
         # réglés » (validés+tombés ; poussés exclus), alignés en colonnes (chiffres tabulaires). Plus de pastilles
         # ✓/✗ ni de total redondant (total = ✓+✗, dérivable).

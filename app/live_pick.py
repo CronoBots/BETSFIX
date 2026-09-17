@@ -1476,6 +1476,35 @@ def summary() -> dict:
     return _res
 
 
+def display_prob_map() -> dict:
+    """Mapping DÉCILE de proba modèle -> taux de réussite RÉEL v3 (0-1), pour RECALIBRER L'AFFICHAGE (« % modèle »
+    + value) afin qu'il colle au réel — le modèle est sur-confiant (annonce 92 %, réel ~74 %). ⚠️ AFFICHAGE SEUL :
+    la SÉLECTION, les gates, le store et le ROI restent sur la proba BRUTE (aucun impact). Monotone (running max).
+    {} si pas assez de données par décile (n<20) -> pas de recalibration (identité). Décile absent -> identité."""
+    cal = (summary().get("current_model") or {}).get("calibration") or []
+    m: dict = {}
+    for row in cal:
+        try:
+            d = int(str(row["bucket"]).split("-")[0]) // 10
+        except (ValueError, KeyError, TypeError):
+            continue
+        if row.get("n", 0) >= 20 and isinstance(row.get("real"), (int, float)):
+            m[d] = row["real"] / 100.0
+    for i, k in enumerate(sorted(m)):                       # monotone non-décroissant (running max)
+        if i and m[k] < m[sorted(m)[i - 1]]:
+            m[k] = m[sorted(m)[i - 1]]
+    return m
+
+
+def calibrate_display(prob, prob_map: dict | None = None):
+    """Proba d'AFFICHAGE recalibrée (0-1) à partir de la proba brute + `display_prob_map`. Identité si pas de
+    mapping pour ce décile / pas de données. AFFICHAGE SEUL (jamais la sélection)."""
+    if not isinstance(prob, (int, float)):
+        return prob
+    pm = prob_map if prob_map is not None else display_prob_map()
+    return pm.get(min(9, max(0, int(prob * 10))), prob)
+
+
 def success_series() -> dict:
     """Données de l'onglet « Signaux » des Stats (user 2026-09-17). PAR MATCH réglé v3 (signaux DISTINCTS,
     tout marché confondu) : taux de réussite du match + agrégat (matchs, paris tout confondu, réussite %, cote
