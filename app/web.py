@@ -625,10 +625,16 @@ CSS = """
   /* BADGES chiffrés du menu du bas (demande user 2026-07-14) : nb de matchs du jour par onglet. BLANC par
      défaut (À venir/Tennis/Basket/Foot) ; l'onglet LIVE est VERT + halo pulsant. Caché à 0 (JS pose `hidden`). */
   .botnav a{position:relative}
-  .nav-n{position:absolute;top:1px;left:calc(50% + 7px);min-width:16px;height:16px;padding:0 4px;
-       border-radius:99px;background:#eef2f7;color:#0b0d12;font-size:11px;font-weight:900;line-height:16px;
-       text-align:center;font-variant-numeric:tabular-nums;border:1.5px solid #0b0d12;
-       box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  /* Badge compteur = CERCLE avec le nombre CENTRÉ. Piège (user 2026-09-17 « badge déformé depuis le nouveau
+     format ») : avec `*{box-sizing:border-box}`, un `padding` horizontal + la bordure 1.5px poussaient la LARGEUR
+     d'un chiffre au-delà des 16px de `min-width` -> plus large que les 16px de haut = OVALE. Fix : padding
+     horizontal nul (la `min-width` gouverne -> largeur==hauteur pour 1-2 chiffres) + centrage FLEX (le nombre au
+     milieu, sans dépendre du line-height que la bordure décale). 3+ chiffres (« 99+ ») s'étirent en pilule, OK. */
+  .nav-n{position:absolute;top:1px;left:calc(50% + 7px);display:flex;align-items:center;justify-content:center;
+       min-width:16px;height:16px;padding:0;border-radius:99px;background:#eef2f7;color:#0b0d12;
+       font-size:10px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;
+       border:1.5px solid #0b0d12;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .nav-n[hidden]{display:none}    /* `display:flex` battrait le [hidden] de l'UA (spécificité égale) -> on le rétablit */
   /* ===== DESKTOP (≥1000px) — dashboard multi-colonnes (maquette validée user 2026-08-02). Sidebar gauche +
      grille de cartes qui remplit la largeur. TOUT scopé ici -> mobile (<1000px) JAMAIS modifié. ===== */
   @media (min-width:1000px){
