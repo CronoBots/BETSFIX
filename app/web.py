@@ -12318,35 +12318,31 @@ def _signaux_match_card(m: dict) -> str:
             return (_st, -_fm if _live else _fm)
         return (_st, 0 if _live else 999)     # minute inconnue -> fin du groupe
     _picks = sorted(m.get("picks") or [], key=_pick_sort)
-    # DERNIERS SIGNAUX (user 2026-09-17) : mini-section ÉPINGLÉE en tête de CETTE carte = les 2-3 signaux les plus
-    # FRAIS de CE match (émis dans les ~15 dernières min de JEU, `_is_recent`), classés « frais puis meilleure
-    # VALUE » (value ↓, départage = plus frais). But : voir d'un coup le signal le + récent/intéressant à placer
-    # en se connectant. Doublon VOULU : ces signaux restent aussi dans leur famille en dessous. Live seul.
+    # DERNIERS SIGNAUX (user 2026-09-17) : mini-section ÉPINGLÉE en tête de CETTE carte = les 3 signaux ACTIFS
+    # les plus RÉCEMMENT détectés de CE match (`first_min` ↓), value en départage. TOUJOURS rempli tant qu'il y a
+    # des signaux actifs — PAS de fenêtre dure : le modèle détecte tôt et laisse « en cours », donc une fenêtre
+    # de 15 min vidait la section dès la 2e mi-temps (cas vécu Málaga–Villarreal 80' : 7 signaux mais tous émis
+    # en 15-45'). But : voir d'un coup le signal le + récent/intéressant à placer en se connectant. Doublon
+    # VOULU (ils restent aussi dans leur famille en dessous). Live seul.
     _fresh_html = ""
     if _live:
         _fr = []
         for p in _picks:
-            if not _is_recent(m, p, True):
+            if p.get("status") != "open" or p.get("stale"):      # ACTIFS seulement (plaçables ; ni tombés ni dépassés)
                 continue
-            _fp, _fv = _sig_disp(p, _pmap)                 # value recalibrée pour l'affichage (sélection intacte)
-            _fr.append((p, _fv if isinstance(_fv, (int, float)) else None))
-
-        def _fkey(it):
-            _p, _v = it
-            _fm = _p.get("first_min")
-            _delta = (m.get("minute", 0) - _fm) if isinstance(_fm, int) else 999
-            return (_v if _v is not None else -9.0, -_delta)      # value ↓ ; à égalité, le plus frais
-        _fr.sort(key=_fkey, reverse=True)
+            _fp, _fv = _sig_disp(p, _pmap)                       # value recalibrée pour l'affichage (sélection intacte)
+            _ffm = p.get("first_min")
+            _fr.append((_ffm if isinstance(_ffm, int) else -1, _fv if isinstance(_fv, (int, float)) else None, p))
+        _fr.sort(key=lambda it: (it[0], it[1] if it[1] is not None else -9.0), reverse=True)   # + récents, puis value
         if _fr:
             _frows = []
-            for _p, _v in _fr[:3]:
+            for _ffm, _v, _p in _fr[:3]:
                 _fsel = _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", "")))
                 _fcote = analyses.fmt_cote(_p["odds"]) or "?"
-                _ffm = _p.get("first_min")
                 _fvt = (f'<span class="lph-fresh-val">+{round(_v * 100)}%</span>'
                         if isinstance(_v, (int, float)) and _v > 0 else '<span class="lph-fresh-val"></span>')
                 _frows.append(f'<div class="lph-fresh-row"><span class="lph-fresh-min">'
-                              f'{_ffm if isinstance(_ffm, int) else "?"}\'</span>'
+                              f'{_ffm if _ffm >= 0 else "?"}\'</span>'
                               f'<span class="lph-fresh-sel">{_fsel}</span>'
                               f'<span class="lph-fresh-cote">{_fcote}</span>{_fvt}</div>')
             _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux</div>'
