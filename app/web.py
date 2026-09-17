@@ -9861,7 +9861,7 @@ def _status_card(m: dict, dt, kind: str) -> str:
     # On aligne : si le match joue -> score+horloge au centre, tableau de score, badge 🟢 Live, bord doré, et le
     # même « Aperçu du match » (stats live API-Football, pari-indépendant). Foot uniquement (source live foot).
     _is_live = False; _lscore = ""; _mcx = ""
-    if kind in ("abst", "prog") and _sp == "foot":
+    if kind == "abst" and _sp == "foot":   # 'prog' est TOUJOURS pré-match (live -> Signaux Live) -> pas de score ici
         try:
             _lf = live_fields(match_select.live_state_for(_sp, home, away), _sp)
             _lsc = str(_lf.get("score") or "").strip()
@@ -9883,8 +9883,8 @@ def _status_card(m: dict, dt, kind: str) -> str:
     elif kind == "prog":
         # Match analysé SANS pari Confiance/Value (user 2026-09-17 : plus de catégorie « Abstention ») : reste
         # NEUTRE dans le Programme, deviendra une carte Signaux Live au coup d'envoi.
-        _sub = ('<div class="mc-stat mc-stat-prog">Pas de pari'
-                '<span class="mc-stat-sub">suivi en direct au coup d\'envoi</span></div>')
+        _sub = ('<div class="mc-stat mc-stat-prog">Pas de confiance/value'
+                '<span class="mc-stat-sub">Signaux lors du direct</span></div>')
     else:
         _sub = ('<div class="mc-stat mc-stat-abst">Abstention'
                 '<span class="mc-stat-sub">analysé — pas de value, non joué</span></div>')
@@ -9957,27 +9957,29 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
                 continue
             pending.append((m, dt, "wait"))                # à venir + pas analysé -> PROGRAMME (grille)
             continue
-        if analyses.is_settled(d):
+        _settled = analyses.is_settled(d)
+        if _settled:
             _sb = analyses.stat_bet(d)
             _has_bet = isinstance(_sb, dict) and _sb.get("result") in ("won", "lost", "push")
         else:
             _has_bet = analyses.retained_bet(sport, mid) is not None
         if not _has_bet:                                   # analysé SANS pari
-            # ABSTENTION FIGÉE APRÈS LA 2e ANALYSE SEULEMENT (user 2026-08-27) : une abstention issue du SCAN
-            # DU MATIN sur un match encore à venir sera RE-VÉRIFIÉE ~1 h avant le KO (la vague). Tant que cette
-            # ré-analyse décisive n'a pas eu lieu, on la laisse au PROGRAMME (« à analyser ~1 h avant ») au lieu
-            # de la classer « Abstention — non joué » prématurément. Passée la vague (mtime récent) -> ferme.
+            # ABSTENTION FIGÉE APRÈS LA 2e ANALYSE SEULEMENT (user 2026-08-27) : tant que la ré-analyse ~1 h avant le
+            # KO (la vague) n'a pas eu lieu, on laisse au PROGRAMME « à analyser ». Passée la vague (mtime récent) :
+            # PRÉ-MATCH -> reste au Programme en carte NEUTRE `prog` (user 2026-09-17, plus de zone « Abstention ») ;
+            # EN COURS -> carte Signaux Live ; TERMINÉ -> RIEN au Programme (déjà dans « Signaux Live — terminés »).
+            # ⚠️ un match EN COURS ou TERMINÉ ne doit JAMAIS réapparaître au Programme (user 2026-09-17).
+            # Sélection Confiance/Value + fantômes/calibration INCHANGÉS.
             if _awaiting_prematch_reanalysis(sport, mid, dt, _now):
                 pending.append((m, dt, "wait"))
-            else:
-                # ABSTENTION EN DIRECT -> sa carte SIGNAUX LIVE (zone à part). PRÉ-MATCH sans pari (user 2026-09-17 :
-                # plus de catégorie « Abstention ») -> reste dans le PROGRAMME en carte NEUTRE `prog` jusqu'au coup
-                # d'envoi, où il bascule en Signaux Live. Sélection Confiance/Value + fantômes/calibration INCHANGÉS.
-                _scard = _signaux_live_card_for_sidecar(d) if analyses.status_of(d) == "inprogress" else ""
+            elif _settled:
+                continue                                   # terminé sans pari -> Signaux Live terminés, PAS au Programme
+            elif analyses.status_of(d) == "inprogress":
+                _scard = _signaux_live_card_for_sidecar(d)
                 if _scard:
-                    sig.append(_scard)
-                else:
-                    pending.append((m, dt, "prog"))
+                    sig.append(_scard)                     # en cours -> carte Signaux Live (sinon rien : le match joue)
+            else:
+                pending.append((m, dt, "prog"))            # PRÉ-MATCH sans pari -> reste au Programme (neutre)
         # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst, sig
 
