@@ -2808,6 +2808,16 @@ CSS = """
   .lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}
   .lph-reco{font-size:12px;color:#cfe0f0;margin:2px 2px 6px}
   .lph-reco b{color:#34d27b}
+  /* « Derniers signaux » ÉPINGLÉ en tête de chaque carte (user 2026-09-17) : les 2-3 signaux les + frais du
+     match, classés frais->value ; doublon voulu avec les familles en dessous. Accent doré (live). */
+  .lph-fresh{background:rgba(245,196,81,.06);border:1px solid rgba(245,196,81,.18);border-radius:10px;padding:6px 9px;margin:2px 2px 9px}
+  .lph-fresh-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#f5c451;margin-bottom:3px}
+  .lph-fresh-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#e6edf3}
+  .lph-fresh-row+.lph-fresh-row{border-top:1px solid rgba(255,255,255,.05)}
+  .lph-fresh-min{font-weight:800;color:#f5c451;min-width:30px}
+  .lph-fresh-sel{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .lph-fresh-cote{font-variant-numeric:tabular-nums;color:#cfe0f0}
+  .lph-fresh-val{font-weight:800;color:#34d27b;min-width:38px;text-align:right}
   .lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}
   .lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
   .lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}
@@ -12308,6 +12318,39 @@ def _signaux_match_card(m: dict) -> str:
             return (_st, -_fm if _live else _fm)
         return (_st, 0 if _live else 999)     # minute inconnue -> fin du groupe
     _picks = sorted(m.get("picks") or [], key=_pick_sort)
+    # DERNIERS SIGNAUX (user 2026-09-17) : mini-section ÉPINGLÉE en tête de CETTE carte = les 2-3 signaux les plus
+    # FRAIS de CE match (émis dans les ~15 dernières min de JEU, `_is_recent`), classés « frais puis meilleure
+    # VALUE » (value ↓, départage = plus frais). But : voir d'un coup le signal le + récent/intéressant à placer
+    # en se connectant. Doublon VOULU : ces signaux restent aussi dans leur famille en dessous. Live seul.
+    _fresh_html = ""
+    if _live:
+        _fr = []
+        for p in _picks:
+            if not _is_recent(m, p, True):
+                continue
+            _fp, _fv = _sig_disp(p, _pmap)                 # value recalibrée pour l'affichage (sélection intacte)
+            _fr.append((p, _fv if isinstance(_fv, (int, float)) else None))
+
+        def _fkey(it):
+            _p, _v = it
+            _fm = _p.get("first_min")
+            _delta = (m.get("minute", 0) - _fm) if isinstance(_fm, int) else 999
+            return (_v if _v is not None else -9.0, -_delta)      # value ↓ ; à égalité, le plus frais
+        _fr.sort(key=_fkey, reverse=True)
+        if _fr:
+            _frows = []
+            for _p, _v in _fr[:3]:
+                _fsel = _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", "")))
+                _fcote = analyses.fmt_cote(_p["odds"]) or "?"
+                _ffm = _p.get("first_min")
+                _fvt = (f'<span class="lph-fresh-val">+{round(_v * 100)}%</span>'
+                        if isinstance(_v, (int, float)) and _v > 0 else '<span class="lph-fresh-val"></span>')
+                _frows.append(f'<div class="lph-fresh-row"><span class="lph-fresh-min">'
+                              f'{_ffm if isinstance(_ffm, int) else "?"}\'</span>'
+                              f'<span class="lph-fresh-sel">{_fsel}</span>'
+                              f'<span class="lph-fresh-cote">{_fcote}</span>{_fvt}</div>')
+            _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux</div>'
+                           f'{"".join(_frows)}</div>')
     # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
     # LIGNES redondantes d'un même marché). On regroupe par FAMILLE dans un pli déroulant : carte COMPACTE, rien
     # de caché (1 clic déplie). Familles avec un signal validé/en cours d'abord, tout-tombé en dernier ; puis volume.
@@ -12396,6 +12439,8 @@ def _signaux_match_card(m: dict) -> str:
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
         rows.append(f'<div class="lph-p lph-none">{msg}</div>')
+    if _fresh_html:                                     # « Derniers signaux » ÉPINGLÉ tout en haut de la carte
+        rows.insert(0, _fresh_html)
     _sc = (m.get("score") or "").strip()
     if m.get("settled"):                                # carte TERMINÉE (zone « Signaux Live — terminés ») : même
         center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - ")) if _sc else ""}</b>'
