@@ -4518,7 +4518,10 @@ _SPA_JS = (
     "function fresh(){var c=P.children,i,p=null;"
     "for(i=0;i<c.length;i++)if(c[i].classList.contains('on')){p=c[i];break;}"
     "if(!p||!p.getAttribute('data-loaded')||document.hidden)return;"
-    "if(!p.querySelector('.live')&&!_dueKO(p))return;"
+    # Rafraîchir si le panneau a un élément `.live` OU une carte LIVE `.mc-r-live` (user 2026-09-17 : une carte
+    # Signaux Live seule, en placeholder « score en cours », n'a pas de `.live` -> le panneau restait figé sur
+    # « en direct / score en cours » jusqu'à un reload manuel). `.mc-r-live` = toute carte de match en direct.
+    "if(!p.querySelector('.live,.mc-r-live')&&!_dueKO(p))return;"
     "if(p.querySelector('.mc-manual'))return;"  # ne pas perturber une carte ouverte À LA MAIN
     # PLI D'ANALYSE « Pourquoi ce choix / cette jambe » OUVERT (`.cleg-fold[open]`) -> on NE rafraîchit PAS :
     # le refresh remplace le panneau et refermerait le pli -> l'utilisateur perdait sa lecture (user 2026-08-20).
