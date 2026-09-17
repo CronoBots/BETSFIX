@@ -1032,8 +1032,15 @@ CSS = """
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO AUTOUR cyan comme les cadres stats (user 2026-09-10) — intensité relevée pour être VISIBLE dans la liste (contexte déjà teinté) */
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
+  /* FILIGRANE logo (user 2026-09-17) : FIXÉ À LA VUE (centré à l'écran, ne bouge PAS au scroll), plus par carte,
+     et EMBLÈME SEUL (`logo_mark.png`, sans le mot « BETSFIX »). Fond des cartes translucide -> il transparaît. */
+  body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:240px;height:180px;
+       z-index:-1;pointer-events:none;opacity:.06;background:url('/static/logo_mark.png') center/contain no-repeat;
+       filter:grayscale(.3) brightness(1.3)}
+  /* Base .row.mc::before CONSERVÉE (position/taille) mais SANS image côté web -> plus de filigrane par carte. La
+     carte Telegram (`card_image`) y réinjecte `background-image:url(...)!important` -> filigrane gardé sur Telegram. */
   .row.mc::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center center/135px no-repeat;filter:grayscale(.3) brightness(1.3)}
+       opacity:.05;background-position:center;background-size:135px;background-repeat:no-repeat;filter:grayscale(.3) brightness(1.3)}
   /* CARTES DÉPLIABLES (pli « Pourquoi » : premium à-venir `mc-flat` ~339px ET live `mc-islive` ~371px) : offset Y
      FIXE en px (pas `center center`) -> le logo NE BOUGE PAS au dépli (la carte grandit vers le bas, l'offset top
      reste constant), tout en restant ~centré sur le cadre replié. User 2026-09-06 (« de nouveau déplacé »). */
@@ -2609,7 +2616,8 @@ CSS = """
      carte + position Y FIXE en px (80px = centre d'un cadre replié ~266px : logo 120×106, 133−53) -> le logo
      reste À LA MÊME PLACE quand le pli « Pourquoi » se déplie (la carte grandit vers le bas, l'offset top ne bouge pas). */
   .cleg::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
-       opacity:.05;background:url('/static/logo.png') center 80px/135px no-repeat;filter:grayscale(.3) brightness(1.3)}
+       opacity:.05;background-position:center 80px;background-size:135px;background-repeat:no-repeat;filter:grayscale(.3) brightness(1.3)}
+  /* (filigrane par carte RETIRÉ côté web le 2026-09-17 -> `body::before` fixe ; base gardée pour l'override Telegram) */
   /* CARTE RÉSULTAT (réglée, ne se déplie plus) : filigrane VRAIMENT centré verticalement (user 2026-09-12) —
      l'offset fixe 80px n'était bon que pour le cadre repliable ~266px, décentré sur une carte résultat plus courte. */
   .cleg.cleg-res-live::before,.cleg.won::before,.cleg.lost::before,.cleg.push::before,.cleg.void::before{
@@ -2984,7 +2992,7 @@ CSS = """
   .zone-rec .zrn{color:#0e141b;background:#9aa6b4;padding:1px 7px;border-radius:9px;font-size:11px;font-weight:800}  /* Programme + Abstention = badge GRIS, écriture noire (user 2026-08-18) */
   .zone-rec .zr-wait{color:#8b93a2;background:rgba(255,255,255,.05);padding:1px 8px;border-radius:9px;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border)}   /* badge « en attente » des zones vides (user 2026-08-19) */
   /* Carte de match SANS pari (Programme « à analyser » / Abstention) : ligne de statut centrée à la place du pari. */
-  .mc-statcard .mc-sub{padding-right:0}
+  .mc-statcard .mc-sub{padding-right:0;margin-top:20px}   /* + d'air entre les équipes et « Pas de confiance/value » (user 2026-09-17) */
   /* CADRE des cartes sans pari (user 2026-08-17) : Programme = BLEU, Abstention = GRIS (au lieu du doré par défaut). */
   .mc-statcard.mc-st-wait{border-color:#22b8ff}
   .mc-statcard.mc-st-abst{border-color:#9fb6cf}
@@ -9978,8 +9986,9 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
                 _scard = _signaux_live_card_for_sidecar(d)
                 if _scard:
                     sig.append(_scard)                     # en cours -> carte Signaux Live (sinon rien : le match joue)
-            else:
-                pending.append((m, dt, "prog"))            # PRÉ-MATCH sans pari -> reste au Programme (neutre)
+            elif dt is not None and dt > _now:
+                pending.append((m, dt, "prog"))            # PRÉ-MATCH STRICT (KO futur) -> Programme (neutre)
+            # else : KO passé mais ni en cours ni réglé (latence de règlement) -> RIEN au Programme (user 2026-09-17)
         # sinon : a un pari -> carte dans sa zone Confiance/Value
     return pending, abst, sig
 
