@@ -5645,6 +5645,26 @@ def _avantage_block(ov: dict) -> str:
         '</div></div>')
 
 
+def _signaux_stats_block() -> str:
+    """Onglet « Signaux » des Stats (user 2026-09-17) : COURBE d'évolution du taux de réussite des signaux live
+    (par match, cumulé) + réussite / paris réglés / cote moyenne. Track EXPÉRIMENTAL, HORS ROI (recherche).
+    '' si flag off ou rien de réglé."""
+    try:
+        from app import live_pick as _lps
+        if not _lps.SHOW_ON_SITE:
+            return ""
+        _ss = _lps.success_series()
+    except Exception:
+        return ""
+    if not _ss.get("settled"):
+        return ""
+    return ('<div class="combo-horsroi">Track expérimental — <b>non compté au ROI</b></div>'
+            + render_tracking_curve(
+                emoji="🧪", title="SIGNAUX (TEST)", roi=None, hit=_ss.get("winrate"),
+                n=_ss.get("settled"), points=_ss.get("points"), dates=_ss.get("dates"),
+                avg_cote=_ss.get("avg_cote"), uid="sig-test", compact=True, warmup=3))
+
+
 def render_stats(full: dict | None, since: str = "", combo_full: dict | None = None) -> str:
     """Onglet STATISTIQUES — premium & lisible : (1) bilan global (ROI + KPIs), (2) courbe d'équité
     UNIQUE (profit cumulé) avec repères des changements de modèle, (3) détail par sport (ligne +
@@ -5731,11 +5751,12 @@ def render_stats(full: dict | None, since: str = "", combo_full: dict | None = N
     # ORDRE onglets = Confiance · Value · [Provisoire retiré] · Combiné (user 2026-08-11). L'onglet Provisoire
     # n'est plus rendu (prov_html="" -> onglet ignoré) ; les abstentions nourrissent la calibration (fantômes).
     _prov_html = _prov_sport_graph("foot") if analyses.PROVISOIRES_ON else ""
+    signaux_block = _signaux_stats_block()                                         # onglet SIGNAUX (test, user 2026-09-17)
     _foot = _sport_tabs(simples_block, combos_block, _prov_html,
-                        value_html=value_block,                                    # onglet VALUE (user 2026-08-09)
-                        counts=(len(_pend_conf), len(_pend_val),
+                        value_html=value_block, signaux_html=signaux_block,        # onglets VALUE + SIGNAUX
+                        counts=(len(_pend_conf), len(_pend_val), 0,
                                 _prov_pending_count("foot") if analyses.PROVISOIRES_ON else 0, len(_pend_fc)),
-                        rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"),
+                        rois=((_bt.get("confiance") or {}).get("roi"), (_bt.get("value") or {}).get("roi"), None,
                               _prov_sport_roi("foot") if analyses.PROVISOIRES_ON else None,
                               # COMBINÉ COMPTÉ AU ROI (user 2026-08-19) -> chip ROI affiché.
                               (_foot_c.get("roi") if analyses.COMBO_ROI_ON else None)))
@@ -5847,7 +5868,7 @@ def _roi_chip_mini(roi) -> str:
 
 def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
                 counts: tuple = (0, 0, 0, 0), rois: tuple = (None, None, None, None),
-                value_html: str = "", tab_chips: dict | None = None) -> str:
+                value_html: str = "", signaux_html: str = "", tab_chips: dict | None = None) -> str:
     """Onglets « Confiance | Value | Provisoire | Combiné » dans un cadre sport (demande user
     2026-07-24/25, Value 2026-08-09) :
     UN graphe à la fois, on tape pour basculer (JS `_SCTABS_JS`, index générique). Les onglets vides sont ignorés ;
@@ -5855,7 +5876,7 @@ def _sport_tabs(simple_html: str, combos_html: str, prov_html: str = "",
     _c = list(counts) + [0, 0, 0, 0, 0]
     _r = list(rois) + [None, None, None, None, None]
     # ORDRE : Confiance › Value › Provisoire › Combiné. Libellés au SINGULIER. counts/rois suivent le MÊME ordre.
-    _specs = (("Confiance", simple_html), ("Value", value_html),
+    _specs = (("Confiance", simple_html), ("Value", value_html), ("Signaux", signaux_html),
               ("Provisoire", prov_html), ("Combiné", combos_html))
     _tabs = [(lbl, h, _c[i], _r[i]) for i, (lbl, h) in enumerate(_specs) if h]
     if len(_tabs) <= 1:
@@ -10150,7 +10171,14 @@ def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | N
         _lv_combo = _daily_combo_live_legs("foot")
     except Exception:
         _lv_combo = 1 if _daily_combo_any_live() else 0
-    _lv_total = (live_count or 0) + _lv_prov + _lv_combo
+    # + matchs EN COURS avec SIGNAUX mais sans pari joué (abstentions suivies, user 2026-09-17) : `sig` de
+    # _planning_cards = ces matchs (jamais dans live_count, qui ne compte que les paris) -> badge Live complet.
+    try:
+        _, _, _lv_sig = _planning_cards("foot")
+        _lv_sig_n = len(_lv_sig)
+    except Exception:
+        _lv_sig_n = 0
+    _lv_total = (live_count or 0) + _lv_prov + _lv_combo + _lv_sig_n
     # BANDEAU CALENDRIER RETIRÉ de Pronos (demande user 2026-07-25) : la navigation par jour / le bilan
     # quotidien vivent désormais dans l'onglet CALENDRIER dédié -> plus de doublon en tête de Pronos.
     # MODULE « Programme du jour » : liste COMPLÈTE des matchs suivis + heure d'analyse (wave-first). Hors
@@ -12527,6 +12555,16 @@ def render_directs(play_live: list, prov_live: list, sport: str | None = None, f
     # apparaître dans Live) — le combiné SÉCURITÉ et le combiné BONUS, comme dans l'onglet Pronos. Foot only.
     _safe_combo = ""   # combiné « double chance » fusionné dans « Combiné football » (combo_daily) le 2026-08-02
     _counts["foot"] += (1 if _safe_combo else 0)
+    # LIVE avec SIGNAUX (user 2026-09-17) : compter AUSSI les matchs EN COURS qui ont des signaux mais AUCUN pari
+    # joué (abstentions suivies via le track) — sinon le badge Live les ignorait alors qu'ils s'affichent (zone
+    # Signaux Live). On dédup par id pour ne pas re-compter un match déjà porté par un pari.
+    try:
+        from app import live_pick as _lpx
+        _bet_ids = {str(c.get("id")) for c in play_live if _item_sport(c) == "foot"}
+        _bet_ids |= {str(c.get("id")) for c in prov_live if c.get("_sport") == "foot"}
+        _counts["foot"] += sum(1 for _sm in _lpx.current_all("foot") if str(_sm.get("id")) not in _bet_ids)
+    except Exception:
+        pass
     total = sum(_counts.values())
     # FILTRE du sport sélectionné.
     # PROCHAINS MATCHS (user 2026-08-19) : les matchs À VENIR repris par un pari, en CARTES DE PRONO (décompte +

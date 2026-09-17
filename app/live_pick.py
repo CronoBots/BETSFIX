@@ -1476,6 +1476,38 @@ def summary() -> dict:
     return _res
 
 
+def success_series() -> dict:
+    """Données pour la COURBE « évolution du taux de réussite des signaux » (onglet Stats, user 2026-09-17).
+    Unité = un pick CANONIQUE par match réglé v3 (1/match, honnête), ordonné par date de coup d'envoi -> taux de
+    réussite CUMULÉ en %. Renvoie aussi l'agrégat (réglés, réussite %, cote moyenne). Hors ROI (recherche)."""
+    canon = []
+    for rec in _iter_records():
+        settled = [s for s in rec.get("snaps", []) if s.get("mv", 1) >= MODEL_VERSION
+                   and s.get("result") in ("won", "lost", "push")]
+        cs = sorted((s for s in settled if s.get("minute", 0) >= MINUTE_CANON_MIN),
+                    key=lambda s: (s["minute"], s.get("sel", "")))
+        if cs:
+            canon.append((str(rec.get("start") or ""), cs[0]))
+    canon.sort(key=lambda kv: kv[0])
+    pts, dates = [], []
+    w = l = 0
+    codds = 0.0
+    for start, s in canon:
+        if s["result"] == "won":
+            w += 1
+        elif s["result"] == "lost":
+            l += 1
+        else:
+            continue                                   # push : hors taux de réussite
+        codds += s.get("odds", 0.0)
+        pts.append(round(100.0 * w / (w + l), 1))      # taux de réussite CUMULÉ à ce match
+        dates.append(start[:10])
+    _dec = w + l
+    return {"points": pts, "dates": dates, "settled": _dec,
+            "winrate": round(100.0 * w / _dec, 1) if _dec else 0.0,
+            "avg_cote": round(codds / _dec, 2) if _dec else 0.0}
+
+
 if __name__ == "__main__":
     import sys
     sys.stdout.reconfigure(encoding="utf-8")
