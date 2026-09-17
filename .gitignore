@@ -35,3 +35,7 @@ static/unibet_banner.png
 data/apifootball_shadow/
 data/live_snapshots/
 data/crest_af_cache.json
+
+# Rapports auto-générés par le scan quotidien (méthodologie + revue owner) — artefacts, pas de suivi
+docs/METHODOLOGIE.md
+docs/REVUE.md
