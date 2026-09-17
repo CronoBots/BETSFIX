@@ -1060,6 +1060,10 @@ CSS = """
   .row.mc.mc-r-lost{border-color:var(--st-lost)}
   .row.mc.mc-r-push{border-color:var(--st-void)}
   .row.mc.mc-r-live{border-color:var(--st-live)}
+  /* CARTE SIGNAUX TERMINÉE (user 2026-09-17) : bord + halo à la COULEUR du % global de réussite (même code que le badge %) */
+  .row.mc.mc-sig-hi{border-color:#34d27b;box-shadow:0 0 24px rgba(52,210,123,.30),var(--shadow-sm)}
+  .row.mc.mc-sig-mid{border-color:#e0b341;box-shadow:0 0 24px rgba(224,179,65,.28),var(--shadow-sm)}
+  .row.mc.mc-sig-lo{border-color:#ff6b6b;box-shadow:0 0 24px rgba(255,107,107,.26),var(--shadow-sm)}
   /* Badge RÉSULTAT dans le coin haut-droit : pastille ronde ✓ (gagné) / ✗ (perdu), colorée, par-dessus l'en-tête. */
   .mc-corner{position:absolute;top:9px;right:10px;z-index:4;width:26px;height:26px;border-radius:50%;
        display:inline-flex;align-items:center;justify-content:center;pointer-events:none;border:1px solid}
@@ -5695,7 +5699,7 @@ def _signaux_stats_block() -> str:
         f'<div class="spf-hero-roi" style="color:{_wc}">{_wr}%</div>'
         '<div class="spf-hero-kpis">'
         f'<div><span class="v">{_ss.get("matches")}</span><span class="l">Matchs</span></div>'
-        f'<div><span class="v">{_ss.get("bets")}</span><span class="l">Paris</span></div>'
+        f'<div><span class="v">{_ss.get("bets")}</span><span class="l">Paris réglés</span></div>'
         f'<div><span class="v">{_ss.get("avg_cote") or "—"}</span><span class="l">Cote moyenne</span></div>'
         '</div>')
     return (f'<div class="spf-hero">{_head}<div class="sx-equity">{_chart}</div>'
@@ -12379,9 +12383,17 @@ def _signaux_match_card(m: dict) -> str:
     # BADGE DOUBLON « déjà en Confiance/Value » RETIRÉ de la carte (user 2026-09-17) : jugé inutile à l'affichage.
     # La ventilation « signaux sur match avec/sans pari pré-match » reste dans les STATS Signaux Live (by_prematch).
     badge = ""
+    # BORDURE (user 2026-09-17) : sur un match TERMINÉ, le cadre prend la COULEUR du % global de réussite des
+    # signaux (rouge <50 / orange 50-75 / vert >75, MÊME code couleur que le badge %). En direct : bord live (or).
+    if m.get("settled"):
+        _state = ""
+        if _gset > 0:
+            _gp = round(100 * gw / _gset)
+            _state = " " + ("mc-sig-hi" if _gp > 75 else "mc-sig-mid" if _gp >= 50 else "mc-sig-lo")
+    else:
+        _state = " mc-r-live"
     return _phantom_match_card(m.get("home", ""), m.get("away", ""), m.get("comp", ""),
-                              center, badge, "".join(rows),
-                              state_cls=("" if m.get("settled") else " mc-r-live"))
+                              center, badge, "".join(rows), state_cls=_state)
 
 
 def _signaux_live_card_for_sidecar(d: dict) -> str:
