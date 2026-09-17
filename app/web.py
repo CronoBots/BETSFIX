@@ -2878,14 +2878,15 @@ CSS = """
   .lph-pct-hi{color:#34d27b;background:rgba(52,210,123,.14)}
   .lph-pct-mid{color:#e0b341;background:rgba(224,179,65,.14)}
   .lph-pct-lo{color:#ff6b6b;background:rgba(255,107,107,.13)}
-  .lph-fg-ratio{flex:none;width:46px;text-align:right;color:#8aa0b6;font-size:12px;font-weight:700;
-       font-variant-numeric:tabular-nums}   /* largeur FIXE -> colonne « paris joués » alignée (user 2026-09-17) */
+  .lph-fg-ratio{flex:none;width:46px;text-align:center;color:#8aa0b6;font-size:12px;font-weight:700;
+       font-variant-numeric:tabular-nums}   /* largeur FIXE + contenu CENTRÉ -> colonne « paris joués » (user 2026-09-17) */
   .lph-fg-live{color:#22b8ff;font-size:11.5px;font-weight:700;white-space:nowrap}
-  .lph-gpct{display:flex;align-items:center;gap:8px;padding:9px 0 11px;
-       border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:2px}
-  .lph-gpct::after{content:"";flex:none;width:12px}   /* espaceur = chevron ▸ des familles -> % du match aligné */
-  .lph-gpct-l{font-weight:800;font-size:12.5px;color:#e6edf3}
-  .lph-gpct .lph-fg-pct{font-size:12.5px}
+  /* LIGNE DE RÉSULTAT PRINCIPALE mise en ÉVIDENCE (user 2026-09-17) : bandeau arrondi + libellé/% plus gros */
+  .lph-gpct{display:flex;align-items:center;gap:8px;padding:11px 12px;margin-bottom:6px;
+       background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.07);border-radius:11px}
+  .lph-gpct-l{font-weight:800;font-size:13.5px;color:#f2f6fb;letter-spacing:.01em}
+  .lph-gpct .lph-fg-pct{font-size:13px}
+  .lph-gpct .lph-fg-ratio{color:#cdd8e4;font-size:12.5px}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-b{padding-bottom:4px}
   .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
