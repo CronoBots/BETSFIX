@@ -748,6 +748,15 @@ MIN_TAIL_N = 12          # taille mini de l'échantillon QUEUE avant de juger (s
 WINPCT_GAP = 12.0        # écart de réussite (points) queue-sous-cœur qui déclenche l'alerte
 ROI_GAP = 15.0           # + écart de ROI (points) ; l'alerte exige AUSSI un ROI queue négatif
 
+# SURVEILLANCE Confiance (user 2026-09-17 « on surveille de près ») : le taux Confiance a décroché 95%→79%
+# sur 8 j (6 défaites/29, P≈4% = plausiblement de la variance amplifiée par le volume 2,1→3,6 paris/jour, cap
+# 7→10). On NE touche PAS le sélecteur (intact, cotes non plus risquées, dip non concentré sur le slate élargi) ;
+# on POSE une alarme forward : si le taux sur la fenêtre glissante tombe SOUS le seuil avec assez de recul, c'est
+# une vraie régression, plus de la variance -> on creuse. Fenêtre à 86% aujourd'hui -> ne crie pas au loup.
+WATCH_WINDOW = 50        # fenêtre glissante = les N derniers paris Confiance JOUÉS réglés
+WATCH_MIN_N = 40         # recul mini avant de juger (sinon variance)
+WATCH_MIN_PCT = 85.0     # sous ce taux de réussite sur la fenêtre = alerte (baseline mesurée ~91%)
+
 
 def _bucket_stats(rows: list) -> dict:
     """n paris décisifs (won/lost), réussite %, ROI % (mise 1u/pari) d'un lot de (cote, result)."""
@@ -829,6 +838,52 @@ def tail_quality(send_alert: bool = False) -> int:
     return 0
 
 
+def recent_confidence_watch(send_alert: bool = False) -> int:
+    """SURVEILLANCE Confiance (user 2026-09-17). Taux de réussite sur la fenêtre glissante des `WATCH_WINDOW`
+    derniers paris JOUÉS réglés ; alerte privée (1×/semaine ISO) si — avec ≥ `WATCH_MIN_N` de recul — le taux
+    tombe SOUS `WATCH_MIN_PCT` (baseline ~91%). Distingue une VRAIE régression d'un amas de variance : on
+    n'alerte QUE si le décrochage PERSISTE. 0 = OK / recul insuffisant, 1 = alerte."""
+    rows = []
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("roi_void") or A.tier_of(d) != "confiance":
+            continue
+        sb = A.stat_bet(d)
+        if not (isinstance(sb, dict) and sb.get("sel") and sb.get("result") in ("won", "lost", "push")):
+            continue
+        rows.append(((d.get("start") or ""), sb.get("cote"), sb.get("result")))
+    rows.sort()                                                  # chronologique (coup d'envoi)
+    st = _bucket_stats([(c, r) for _, c, r in rows][-WATCH_WINDOW:])
+    print(f"═══ SURVEILLANCE Confiance — {WATCH_WINDOW} derniers réglés ═══")
+    print(f"  {st['n']} décisifs · {st['win']:.0f}% réussite · ROI {st['roi']:+.1f}%  "
+          f"(alerte si < {WATCH_MIN_PCT:.0f}% avec ≥ {WATCH_MIN_N} paris)")
+    if st["n"] >= WATCH_MIN_N and st["win"] < WATCH_MIN_PCT:
+        print("🔴 ALERTE : réussite Confiance durablement SOUS le seuil -> régression probable (au-delà de la variance).")
+        import datetime as _dt
+        try:
+            wk = _dt.date.today().strftime("%G-W%V")                   # dédup PAR SEMAINE (pas de spam quotidien)
+        except Exception:
+            wk = (rows[-1][0] or "")[:7] if rows else "?"
+        if send_alert and _new_issues(wk, ["conf-winrate-low"]):
+            from app import notify
+            _body = (f"Réussite Confiance = {st['win']:.0f}% (ROI {st['roi']:+.1f}%) sur les {st['n']} derniers "
+                     f"paris réglés — SOUS le seuil de {WATCH_MIN_PCT:.0f}% (baseline ~91%). Le décrochage dépasse "
+                     f"la variance -> creuser les défaites récentes (comp / marché / cote) avant de resserrer.")
+            if notify.owner_alert("Confiance sous le seuil", _body, severity="warn",
+                                  action="analyser les défaites récentes ; resserrer la sélection ou rebaisser le cap si confirmé.",
+                                  diag="python tools/analysis_quality.py --conf-watch"):
+                print("   → alerte privée envoyée.")
+        return 1
+    if st["n"] < WATCH_MIN_N:
+        print(f"🟡 Recul insuffisant ({st['n']} < {WATCH_MIN_N}) — on continue de surveiller.")
+    else:
+        print("🟢 OK : réussite Confiance au-dessus du seuil.")
+    return 0
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="jour ISO (défaut : programme courant)")
@@ -841,9 +896,16 @@ if __name__ == "__main__":
     ap.add_argument("--tail-check", action="store_true",
                     help="compare QUEUE (rang de sélection ≥ 7, ajoutée par le cap 7→10) vs CŒUR sur les "
                          "paris joués réglés -> preuve que le NOMBRE ne dilue pas. --alert = alerte privée si dilution.")
+    ap.add_argument("--conf-watch", action="store_true",
+                    help="surveillance Confiance : réussite sur la fenêtre glissante des N derniers paris réglés ; "
+                         "alerte privée (1×/semaine) si sous le seuil avec assez de recul. --alert = envoyer.")
     args = ap.parse_args()
     if args.tail_check:
-        sys.exit(tail_quality(send_alert=args.alert))
+        rc = tail_quality(send_alert=args.alert)
+        rc |= recent_confidence_watch(send_alert=args.alert)     # surveillance Confiance dans le MÊME passage quotidien
+        sys.exit(rc)
+    if args.conf_watch:
+        sys.exit(recent_confidence_watch(send_alert=args.alert))
     if args.match_messages:
         sys.exit(notify_match_qc(args.date, send=args.alert))
     sys.exit(run(args.date, send_alert=args.alert))
