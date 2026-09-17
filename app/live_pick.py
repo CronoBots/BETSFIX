@@ -1587,17 +1587,20 @@ def calibrate_display(prob, prob_map: dict | None = None):
 
 
 def success_series() -> dict:
-    """Données de l'onglet « Signaux » des Stats (user 2026-09-17). PAR MATCH réglé v3 (signaux DISTINCTS,
-    tout marché confondu) : taux de réussite du match + agrégat (matchs, paris tout confondu, réussite %, cote
-    moyenne) + COURBE d'évolution du taux de réussite CUMULÉ (ordonné par date) + `rows` (historique par match).
-    Hors ROI (recherche)."""
+    """Données de l'onglet « Signaux » des Stats (user 2026-09-17). PAR MATCH réglé, TOUT L'HISTORIQUE depuis le
+    début (TOUTES versions de modèle confondues, signaux DISTINCTS, tout marché confondu) : taux de réussite du
+    match + agrégat (matchs, paris tout confondu, réussite %, cote moyenne) + COURBE d'évolution du taux de
+    réussite CUMULÉ (ordonné par date) + `rows` (historique par match). Hors ROI (recherche).
+    ⚠️ PAS de filtre `mv >= MODEL_VERSION` ici (user 2026-09-17 : « les stats doivent reprendre tout ce qui a
+    été fait depuis le début ») — sinon un bump de MODEL_VERSION (ex. v3→v4) VIDAIT l'historique affiché. La
+    mesure du modèle COURANT isolé reste dans `summary().current_model` / `settled_by_model` (v4 vs v3)."""
     rows = []
     aw = al = apu = 0
     codds = 0.0
     for rec in _iter_records():
         seen: dict = {}                                # 1 signal par (match, sel) = 1re détection
         for s in rec.get("snaps", []):
-            if s.get("mv", 1) >= MODEL_VERSION and s.get("result") in ("won", "lost", "push"):
+            if s.get("result") in ("won", "lost", "push"):   # TOUT l'historique (toutes versions de modèle)
                 seen.setdefault(s.get("sel"), s)
         dv = list(seen.values())
         mw = sum(1 for s in dv if s["result"] == "won")
