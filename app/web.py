@@ -1032,10 +1032,13 @@ CSS = """
        box-shadow:0 0 24px rgba(34,184,255,.42),var(--shadow-sm)}   /* HALO AUTOUR cyan comme les cadres stats (user 2026-09-10) — intensité relevée pour être VISIBLE dans la liste (contexte déjà teinté) */
   /* FILIGRANE logo COMPLET (user 2026-09-06, comme le style signature) : discret, centré dans le cadre, DERRIÈRE
      le contenu (::before z-index:0, les enfants passent en z-index:1). pointer-events:none -> n'intercepte pas le tap. */
-  /* FILIGRANE logo (user 2026-09-17) : FIXÉ À LA VUE (centré à l'écran, ne bouge PAS au scroll), plus par carte,
-     et EMBLÈME SEUL (`logo_mark.png`, sans le mot « BETSFIX »). Fond des cartes translucide -> il transparaît. */
-  body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:240px;height:180px;
-       z-index:-1;pointer-events:none;opacity:.06;background:url('/static/logo_mark.png') center/contain no-repeat;
+  /* FILIGRANE logo (user 2026-09-17) : FIXÉ À LA VUE (centré à l'écran, ne bouge PAS au scroll, un par onglet),
+     plus par carte. Logo COMPLET (`logo.png`, avec « BETSFIX ») à la MÊME place/taille que le logo du SPLASH de
+     chargement (`.splash img` = width:46% max 208px, centré) -> il est plein écran au chargement puis « se pose »
+     en filigrane discret une fois le site ouvert. Fond des cartes translucide -> il transparaît. */
+  body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+       width:min(46vw,208px);aspect-ratio:272/240;
+       z-index:-1;pointer-events:none;opacity:.06;background:url('/static/logo.png') center/contain no-repeat;
        filter:grayscale(.3) brightness(1.3)}
   /* Base .row.mc::before CONSERVÉE (position/taille) mais SANS image côté web -> plus de filigrane par carte. La
      carte Telegram (`card_image`) y réinjecte `background-image:url(...)!important` -> filigrane gardé sur Telegram. */
@@ -2895,6 +2898,13 @@ CSS = """
   .lph-gpct-l{font-weight:800;font-size:13.5px;color:#f2f6fb;letter-spacing:.01em}
   .lph-gpct .lph-fg-pct{font-size:13px}
   .lph-gpct .lph-fg-ratio{color:#cdd8e4;font-size:12.5px}
+  /* MATCH TERMINÉ (user 2026-09-17) : familles CACHÉES par défaut, révélées en dépliant « Réussite du match »
+     (le bandeau devient un <summary> cliquable). En cours : familles visibles (pas de pli). */
+  .lph-gpct-sum{cursor:pointer;list-style:none}
+  .lph-gpct-sum::-webkit-details-marker{display:none}
+  .lph-mf-chev{color:#8aa0b6;font-size:12px;margin-left:6px;transition:transform .15s;flex:none}
+  .lph-mf[open] .lph-mf-chev{transform:rotate(90deg)}
+  .lph-mf[open] > .lph-gpct-sum{margin-bottom:6px}
   .lph-fg-c{flex:none;min-width:18px;text-align:right;color:#7f8fa2;font-size:11px;font-weight:700}
   .lph-fg-b{padding-bottom:4px}
   .lph-fg-b .lph-p:first-child{border-top:1px solid rgba(255,255,255,.05)}
@@ -12216,6 +12226,7 @@ def _signaux_match_card(m: dict) -> str:
     fam_items = sorted(groups.items(),
                        key=lambda kv: (_LPH_FAMILY_ORDER.get(kv[0], 99), kv[0]))
     rows = []
+    _fam_rows = []                                       # plis PAR FAMILLE (repliés derrière « Réussite » si terminé)
     _finished = bool(m.get("settled"))                  # match TERMINÉ ? -> le % de réussite ne s'affiche qu'alors
     gw = gl = 0                                          # cumul global du match (validés / tombés)
     for fam, ps in fam_items:
@@ -12258,26 +12269,33 @@ def _signaux_match_card(m: dict) -> str:
             right = f'<span class="lph-fg-stale">{nst} dépassé{"s" if nst > 1 else ""}</span>'
         else:
             right = ''
-        rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
-                    f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
-                    f'<span class="lph-fg-r">{right}</span></summary>'
-                    f'<div class="lph-fg-b">{lines}</div></details>')
+        _fam_rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
+                         f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
+                         f'<span class="lph-fg-r">{right}</span></summary>'
+                         f'<div class="lph-fg-b">{lines}</div></details>')
     # EN TÊTE (user 2026-09-17) : % de réussite du match SEULEMENT une fois TERMINÉ (prématuré en live) ; EN COURS
-    # -> « Paris réglés » = réglés (gagnés+perdus) / total joué, sans %.
+    # -> « Signaux en direct » + « •N en cours ». user 2026-09-17 : sur un match TERMINÉ, les FAMILLES sont
+    # CACHÉES par défaut -> on déplie « Réussite du match » (bandeau devenu <summary>) pour voir toutes les familles.
     _gset = gw + gl
     _gtot = len(_picks)
     if _finished and _gset > 0:
         _gpct = round(100 * gw / _gset)
-        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Réussite du match</span>'
-                       f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{_gset}</span>'
-                       f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span></span></div>')
+        _sum = (f'<summary class="lph-gpct lph-gpct-sum"><span class="lph-gpct-l">Réussite du match</span>'
+                f'<span class="lph-fg-r"><span class="lph-fg-ratio">{gw}/{_gset}</span>'
+                f'<span class="lph-fg-pct {_lph_pct_cls(_gpct)}">{_gpct}%</span>'
+                f'<span class="lph-mf-chev">▸</span></span></summary>')
+        rows.append(f'<details class="lph-mf">{_sum}<div class="lph-mf-body">{"".join(_fam_rows)}</div></details>')
     elif not _finished and _gtot > 0:
         # EN COURS : label neutre + « •N en cours » SEUL (pas de fraction réglés/total trompeuse, user 2026-09-17).
+        # Familles VISIBLES en direct (on suit le match) — le repli ne vaut que pour les terminés.
         _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push") and not p.get("stale"))
         _gright = (f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen
                    else f'<span class="lph-fg-ratio">{gw}/{_gset}</span>')
-        rows.insert(0, f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
-                       f'<span class="lph-fg-r">{_gright}</span></div>')
+        rows.append(f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
+                    f'<span class="lph-fg-r">{_gright}</span></div>')
+        rows.extend(_fam_rows)
+    else:
+        rows.extend(_fam_rows)                           # ni terminé-avec-résultat ni live-avec-signaux : brut
     if not rows:                                        # match suivi mais aucun signal à cet instant
         msg = ("⏳ Cotes live en cours de chargement…" if not m.get("has_catalog")
                else "Aucun signal live actuellement")
