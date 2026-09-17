@@ -167,6 +167,37 @@ def test_observe_settle_summary_end_to_end(tmp_path, monkeypatch):
     assert 0.0 <= s["canonical"]["winrate"] <= 100.0
 
 
+def test_settle_all_fast_from_apifootball(tmp_path, monkeypatch):
+    """Règlement RAPIDE (settle_all_fast) : clôt le shadow directement depuis le score FT d'API-Football,
+    SANS que le sidecar ait un `result` (le vrai pari, lui, garde le pipeline analyste 10 min)."""
+    monkeypatch.setattr(lp, "_STORE", str(tmp_path))
+    monkeypatch.setattr(lp, "MINUTE_LOG_MIN", 10)
+    monkeypatch.setattr(lp, "TEMPO_BLEND_ON", False)
+    from app import match_select, settle_analyst, apifootball
+    monkeypatch.setattr(match_select, "live_state_for",
+                        lambda sport, h, a: {"score": {"home": 1, "away": 0},
+                                             "matchClock": {"minute": 60}})
+    monkeypatch.setattr(analyses, "live_catalog", lambda mid: _cat())
+
+    d = {"sport": "foot", "id": "EVT2", "home": "Lyon", "away": "Rennes",
+         "comp": "Ligue 1", "start": "2026-09-13T18:00:00Z"}
+    assert lp.observe_match(d) >= 2
+    rec = lp._load("foot", "EVT2")
+    assert rec and not rec["settled"] and all(s["result"] is None for s in rec["snaps"])
+
+    # sidecar SANS result (analyste pas encore passé) mais API-Football renvoie FT 2-1 (MT 1-0).
+    monkeypatch.setattr(analyses, "meta", lambda sport, mid: d)
+    monkeypatch.setattr(apifootball, "configured", lambda: True)
+    monkeypatch.setattr(settle_analyst, "_apifootball_score",
+                        lambda dd, cache: {"reg_home": 2, "reg_away": 1, "periods": {"1": [1, 0], "2": [1, 1]},
+                                           "src": "apifootball"})
+    assert lp.settle_all_fast() == 1
+    rec = lp._load("foot", "EVT2")
+    assert rec["settled"] and rec["final"] == "2-1"
+    assert all(s["result"] in ("won", "lost", "push") for s in rec["snaps"])
+    assert lp.settle_all_fast() == 0                        # idempotent (déjà réglé)
+
+
 def test_store_is_isolated_from_sidecars(tmp_path, monkeypatch):
     """Le store live_shadow est SÉPARÉ (data/live_shadow/) -> jamais dans le sidecar (invariant selfcheck)."""
     monkeypatch.setattr(lp, "_STORE", str(tmp_path))

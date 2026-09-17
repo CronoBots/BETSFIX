@@ -1227,9 +1227,35 @@ def _settle_snap(snap: dict, fh: int, fa: int, vals: dict | None = None, ht=None
     return st if st in ("won", "lost", "push") else None
 
 
+def _ht_from_periods(periods) -> tuple | None:
+    """(buts_dom_MT, buts_ext_MT) depuis un dict de périodes {'1':[h,a], ...}. None si absent/illisible."""
+    _p1 = (periods or {}).get("1")
+    if isinstance(_p1, (list, tuple)) and len(_p1) == 2 and _p1[0] is not None and _p1[1] is not None:
+        return (int(_p1[0]), int(_p1[1]))
+    return None
+
+
+def _apply_final_snaps(rec: dict, fh: int, fa: int, ht: tuple | None) -> None:
+    """Règle TOUS les snapshots non réglés d'un record sur le score final (fh-fa) + score MI-TEMPS `ht`, puis
+    marque le record réglé et persiste. Fetche les totaux FINAUX (corners/cartons/…) UNIQUEMENT si des familles
+    compteur restent à régler (les stats API-Football persistent après le coup de sifflet). Cœur PARTAGÉ entre
+    le règlement lent (settle_all, score du sidecar) et rapide (settle_all_fast, score API-Football FT direct)."""
+    need_counts = any((s.get("family") in _FAM_BASE or s.get("family") == "Possession")
+                      and s.get("result") not in ("won", "lost", "push") for s in rec.get("snaps", []))
+    fvals = (_live_vals(rec.get("match_id"), rec.get("home", ""), rec.get("away", ""),
+                        rec.get("start"), allow_fetch=True) if need_counts else None)
+    for s in rec.get("snaps", []):
+        if s.get("result") in ("won", "lost", "push"):
+            continue
+        s["result"] = _settle_snap(s, fh, fa, fvals, ht, rec.get("home", ""), rec.get("away", ""))
+    rec["settled"] = True
+    rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
+    _save(rec)
+
+
 def settle_all() -> int:
-    """Règle les snapshots des matchs FINIS (score final présent). Idempotent (rec['settled']). Renvoie le
-    nb de matchs nouvellement réglés. À appeler depuis la boucle de règlement (hors event loop)."""
+    """Règle les snapshots des matchs FINIS (score final présent dans le sidecar). Idempotent (rec['settled']).
+    Renvoie le nb de matchs nouvellement réglés. À appeler depuis la boucle de règlement (hors event loop)."""
     n = 0
     for rec in list(_iter_records()):
         if rec.get("settled"):
@@ -1241,24 +1267,46 @@ def settle_all() -> int:
         if goals is None:
             continue
         fh, fa = goals
-        # Totaux FINAUX réels (corners/fautes/hors-jeu/arrêts/passes/possession) pour régler les compteurs —
-        # les stats API-Football persistent après le coup de sifflet final (même appel `/fixtures?id=`).
-        need_counts = any((s.get("family") in _FAM_BASE or s.get("family") == "Possession")
-                          and s.get("result") not in ("won", "lost", "push") for s in rec.get("snaps", []))
-        fvals = (_live_vals(rec.get("match_id"), rec.get("home", ""), rec.get("away", ""),
-                            rec.get("start"), allow_fetch=True) if need_counts else None)
-        # Score MI-TEMPS pour régler les marchés 1re période (déjà persisté au règlement : result.raw.periods['1']).
-        ht = None
-        _p1 = (((d.get("result") or {}).get("raw") or {}).get("periods") or {}).get("1")
-        if isinstance(_p1, (list, tuple)) and len(_p1) == 2 and _p1[0] is not None and _p1[1] is not None:
-            ht = (int(_p1[0]), int(_p1[1]))
-        for s in rec.get("snaps", []):
-            if s.get("result") in ("won", "lost", "push"):
-                continue
-            s["result"] = _settle_snap(s, fh, fa, fvals, ht, rec.get("home", ""), rec.get("away", ""))
-        rec["settled"] = True
-        rec["final"] = f"{fh}-{fa}"                     # score final -> affichage « terminés »
-        _save(rec)
+        # Score MI-TEMPS (marchés 1re période) déjà persisté au règlement : result.raw.periods['1'].
+        ht = _ht_from_periods(((d.get("result") or {}).get("raw") or {}).get("periods"))
+        _apply_final_snaps(rec, fh, fa, ht)
+        n += 1
+    return n
+
+
+def settle_all_fast() -> int:
+    """Règlement RAPIDE des signaux (foot) directement depuis API-Football, SANS attendre la boucle analyste de
+    10 min NI aucune autre source (API-Football est déjà la source PRIMAIRE de règlement du foot). Pour chaque
+    match suivi non réglé, si son fixture est FT/AET/PEN chez API-Football (~secondes après le coup de sifflet),
+    on règle le shadow sur le score RÉGLEMENTAIRE + score MI-TEMPS renvoyés par `settle_analyst._apifootball_score`
+    (même code/source que le règlement du vrai pari -> cohérence garantie). Le shadow est ISOLÉ du ROI : régler
+    tôt les signaux ne touche ni les stats ni le vrai pari (qui garde le pipeline analyste). Renvoie le nb de
+    matchs nouvellement réglés. Best-effort (jamais bloquant). `/fixtures?date` est caché par jour -> ~1 appel."""
+    try:
+        from app import settle_analyst as _sa
+        from app import apifootball as _AF
+    except Exception:
+        return 0
+    if not _AF.configured():
+        return 0
+    af_cache: dict = {}
+    n = 0
+    for rec in list(_iter_records()):
+        if rec.get("settled") or rec.get("sport", "foot") != "foot":
+            continue
+        d = analyses.meta("foot", rec.get("match_id"))
+        if not d:
+            continue
+        try:
+            sc = _sa._apifootball_score(d, af_cache)     # None tant que le fixture n'est pas FT/AET/PEN
+        except Exception:
+            sc = None
+        if not sc:
+            continue
+        fh, fa = sc.get("reg_home"), sc.get("reg_away")  # temps RÉGLEMENTAIRE (marchés 90 min)
+        if fh is None or fa is None:
+            continue
+        _apply_final_snaps(rec, int(fh), int(fa), _ht_from_periods(sc.get("periods")))
         n += 1
     return n
 

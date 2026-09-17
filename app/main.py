@@ -295,6 +295,25 @@ async def _match_events_loop():
         await asyncio.sleep(45)
 
 
+async def _live_shadow_settle_loop():
+    """Clôture RAPIDE des signaux live (foot) : dès qu'un match suivi passe FT chez API-Football (~secondes
+    après le coup de sifflet), on règle son shadow — SANS attendre la boucle analyste de 10 min ni aucune autre
+    source (API-Football règle déjà le foot). Léger : `/fixtures?date` caché par jour, ne balaie que les records
+    NON réglés. Ferme l'angle mort où un match à signaux, fini mais pas encore réglé, disparaissait du Programme
+    pendant ~10 min (user 2026-09-17). Best-effort, jamais bloquant."""
+    from app import live_pick
+    await asyncio.sleep(120)       # laisse l'app démarrer + le cache live se remplir
+    while True:
+        try:
+            if _become_settle_leader():
+                ns = await asyncio.to_thread(live_pick.settle_all_fast)
+                if ns:
+                    log.info("signaux live réglés (rapide, API-Football FT) : %s match(s)", ns)
+        except Exception as exc:
+            log.debug("live shadow fast settle: %s", exc)
+        await asyncio.sleep(75)
+
+
 def _apply_pending_reset(data: str | None = None) -> bool:
     """Si data/.reset-pending existe : vide les stores de suivi (tennis/foot/basket) + les analyses,
     puis retire la sentinelle. Permet une remise à zéro PROPRE au PROCHAIN démarrage, sans devoir
@@ -344,7 +363,8 @@ async def lifespan(app: FastAPI):
                   asyncio.create_task(_odds_loop()),         # suivi des variations de cote (Unibet)
                   asyncio.create_task(_combo_refresh_loop()),  # ~1h avant : cote combiné fraîche + repost carte
                   asyncio.create_task(_combo_warm_loop()),   # pré-chauffe stats live des combinés CdM
-                  asyncio.create_task(_match_events_loop())]  # 🔔 notifs par match (début/but/MT/fin), PWA
+                  asyncio.create_task(_match_events_loop()),  # 🔔 notifs par match (début/but/MT/fin), PWA
+                  asyncio.create_task(_live_shadow_settle_loop())]  # clôture rapide des signaux (API-Football FT)
     else:
         log.info("RÔLE=server : boucles de collecte désactivées (le cloud sert, ne scrape pas).")
     yield
