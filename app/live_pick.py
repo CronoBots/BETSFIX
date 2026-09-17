@@ -481,6 +481,62 @@ def _settle_ht(snap: dict, ht, home: str = "", away: str = ""):
     return None
 
 
+# Seuls les marchés RÉSULTAT (non monotones : le score peut basculer dans les 2 sens) peuvent être « DÉPASSÉS »
+# quand le modèle change d'avis (ex. DC « X2 » -> « 1X », Handicap Grêmio -> Botafogo). Les marchés MONOTONES
+# (totaux/corners/cartons/tirs/BTTS : le compteur ne fait que monter) ne sont JAMAIS dépassés — ils sont soit
+# RÉGLÉS (compteur franchit la ligne, via _live_signal_status), soit encore EN COURS. (user 2026-09-17, IMG_5992)
+_STALE_RESULT_FAMILIES = frozenset({"Vainqueur", "Double chance", "Handicap"})
+
+
+def _is_period_sel(sel: str, family: str = "") -> bool:
+    """Marché de PÉRIODE (1re/2e mi-temps, MT, période) ? Un tel marché qui quitte la vue du modèle n'est PAS
+    « dépassé » (le modèle n'a pas changé d'avis : la période est finie) -> soit réglé, soit en attente, jamais stale."""
+    t = (sel or "").lower() + " " + (family or "").lower()
+    return bool(re.search(r"mi-?temps|p[ée]riode|1[eè]re|2[eè]me|\bmt\b|half", t))
+
+
+def _ht_from_snaps(rec: dict):
+    """Repli du SCORE DE MI-TEMPS depuis le store quand API-Football ne fournit pas `score.halftime` : score du
+    dernier snapshot de fin de 1re MT (minute 40-46). Approx d'AFFICHAGE seulement (le règlement FINAL du store
+    reste settle_all sur les vraies périodes). None si aucun snapshot proche de la pause."""
+    best = None
+    for s in (rec or {}).get("snaps", []):
+        mn = s.get("minute")
+        if isinstance(mn, int) and 40 <= mn <= 46 and (best is None or mn > best.get("minute", -1)):
+            best = s
+    if best and isinstance(best.get("hs"), int) and isinstance(best.get("as"), int):
+        return (best["hs"], best["as"])
+    return None
+
+
+def _result_on_track(snap: dict, hs, as_, home: str = "", away: str = "") -> bool:
+    """Le SCORE COURANT satisfait-il ce pari RÉSULTAT / DC / HANDICAP (encore gagnant en direct) ? Sert à
+    distinguer un pari que le score CONTREDIT (-> dépassé) d'un pari encore sur la bonne voie (-> reste « en
+    cours »). PAS un règlement (le résultat peut encore basculer) : sur inconnu on renvoie True (jamais dépassé)."""
+    if not isinstance(hs, int) or not isinstance(as_, int):
+        return True
+    info = dict(snap.get("info") or {})
+    wside, sel = snap.get("wside"), (snap.get("sel", "") or "")
+    if info.get("handicap") and isinstance(info.get("line"), (int, float)):
+        side = _side_of(sel, home, away)                   # HOME/AWAY (None = ambigu -> on track)
+        h = info["line"]
+        if side == "HOME":
+            return (hs + h) >= as_
+        if side == "AWAY":
+            return (as_ + h) >= hs
+        return True
+    res = "home" if hs > as_ else "away" if as_ > hs else "draw"
+    if wside in ("home", "away", "draw"):
+        return wside == res
+    if wside == "1X":
+        return res in ("home", "draw")
+    if wside == "12":
+        return res in ("home", "away")
+    if wside == "X2":
+        return res in ("away", "draw")
+    return True
+
+
 def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_fetch: bool = False,
                    pre_g90=None) -> float | None:
     """Taux de buts/90 propre au match = mélange bayésien PRIOR (taux du MARCHÉ pour ce match si dispo, sinon
@@ -927,10 +983,12 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     minute = match_select.live_minute(ld)
     if hs is None or as_ is None or minute is None:
         return []
+    rec = _load("foot", d.get("id")) or {}
     ht_live = _live_ht(ld)     # (hh,ha) si la 1re MT est FINIE (score.halftime peuplé), sinon None
+    if ht_live is None and isinstance(minute, int) and minute >= 47:
+        ht_live = _ht_from_snaps(rec)     # repli store quand API-Football n'a pas score.halftime (affichage seul)
     open_picks = current_picks(d, top=top)
     open_sels = {p["sel"] for p in open_picks}
-    rec = _load("foot", d.get("id")) or {}
     first, last = {}, {}
     for s in rec.get("snaps", []):
         k, mn = s.get("sel"), s.get("minute")
@@ -976,8 +1034,12 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
             # résultat/DC/handicap/période). User 2026-09-15 : « tous les signaux proposés pour un match doivent
             # rester visibles » -> on le GARDE en « en cours » jusqu'à son règlement (avant il disparaissait).
             rec_p["cur"] = _signal_current(sel, s.get("family"), hs, as_, home, away, counts)
-            rec_p["stale"] = True   # DÉPASSÉ (user 2026-09-17) : proposé plus tôt, sorti de la vue ACTUELLE du
-            #                         modèle (plus dans current_picks) -> affiché grisé, pas comme une reco active.
+            # DÉPASSÉ (user 2026-09-17) : SEULEMENT un marché RÉSULTAT (Vainqueur/DC/Handicap) que le modèle ne tient
+            # plus (il a basculé). Un marché MONOTONE (corners/totaux/cartons/tirs/BTTS) n'est jamais dépassé (réglé
+            # ou en cours) ; un marché de PÉRIODE non plus (réglé via _settle_ht ou en attente). IMG_5992.
+            if (s.get("family") in _STALE_RESULT_FAMILIES and not _is_period_sel(sel, s.get("family"))
+                    and not _result_on_track(s, hs, as_, home, away)):
+                rec_p["stale"] = True      # dépassé UNIQUEMENT si le score courant CONTREDIT ce pari résultat
             carried.append(rec_p)
     # TOUS les signaux du match (user 2026-09-15 : « affiche tout les signaux, pas seulement 3 »), classés par
     # statut : validés · en cours (courants + reportés) · tombés. Plus de cap — la carte re-trie par statut+minute.
