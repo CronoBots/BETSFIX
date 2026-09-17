@@ -241,9 +241,18 @@ def _af_live_stats(mid, home, away, ko, allow_fetch: bool = False):
         if _AF.configured() and home and away and ko:
             with _AF._client() as cl:
                 fid = _FIXID_CACHE.get(mid)
-                if fid is None:
-                    f = _AF.resolve_fixture(cl, home, away, ko)
-                    fid = _FIXID_CACHE[mid] = (f or {}).get("id") or 0
+                if not fid:                                # None (jamais résolu) OU 0 (échec précédent) -> RETENTER
+                    # RÉSOLUTION via le MÊME appariement fuzzy que le SCORE (`live_fixture_id` sur live_all) — plus
+                    # `resolve_fixture` qui ÉCHOUAIT sur les noms BETSFIX (« Corinthians-SP ») -> plus de corners/
+                    # cartons/tirs sur ces matchs (régression user 2026-09-17). Le score marchait, pas les stats.
+                    _rid = _AF.live_fixture_id(cl, home, away, ko) or 0
+                    # ⚠️ NE CACHER QUE LES SUCCÈS (bug user 2026-09-17 : Corinthians-Estudiantes SANS corners/
+                    # cartons/tirs tout le match). Avant, un échec de résolution TRANSITOIRE cachait `0` EN
+                    # PERMANENCE -> stats jamais récupérées pour ce match. Sur échec on ne cache pas -> nouvelle
+                    # tentative au prochain passage (throttlée par _STATS_RATE_TTL 180 s : ~1 re-résolution/3 min).
+                    if _rid:
+                        _FIXID_CACHE[mid] = _rid
+                    fid = _rid
                 if fid:
                     ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or None
     except Exception:
@@ -493,20 +502,6 @@ def _is_period_sel(sel: str, family: str = "") -> bool:
     « dépassé » (le modèle n'a pas changé d'avis : la période est finie) -> soit réglé, soit en attente, jamais stale."""
     t = (sel or "").lower() + " " + (family or "").lower()
     return bool(re.search(r"mi-?temps|p[ée]riode|1[eè]re|2[eè]me|\bmt\b|half", t))
-
-
-def _ht_from_snaps(rec: dict):
-    """Repli du SCORE DE MI-TEMPS depuis le store quand API-Football ne fournit pas `score.halftime` : score du
-    dernier snapshot de fin de 1re MT (minute 40-46). Approx d'AFFICHAGE seulement (le règlement FINAL du store
-    reste settle_all sur les vraies périodes). None si aucun snapshot proche de la pause."""
-    best = None
-    for s in (rec or {}).get("snaps", []):
-        mn = s.get("minute")
-        if isinstance(mn, int) and 40 <= mn <= 46 and (best is None or mn > best.get("minute", -1)):
-            best = s
-    if best and isinstance(best.get("hs"), int) and isinstance(best.get("as"), int):
-        return (best["hs"], best["as"])
-    return None
 
 
 def _result_on_track(snap: dict, hs, as_, home: str = "", away: str = "") -> bool:
@@ -984,9 +979,8 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     if hs is None or as_ is None or minute is None:
         return []
     rec = _load("foot", d.get("id")) or {}
-    ht_live = _live_ht(ld)     # (hh,ha) si la 1re MT est FINIE (score.halftime peuplé), sinon None
-    if ht_live is None and isinstance(minute, int) and minute >= 47:
-        ht_live = _ht_from_snaps(rec)     # repli store quand API-Football n'a pas score.halftime (affichage seul)
+    ht_live = _live_ht(ld)     # (hh,ha) SEULEMENT si la 1re MT est FINIE (statut ≠ 1H), sinon None. Repli
+    #                            _ht_from_snaps RETIRÉ (2026-09-17) : réglait des marchés MT AVANT la pause (bug).
     open_picks = current_picks(d, top=top)
     open_sels = {p["sel"] for p in open_picks}
     first, last = {}, {}
@@ -1053,7 +1047,14 @@ def _live_ht(ld: dict | None):
     """Score À LA MI-TEMPS (hh, ha) depuis l'état live API-Football (`_ht`, cf. apifootball.live_clockdata), ou
     None tant que la 1re MT n'est pas finie. Sa PRÉSENCE = la 1re période est terminée et son score est FIGÉ
     -> on peut régler les marchés 1re MT sans attendre la fin du match (user 2026-09-15)."""
-    ht = (ld or {}).get("_ht") if isinstance(ld, dict) else None
+    if not isinstance(ld, dict):
+        return None
+    # ⚠️ NE JAMAIS régler un marché 1re MT tant que le statut est « 1H » (1re période EN COURS) — certains flux
+    # API-Football renvoient `score.halftime` = 0-0 AVANT la pause -> réglait des paris MT à la 40' (bug user
+    # 2026-09-17, Corinthians-Estudiantes 0-0 à 43' « Moins de 0.5 MT » validé). On exige la pause franchie.
+    if ld.get("_af_status") == "1H":
+        return None
+    ht = ld.get("_ht")
     if isinstance(ht, dict):
         hh, ha = ht.get("home"), ht.get("away")
         if isinstance(hh, int) and isinstance(ha, int):

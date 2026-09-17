@@ -476,7 +476,8 @@ def live_all(cl: httpx.Client) -> list:
             g = x.get("goals") or {}
             tm = x.get("teams") or {}
             _htsc = (x.get("score") or {}).get("halftime") or {}   # score À LA MI-TEMPS (peuplé dès la pause)
-            out.append({"home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
+            out.append({"id": fxt.get("id"),                       # fixture id -> résolution stats fiable (live_fixture_id)
+                        "home": (tm.get("home") or {}).get("name"), "away": (tm.get("away") or {}).get("name"),
                         "ko": fxt.get("date"),
                         "gh": g.get("home"), "ga": g.get("away"),
                         # SCORE DE MI-TEMPS (score.halftime) : None tant que la 1re MT n'est pas finie, puis figé
@@ -491,6 +492,23 @@ def live_all(cl: httpx.Client) -> list:
         out = (hit[1] if hit else [])
     _LIVE_ALL_CACHE["all"] = (time.time() + _LIVE_ALL_TTL, out)
     return out
+
+
+def live_fixture_id(cl, home: str, away: str, ko_iso: str):
+    """Fixture id API-Football d'un match EN DIRECT par NOM+KO — MÊME appariement fuzzy (`_ov` + fenêtre KO ±90 min)
+    que live_clockdata/live_all, qui résout le SCORE là où `resolve_fixture` ÉCHOUE sur les noms BETSFIX (ex.
+    « Corinthians-SP » vs « Corinthians », « Estudiantes de La Plata » vs « Estudiantes L.P. »). Sert à résoudre
+    les STATS live (corners/cartons/tirs). None si aucun match correspondant. (fix régression user 2026-09-17)."""
+    nh, na, kts = _norm(home), _norm(away), _ts(ko_iso)
+    best, bs = None, 0.0
+    for x in live_all(cl) or []:
+        xts = _ts(x.get("ko"))
+        if kts and xts and abs(kts - xts) > 90 * 60:
+            continue
+        s = (_ov(nh, _norm(x.get("home"))) + _ov(na, _norm(x.get("away")))) / 2
+        if s > bs:
+            bs, best = s, x
+    return best.get("id") if (best and bs >= 0.5) else None
 
 
 def live_clockdata(home: str, away: str, ko_iso: str, live_list: list) -> dict | None:
