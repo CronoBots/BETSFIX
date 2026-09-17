@@ -553,6 +553,29 @@ def _match_goals90(hs, as_, minute, mid=None, home="", away="", ko=None, allow_f
     return rate * _late_factor(minute)                     # surcote de fin de match (buts plus fréquents tard)
 
 
+# CACHE du taux de buts/90 LIVE (AVEC pression de tirs) par ÉQUIPES — user 2026-09-17. Rempli par l'observe loop
+# (cache tirs CHAUD, `allow_fetch=True`), LU par l'affichage (`analyses.live_prob` -> barre « chance live » des
+# paris Confiance/Value). Évite de re-fetcher au rendu ET de faire transiter `mid` par toutes les vues : on
+# indexe par (home, away) que `live_prob` possède déjà. Repli score-tempo si froid (cf. `match_goals90_cached`).
+_G90_CACHE: dict = {}
+_G90_TTL = 200.0          # s : > cadence observe (~25 s) -> jamais périmé en pratique tant que le match est suivi
+
+
+def _g90_key(home, away):
+    return ((home or "").strip().lower(), (away or "").strip().lower())
+
+
+def match_goals90_cached(home, away, hs, as_, minute):
+    """Taux de buts/90 LIVE pour l'AFFICHAGE (barre chance live des paris de BUTS). Renvoie le g90 calculé par
+    l'observe loop (inclut la PRESSION DE TIRS, cache chaud) s'il est frais ; sinon repli score-tempo + surcote-fin
+    SANS tirs (mid=None -> 0 réseau, jamais bloquant). Foot. None si non calculable / TEMPO_BLEND_ON=False."""
+    import time as _t
+    hit = _G90_CACHE.get(_g90_key(home, away))
+    if hit and (_t.time() - hit[0]) < _G90_TTL:
+        return hit[1]
+    return _match_goals90(analyses._as_int(hs), analyses._as_int(as_), minute, None, home, away, allow_fetch=False)
+
+
 # --- store séparé (append-only par match) -----------------------------------------------------------------
 def _store_path(sport: str, mid) -> str:
     return os.path.join(_STORE, f"{sport}_{mid}.json")
@@ -760,10 +783,17 @@ def observe_match(d: dict) -> int:
     minute = match_select.live_minute(ld)
     if hs is None or as_ is None or minute is None or minute < MINUTE_LOG_MIN:
         return 0
+    pre = _prematch_goals90(d)                             # taux de base pré-match (marché O/U de l'omap)
+    # CACHE g90 LIVE (avec tirs, cache chaud) pour la barre « chance live » Confiance/Value (user 2026-09-17) —
+    # calculé ICI (le fond fetch), lu au rendu par `analyses.live_prob` via `match_goals90_cached`. Avant le gate
+    # `qual`/`catalog` -> alimenté pour TOUT match foot suivi, même sans signal qualifiant.
+    _g90c = _match_goals90(hs, as_, minute, mid, home, away, allow_fetch=True, pre_g90=pre)
+    if _g90c is not None:
+        import time as _t
+        _G90_CACHE[_g90_key(home, away)] = (_t.time(), _g90c)
     catalog = analyses.live_catalog(mid)
     if not catalog:
         return 0
-    pre = _prematch_goals90(d)                             # taux de base pré-match (marché O/U de l'omap)
     qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"),
                                      allow_fetch=True, pre_g90=pre)
             if PROB_MIN <= p["prob"] <= PROB_MAX and EV_MIN <= p["ev"] <= EV_MAX]

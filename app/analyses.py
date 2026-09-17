@@ -2248,7 +2248,20 @@ def live_prob(sport: str, sel: str, code: str, home: str, away: str,
     else:
         p_mkt = _catalog_market_pct(catalog, info, home, away)
     # (3) STATISTIQUE du direct (notre modèle propre, indépendant de la cote).
-    p_mod = _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac)
+    # TAUX DE BUTS TEMPO-AWARE (user 2026-09-17) : la composante MODÈLE des marchés de BUTS (résultat/DC/handicap/
+    # totals/BTTS) utilisait un taux-ligue FIXE (2.7/90) -> deux 1-0, l'un dominateur l'autre endormi, donnaient la
+    # même proba. On passe le g90 LIVE du match (buts observés + PRESSION DE TIRS + surcote-fin), calculé par
+    # l'observe loop (cache chaud) et lu SANS réseau ; repli score-tempo si froid. Foot uniquement. PURE AFFICHAGE
+    # (n'entre ni dans la sélection, ni le ROI, ni le règlement). Réversible via TEMPO_BLEND_ON. Cohérent avec les
+    # Signaux (même modèle de buts). Les marchés COMPTÉS ignorent goals90 (ils lisent `vals`) -> inchangés ici.
+    _g90 = None
+    if sport == "foot":
+        try:
+            from app import live_pick as _lpm
+            _g90 = _lpm.match_goals90_cached(home, away, hs, as_, minute)
+        except Exception:
+            _g90 = None
+    p_mod = _live_model_pct(sport, sel, code, info, wside, hs, as_, minute, vals, game_frac, goals90=_g90)
     # (2) ANALYSE d'avant-match (notre confiance publiée sur ce pari).
     p_pre = ref_pct / 100.0 if isinstance(ref_pct, (int, float)) else None
     if p_mkt is None and p_mod is None:
