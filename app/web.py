@@ -12443,7 +12443,7 @@ def _signaux_live_card_for_sidecar(d: dict) -> str:
         return ""
 
 
-def _live_phantom_settled_zone(sport: str, title: str = "Signaux Live — terminés", open_: bool = False) -> str:
+def _live_phantom_settled_zone(sport: str, title: str = "Signaux — terminés", open_: bool = False) -> str:
     """« Test live — terminés » : pour les matchs RÉGLÉS récents, les suggestions live proposées et si elles
     sont PASSÉES à la fin (✅/❌/➖). Répond à « ce qui avait été proposé est-il passé ? ». Fantôme, non publié,
     hors ROI/stats. '' si rien ou flag off. Repliable, fermé par défaut (peut s'allonger)."""
@@ -12557,7 +12557,7 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
                  f'<span class="lph-min">proba vs réel</span></div>{_cr}</div>')
     note = ('<div class="lph-note">🔬 Modèle live EXPÉRIMENTAL (fantôme, non publié, hors ROI). Le détail des '
             'matchs analysés est dans le Programme, jour par jour.</div>')
-    return _zone("lphs", "Signaux Live", "", _c.get("n", 0), reco + note,
+    return _zone("lphs", "Signaux", "", _c.get("n", 0), reco + note,
                  zk="live-phantom-stats", collapsible=True, open_=open_)
 
 
