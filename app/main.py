@@ -72,6 +72,17 @@ async def _combo_warm_loop():
                 # EN COURS : cote LIVE de TOUS les marchés (barre « Chance live ») -> catalogue Bet Builder,
                 # hors event loop. Couvre simples ET combinés, tous sports.
                 await asyncio.to_thread(analyses.warm_live_catalog, d.get("id"))
+                # RÉCHAUFFAGE DES CACHES DE RENDU (user 2026-09-18) : g90 tempo + stats comptées API-Football
+                # (corners/cartons/tirs), NON gaté par le leader — sinon un doublon d'autostart/un reload qui
+                # change de leader privait le RENDU (cache-only par design) de ces marchés pendant que l'ancien
+                # leader traînait encore. `warm_live_stats` est idempotent (cache TTL partagé) -> 0 coût si déjà
+                # chaud, appelable par N process sans duplication réelle.
+                if os.path.basename(p).startswith("foot_"):
+                    try:
+                        from app import live_pick
+                        await asyncio.to_thread(live_pick.warm_live_stats, d)
+                    except Exception as _exc:
+                        log.debug("live stats warm: %s", _exc)
                 # TRACK FANTÔME LIVE (EXPÉRIMENTAL, jamais publié) : logge la meilleure suggestion live du
                 # match (proba modèle × cote live − 1 = EV) dans un store SÉPARÉ, hors event loop. Gaté sur
                 # le leader de règlement (une SEULE instance logge -> pas de doublon). Foot uniquement.

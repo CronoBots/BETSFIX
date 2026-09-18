@@ -768,12 +768,18 @@ def price_catalog(catalog: list, home: str, away: str, hs: int, as_: int, minute
 
 
 # --- observation (1 passe live sur 1 match) ---------------------------------------------------------------
-def observe_match(d: dict) -> int:
-    """Une passe LIVE sur un match EN COURS : price le catalogue, logge les picks qualifiants (proba ≥
-    PROB_MIN ET EV ≥ EV_MIN), throttlés par pari. Retourne le nb de snapshots ajoutés. Best-effort, lecture
-    seule des caches live (0 réseau). N'écrit QUE dans le store séparé (jamais le sidecar)."""
+def warm_live_stats(d: dict) -> dict | None:
+    """RÉCHAUFFE les caches live (g90 tempo + stats comptées API-Football + catalogue Unibet pricé) d'UN match EN
+    COURS — SANS écrire le store fantôme (extrait de `observe_match`, user 2026-09-18). Appelable SANS le verrou
+    leader (idempotent, 0 duplication réelle : `_af_live_stats`/`_match_goals90` sont des caches TTL partagés en
+    mémoire — 2 appels rapprochés = 1 seul fetch réseau, le 2e est un hit). Objectif : que le RENDU (`current_picks`/
+    `enriched_signals`, cache-only par design) ne dépende plus du gate `_become_settle_leader()` réservé à la
+    déduplication du LOG fantôme (`observe_match`) — un doublon d'autostart ou un reload qui repasse leader NE
+    prive plus l'affichage des marchés comptés (Corners/Cartons/Tirs) pendant que l'ancien leader traîne encore.
+    Renvoie {hs,as_,minute,catalog} pour réutilisation par `observe_match` (0 recalcul), ou None si score/minute
+    indisponibles. Best-effort : n'écrit RIEN dans les sidecars ni le store."""
     if not LIVE_PICK_ON or d.get("sport") != "foot":
-        return 0
+        return None
     mid = d.get("id")
     home, away = d.get("home", ""), d.get("away", "")
     from app import match_select
@@ -782,7 +788,7 @@ def observe_match(d: dict) -> int:
     hs, as_ = analyses._as_int(sc.get("home")), analyses._as_int(sc.get("away"))
     minute = match_select.live_minute(ld)
     if hs is None or as_ is None or minute is None or minute < MINUTE_LOG_MIN:
-        return 0
+        return None
     pre = _prematch_goals90(d)                             # taux de base pré-match (marché O/U de l'omap)
     # CACHE g90 LIVE (avec tirs, cache chaud) pour la barre « chance live » Confiance/Value (user 2026-09-17) —
     # calculé ICI (le fond fetch), lu au rendu par `analyses.live_prob` via `match_goals90_cached`. Avant le gate
@@ -792,6 +798,24 @@ def observe_match(d: dict) -> int:
         import time as _t
         _G90_CACHE[_g90_key(home, away)] = (_t.time(), _g90c)
     catalog = analyses.live_catalog(mid)
+    if catalog:                                            # réchauffe _AF_STATS_CACHE (corners/cartons/tirs) même
+        price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"),      # sans picks qualifiants
+                     allow_fetch=True, pre_g90=pre)
+    return {"hs": hs, "as_": as_, "minute": minute, "catalog": catalog, "pre": pre}
+
+
+def observe_match(d: dict) -> int:
+    """Une passe LIVE sur un match EN COURS : price le catalogue, logge les picks qualifiants (proba ≥
+    PROB_MIN ET EV ≥ EV_MIN), throttlés par pari. Retourne le nb de snapshots ajoutés. Best-effort, lecture
+    seule des caches live (0 réseau hors le réchauffage `warm_live_stats`). N'écrit QUE dans le store séparé
+    (jamais le sidecar). ⚠️ Reste gaté par le verrou leader (cf. main.py) — UNIQUEMENT pour dédupliquer ce LOG
+    fantôme entre process ; le réchauffage des caches de RENDU est dans `warm_live_stats` (non gaté)."""
+    mid = d.get("id")
+    home, away = d.get("home", ""), d.get("away", "")
+    warm = warm_live_stats(d)
+    if not warm:
+        return 0
+    hs, as_, minute, catalog, pre = warm["hs"], warm["as_"], warm["minute"], warm["catalog"], warm["pre"]
     if not catalog:
         return 0
     qual = [p for p in price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"),
