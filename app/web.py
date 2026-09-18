@@ -9027,7 +9027,14 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         if not _prog_upcoming(m):
             return False
         _sd = analyses.meta(m.get("sport") or "foot", str(m.get("id") or "")) or {}
-        return not _sd.get("prematch_done")
+        # ANALYSÉ = décision FIGÉE par la vague (user 2026-09-18) : pari publié (`prematch_done`) OU pari joué
+        # (`bets`/`stat_bet`) OU ABSTENTION (`abstained` — la vague a tourné et n'a rien retenu). Un match analysé
+        # ne peut plus alimenter une catégorie vide -> inutile de la garder « en attente ». ⚠️ L'abstention ne pose
+        # PAS `prematch_done` (mesuré : 733/741 abstentions sans) -> l'ancien test la laissait « en attente » à tort
+        # jusqu'au coup d'envoi (cas Value du jour, 2 matchs abstenus mais encore à venir).
+        analysed = bool(_sd.get("prematch_done") or _sd.get("bets")
+                        or _sd.get("stat_bet") or _sd.get("abstained"))
+        return not analysed
     # `_has_prog` pilote l'affichage des catégories VIDES (« en attente ») ET des ABSTENTIONS : seulement tant
     # qu'il reste un match NON finalisé (cf. `_prog_pending`). Programme TERMINÉ (tous les matchs restants ont
     # leur vague passée = pari/abstention figés) -> on masque les catégories vides ET les abstentions (user
@@ -10187,7 +10194,9 @@ def _signaux_zone(sport: str, has_prog: bool) -> str:
     terminés). Remplace les 2 anciennes zones séparées « Signaux Live » + « Signaux (test) ». Les réglés
     persistent en fin de journée (comme les résultats Confiance) ; le placeholder « en attente » n'apparaît que
     tant qu'il reste un programme. AFFICHAGE seul — hors ROI, `SHOW_ON_SITE` inchangé."""
-    live = _planning_cards(sport)[2] if has_prog else []
+    # PARITÉ Confiance/Value (user 2026-09-18) : les matchs EN COURS à signaux s'affichent TOUJOURS (comme les
+    # paris en cours), plus de gate sur `has_prog` (qui les faisait disparaître une fois le programme finalisé).
+    live = _planning_cards(sport)[2]
     settled = _signaux_settled_cards(sport, _sport_today().isoformat())
     cards = list(live) + list(settled)                          # EN COURS d'abord, puis TERMINÉS (comme Confiance)
     if cards:
