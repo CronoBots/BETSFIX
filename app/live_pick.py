@@ -801,7 +801,135 @@ def warm_live_stats(d: dict) -> dict | None:
     if catalog:                                            # réchauffe _AF_STATS_CACHE (corners/cartons/tirs) même
         price_catalog(catalog, home, away, hs, as_, minute, mid, d.get("start"),      # sans picks qualifiants
                      allow_fetch=True, pre_g90=pre)
-    return {"hs": hs, "as_": as_, "minute": minute, "catalog": catalog, "pre": pre}
+    # SANTÉ des stats comptées (watchdog anti-blackout, cf. plus bas) : les stats API-Football sont-elles bien
+    # arrivées pour CE match après le réchauffage ? (lecture du cache, 0 réseau). Sert à détecter un worker figé.
+    stats_ok = _live_vals(mid, home, away, d.get("start"), allow_fetch=False) is not None
+    return {"hs": hs, "as_": as_, "minute": minute, "catalog": catalog, "pre": pre, "stats_ok": stats_ok}
+
+
+# --- WATCHDOG santé des STATS live (anti-blackout SILENCIEUX) ----------------------------------------------
+# INCIDENT 17→18/09/2026 : le worker uvicorn a cessé de récupérer les STATS live API-Football (corners/cartons/
+# tirs) pendant ~19 h SANS le moindre bruit. Le SCORE continuait (repli Unibet), donc invisible ; et le
+# `--reload` d'uvicorn ne recyclait pas le worker (aucun fichier `app/` modifié après 04:42) -> l'état figé a
+# survécu toute la journée. Le code, la clé (SYSTEM), le quota et l'API étaient sains : SEUL le process était
+# figé. Ce watchdog rend l'échec IMPOSSIBLE à rater ET tente de le RÉPARER tout seul :
+#   1) DÉTECTION : plusieurs matchs foot EN COURS observés, mais 0 stats obtenue, pendant ≥ _WD_ALERT_S.
+#   2) DISCRIMINATION (anti faux positif) : une SONDE fraîche (client neuf, hors caches) demande les stats à
+#      API-Football. Si la sonde n'obtient RIEN non plus -> les ligues live ne sont juste pas couvertes = NORMAL
+#      (nuit 100 % ligues mineures) -> on ne crie pas. Si la sonde OBTIENT des stats alors que le warm échoue ->
+#      c'est bien le PROCESS qui est figé.
+#   3) RÉPARATION graduée : (a) purge des caches API-Football (répare un simple cache périmé, sans reload) ;
+#      (b) si le blackout PERSISTE malgré une sonde OK = process réellement figé -> RELOAD uvicorn auto (on
+#      « touche » un fichier de `--reload-dir app`, exactement le geste qui a réparé l'incident), très gardé
+#      (1 seul reload/heure). L'alerte owner PRIVÉE part AVANT toute réparation -> plus jamais silencieux.
+STATS_WD_ON = True
+STATS_WD_AUTORELOAD = True          # auto-reload uvicorn en dernier recours (mettre False = alerte seule)
+_WD_MIN_MATCHES = 3                 # < N matchs live en cours -> échantillon trop faible pour parler de blackout
+_WD_ALERT_S = 10 * 60              # blackout total pendant ≥ 10 min -> sonde + alerte owner
+_WD_RELOAD_S = 14 * 60             # ... et si ça persiste ≥ 14 min avec sonde OK -> reload process auto
+_WD_RELOAD_COOLDOWN_S = 60 * 60    # au plus 1 reload auto / heure (anti-boucle)
+_STATS_WD = {"blackout_since": None, "alerted_ep": False, "healed_ep": False, "last_reload": None}
+
+
+def _wd_probe() -> tuple[int, int]:
+    """SONDE fraîche (client neuf, hors caches process) : (nb matchs live EN COURS, nb qui ont des stats
+    comptées côté API-Football). Sert à distinguer « process figé » (l'API répond mais pas nous) de « ligues
+    non couvertes » (l'API n'a pas de stats). Best-effort -> (0, 0) si API indispo/non configurée."""
+    try:
+        from app import apifootball as _AF
+        if not _AF.configured():
+            return (0, 0)
+        n_run = n_stat = 0
+        with _AF._client() as cl:
+            for x in _AF.live_all(cl) or []:
+                if x.get("short") not in ("1H", "2H", "ET", "LIVE", "HT"):
+                    continue
+                n_run += 1
+                ss = (_AF.live_match_stats(cl, x.get("id")) or {}).get("stats") or {}
+                if (ss.get("home") or {}).get("corners") is not None \
+                        or (ss.get("away") or {}).get("corners") is not None:
+                    n_stat += 1
+        return (n_run, n_stat)
+    except Exception:
+        return (0, 0)
+
+
+def _wd_clear_caches() -> None:
+    """Purge les caches API-Football du process (stats, fixture-id, live-all) -> le prochain warm re-fetch à
+    neuf. Répare un cache périmé sans avoir à redémarrer."""
+    _AF_STATS_CACHE.clear()
+    _FIXID_CACHE.clear()
+    _STATS_RATE_CACHE.clear()
+    try:
+        from app import apifootball as _AF
+        _AF._LIVE_ALL_CACHE.clear()
+    except Exception:
+        pass
+
+
+def _wd_reload() -> bool:
+    """Force un reload d'uvicorn en touchant le mtime d'un fichier de `--reload-dir app` (geste EXACT qui a
+    réparé l'incident : worker figé -> le reloader respawn un worker neuf, socket :8000 conservé). Best-effort."""
+    try:
+        os.utime(os.path.join(os.path.dirname(__file__), "main.py"), None)
+        return True
+    except Exception:
+        return False
+
+
+def stats_watchdog(n_live: int, n_stats: int, now: float | None = None,
+                   probe=_wd_probe, alert=None, clear=_wd_clear_caches, reloader=_wd_reload) -> str:
+    """Décide et exécute l'action de santé des stats live à partir d'UN balayage : `n_live` = matchs foot EN
+    COURS observés, `n_stats` = combien ont reçu leurs stats comptées. Renvoie l'action ('off'|'ok'|'low'|
+    'watch'|'probe-nocover'|'heal'|'reload'). Effets (sonde/alerte/purge/reload) via callbacks injectables
+    (tests). ÉTAT dans `_STATS_WD` (épisode de blackout = fenêtre continue ; drapeaux remis à 0 dès un succès)."""
+    if not STATS_WD_ON:
+        return "off"
+    now = time.time() if now is None else now
+    wd = _STATS_WD
+    if n_stats > 0:                                    # au moins un match a ses stats -> tout va bien, on RAZ
+        wd["blackout_since"] = None
+        wd["alerted_ep"] = wd["healed_ep"] = False
+        return "ok"
+    if n_live < _WD_MIN_MATCHES:                       # trop peu de matchs live -> échantillon non concluant
+        return "low"
+    # 0 stats sur ≥ N matchs live : on OUVRE (ou poursuit) un épisode de blackout
+    if wd["blackout_since"] is None:
+        wd["blackout_since"] = now
+    dur = now - wd["blackout_since"]
+    if dur < _WD_ALERT_S:
+        return "watch"
+    # Blackout installé -> la SONDE tranche : process figé vs ligues non couvertes
+    n_run, n_stat = probe()
+    if n_stat == 0:                                    # l'API elle-même n'a pas de stats -> normal, pas d'alarme
+        return "probe-nocover"
+    _alert = alert if alert is not None else _wd_send_alert
+    if not wd["alerted_ep"]:
+        _alert(f"⚠️ BETSFIX — STATS LIVE FIGÉES : {n_live} matchs foot en cours, 0 stat comptée récupérée "
+               f"depuis {int(dur//60)} min, alors que l'API répond ({n_stat}/{n_run} matchs ont des stats à "
+               f"la sonde). Corners/Cartons/Tirs absents des cartes. Auto-réparation en cours.")
+        wd["alerted_ep"] = True
+    if not wd["healed_ep"]:                            # 1re réparation : purge caches (peut suffire)
+        clear()
+        wd["healed_ep"] = True
+        return "heal"
+    # La purge n'a pas suffi (blackout toujours là au balayage suivant) = process figé -> reload gardé
+    if STATS_WD_AUTORELOAD and dur >= _WD_RELOAD_S \
+            and (wd["last_reload"] is None or now - wd["last_reload"] >= _WD_RELOAD_COOLDOWN_S):
+        if reloader():
+            wd["last_reload"] = now
+            _alert("♻️ BETSFIX — reload uvicorn AUTO déclenché (stats live figées, purge insuffisante). "
+                   "Le worker va repartir à neuf ; le site n'est pas coupé.")
+            return "reload"
+    return "heal"
+
+
+def _wd_send_alert(text: str) -> None:
+    try:
+        from app import notify
+        notify.send_owner_sync(text)
+    except Exception:
+        pass
 
 
 def observe_match(d: dict) -> int:

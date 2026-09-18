@@ -58,6 +58,7 @@ async def _combo_warm_loop():
     import glob
     await asyncio.sleep(20)
     while True:
+        _wd_live = _wd_stats = 0                      # compteur santé stats live (watchdog anti-blackout)
         try:
             for p in glob.glob(os.path.join(analyses.DIR, "*.json")):
                 d = analyses._meta_load(p)
@@ -80,7 +81,11 @@ async def _combo_warm_loop():
                 if os.path.basename(p).startswith("foot_"):
                     try:
                         from app import live_pick
-                        await asyncio.to_thread(live_pick.warm_live_stats, d)
+                        _w = await asyncio.to_thread(live_pick.warm_live_stats, d)
+                        if _w:                        # match foot EN COURS effectivement observé
+                            _wd_live += 1
+                            if _w.get("stats_ok"):
+                                _wd_stats += 1
                     except Exception as _exc:
                         log.debug("live stats warm: %s", _exc)
                 # TRACK FANTÔME LIVE (EXPÉRIMENTAL, jamais publié) : logge la meilleure suggestion live du
@@ -99,6 +104,16 @@ async def _combo_warm_loop():
                     if os.path.basename(p).startswith("foot_"):   # stats live des jambes foot CdM
                         await asyncio.to_thread(analyses.warm_combo_vals,
                                                 d.get("home", ""), d.get("away", ""), d.get("start"))
+            # WATCHDOG anti-blackout stats live (incident 17→18/09 : worker figé 19 h, corners/cartons/tirs
+            # disparus en silence). Détecte 0 stat sur ≥ N matchs live, sonde l'API pour écarter les faux
+            # positifs (ligues non couvertes), puis auto-répare (purge caches -> reload uvicorn) + alerte owner.
+            try:
+                from app import live_pick
+                act = await asyncio.to_thread(live_pick.stats_watchdog, _wd_live, _wd_stats)
+                if act in ("heal", "reload"):
+                    log.warning("watchdog stats live: %s (%d live / %d avec stats)", act, _wd_live, _wd_stats)
+            except Exception as _exc:
+                log.debug("stats watchdog: %s", _exc)
         except Exception as exc:
             log.debug("combo warm: %s", exc)
         await asyncio.sleep(25)
