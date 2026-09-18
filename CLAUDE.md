@@ -102,6 +102,20 @@ Démarrage, nouvelle tâche…) avant d'avoir vérifié en admin qu'il n'existe 
 déjà → sinon **doublon** (ex. deux `claude --remote-control BETSFIX` qui se
 disputent le même nom de session = aucune session visible côté claude.ai/code).
 
+## ⚠️ Piège : uvicorn `--reload` = 2 process (reloader immortel + worker recyclable)
+
+L'API tourne en `uvicorn … --reload --reload-dir app` → **PID parent = reloader** (tient `:8000`, démarré au
+boot, **ne redémarre jamais**) + **PID enfant = worker** (recyclé à CHAQUE modif d'un fichier `app/`).
+- Diagnostiquer « depuis quand tourne l'API » en regardant le parent **ment** : c'est le worker enfant qui
+  exécute le code (`Get-CimInstance Win32_Process -Filter "Name='python.exe'"` → `CreationDate`).
+- **Un worker peut se FIGER** (état mémoire vérolé) et, si aucun fichier `app/` ne change ensuite, `--reload`
+  **ne le recycle jamais** → l'état figé survit des heures/jours, invisible. Vécu 17→18/09 : stats live
+  API-Football (Corners/Cartons/Tirs) disparues ~19 h en silence (le score tenait via repli Unibet).
+- **Forcer un worker frais** sans élévation : `touch app/main.py` (le reloader respawn, `:8000` conservé, 0
+  coupure). `Stop-Process` échoue (worker en SYSTEM). Garde-fou en place : watchdog `live_pick.stats_watchdog`
+  (détecte le blackout de stats live, sonde l'API, purge/reload auto + alerte owner). Mémoire
+  `live-stats-worker-wedge-watchdog`.
+
 ## Vérifs rapides
 
 ```powershell
