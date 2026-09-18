@@ -2811,8 +2811,8 @@ CSS = """
   /* « Derniers signaux » ÉPINGLÉ en tête de chaque carte (user 2026-09-17→18) : les 3 signaux ACTIFS les + récents.
      HARMONISÉ (user 2026-09-18) : les lignes utilisent le MÊME rendu `_lph_pick` que « Par marché » -> zéro écart
      visuel ; le conteneur ne porte plus qu'un fond doré très léger + l'en-tête ⚡. */
-  .lph-fresh{background:linear-gradient(180deg,rgba(245,196,81,.05),rgba(245,196,81,0));
-    border:1px solid rgba(245,196,81,.15);border-radius:12px;padding:4px 11px 6px;margin:2px 2px 10px}
+  .lph-fresh{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+    border-left:2px solid rgba(245,196,81,.5);border-radius:12px;padding:4px 11px 6px;margin:2px 2px 10px}
   .lph-fresh-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;
     letter-spacing:.06em;color:#f5c451;margin:6px 0 2px}
   .lph-fresh .lph-p:first-of-type{border-top:none}          /* pas de filet juste sous l'en-tête ⚡ */
@@ -2861,14 +2861,17 @@ CSS = """
   .lph-bar-v{flex:none;font-size:11px;font-weight:800;color:#cfe0f0;min-width:52px;text-align:right}
   .lph-bar-v s{color:#7f8fa2;font-weight:600;text-decoration:none;font-size:10px}
   .lph-p-m{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:7px 0 0 41px;font-size:11px;color:#8aa0b6}
-  .lph-ev{font-weight:800;color:#e0b341;background:rgba(224,179,65,.11);border-radius:6px;padding:2px 8px}
+  /* VALUE en VERT (user 2026-09-18 UI/UX) : positif/argent = vert (intuitif) + libère le doré (surcharge). */
+  .lph-ev{font-weight:800;color:#34d27b;background:rgba(52,210,123,.12);border-radius:6px;padding:2px 8px}
   .lph-p-min{color:#6f8098}
   /* BADGE MINUTE de création à gauche (remplace le point) — NEUTRE (= « quand », pas le résultat) user 2026-09-14 */
   .lph-tm{flex:none;min-width:32px;text-align:center;margin-top:1px;font-size:11px;font-weight:800;
        border-radius:7px;padding:3px 6px;line-height:1;background:rgba(255,255,255,.07);color:#9fb0c6}
   /* SIGNAL RÉCENT (émis dans les ~15 dernières min du match en cours, user 2026-09-17) : mis en avant -> minute
      dorée + libellé plus vif. Trié en tête de son groupe (récents d'abord en live). */
-  .lph-tm-rec{color:#0b1220;background:linear-gradient(180deg,#ffd66b,#e0b341);box-shadow:0 0 0 1px rgba(224,179,65,.4)}
+  /* RÉCENT = puce dorée DISCRÈTE (user 2026-09-18 UI/UX) : plus la pastille pleine dorée qui écrasait la ligne
+     (la minute est l'info secondaire) — texte doré sur fond doré très léger. */
+  .lph-tm-rec{color:#f5c451;background:rgba(245,196,81,.13);box-shadow:none}
   .lph-p-rec .lph-p-sel{color:#fff}
   /* COLONNE DROITE de l'entête : cote (+ badge résultat en dessous si réglé), alignée à droite */
   .lph-p-rt{flex:none;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
