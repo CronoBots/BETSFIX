@@ -2812,12 +2812,17 @@ CSS = """
      match, classés frais->value ; doublon voulu avec les familles en dessous. Accent doré (live). */
   .lph-fresh{background:rgba(245,196,81,.06);border:1px solid rgba(245,196,81,.18);border-radius:10px;padding:6px 9px;margin:2px 2px 9px}
   .lph-fresh-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#f5c451;margin-bottom:3px}
-  .lph-fresh-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#e6edf3}
+  .lph-fresh-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;color:#e6edf3}
   .lph-fresh-row+.lph-fresh-row{border-top:1px solid rgba(255,255,255,.05)}
-  .lph-fresh-min{font-weight:800;color:#f5c451;min-width:30px}
-  .lph-fresh-sel{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .lph-fresh-cote{font-variant-numeric:tabular-nums;color:#cfe0f0}
-  .lph-fresh-val{font-weight:800;color:#34d27b;min-width:38px;text-align:right}
+  .lph-fresh-min{font-weight:800;color:#f5c451;min-width:30px;flex:0 0 auto}
+  /* libellé COMPLET (user 2026-09-18) : retour à la ligne autorisé -> plus de troncature « Cienciano… » */
+  .lph-fresh-sel{flex:1 1 auto;min-width:0;line-height:1.3;overflow-wrap:anywhere}
+  .lph-fresh-cote{font-variant-numeric:tabular-nums;color:#cfe0f0;flex:0 0 auto}
+  .lph-fresh-val{font-weight:800;color:#34d27b;min-width:38px;text-align:right;flex:0 0 auto}
+  /* TOTAL des signaux du match (user 2026-09-18) : total en évidence + détail en cours/gagnés/perdus. */
+  .lph-gt-total{font-weight:800;color:#e6edf3}
+  .lph-gt-won{color:#34d27b;font-weight:700}
+  .lph-gt-lost{color:#ff6b6b;font-weight:700}
   .lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}
   .lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
   .lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}
@@ -12354,7 +12359,7 @@ def _signaux_match_card(m: dict) -> str:
                               f'{_ffm if _ffm >= 0 else "?"}\'</span>'
                               f'<span class="lph-fresh-sel">{_fsel}</span>'
                               f'<span class="lph-fresh-cote">{_fcote}</span>{_fvt}</div>')
-            _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux</div>'
+            _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux ({len(_frows)})</div>'
                            f'{"".join(_frows)}</div>')
     # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
     # LIGNES redondantes d'un même marché). On regroupe par FAMILLE dans un pli déroulant : carte COMPACTE, rien
@@ -12430,11 +12435,17 @@ def _signaux_match_card(m: dict) -> str:
                 f'<span class="lph-mf-chev">▸</span></span></summary>')
         rows.append(f'<details class="lph-mf">{_sum}<div class="lph-mf-body">{"".join(_fam_rows)}</div></details>')
     elif not _finished and _gtot > 0:
-        # EN COURS : label neutre + « •N en cours » SEUL (pas de fraction réglés/total trompeuse, user 2026-09-17).
+        # EN COURS (user 2026-09-18) : TOTAL des signaux du match EN ÉVIDENCE + détail (en cours / gagnés / perdus).
         # Familles VISIBLES en direct (on suit le match) — le repli ne vaut que pour les terminés.
         _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push") and not p.get("stale"))
-        _gright = (f'<span class="lph-fg-live">•{_gopen} en cours</span>' if _gopen
-                   else f'<span class="lph-fg-ratio">{gw}/{_gset}</span>')
+        _bits = [f'<span class="lph-gt-total">{_gtot} {"signaux" if _gtot != 1 else "signal"}</span>']
+        if _gopen:
+            _bits.append(f'<span class="lph-fg-live">{_gopen} en cours</span>')
+        if gw:
+            _bits.append(f'<span class="lph-gt-won">{gw} ✓</span>')
+        if gl:
+            _bits.append(f'<span class="lph-gt-lost">{gl} ✗</span>')
+        _gright = " · ".join(_bits)
         rows.append(f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
                     f'<span class="lph-fg-r">{_gright}</span></div>')
         rows.extend(_fam_rows)
