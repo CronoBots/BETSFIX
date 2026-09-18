@@ -2808,26 +2808,17 @@ CSS = """
   .lph-note{font-size:11.5px;color:#8aa0b6;margin:2px 2px 10px;line-height:1.4}
   .lph-reco{font-size:12px;color:#cfe0f0;margin:2px 2px 6px}
   .lph-reco b{color:#34d27b}
-  /* « Derniers signaux » ÉPINGLÉ en tête de chaque carte (user 2026-09-17) : les 2-3 signaux les + frais du
-     match, classés frais->value ; doublon voulu avec les familles en dessous. Accent doré (live). */
-  /* HARMONISÉ sur le langage de la carte (user 2026-09-18 « 100% premium ») : mêmes typo/cote/minute que les
-     pick-rows `.lph-p`, accent doré discret réservé au titre ⚡ + à la pastille minute. */
+  /* « Derniers signaux » ÉPINGLÉ en tête de chaque carte (user 2026-09-17→18) : les 3 signaux ACTIFS les + récents.
+     HARMONISÉ (user 2026-09-18) : les lignes utilisent le MÊME rendu `_lph_pick` que « Par marché » -> zéro écart
+     visuel ; le conteneur ne porte plus qu'un fond doré très léger + l'en-tête ⚡. */
   .lph-fresh{background:linear-gradient(180deg,rgba(245,196,81,.05),rgba(245,196,81,0));
-    border:1px solid rgba(245,196,81,.15);border-radius:12px;padding:8px 11px 6px;margin:2px 2px 10px}
+    border:1px solid rgba(245,196,81,.15);border-radius:12px;padding:4px 11px 6px;margin:2px 2px 10px}
   .lph-fresh-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;
-    letter-spacing:.06em;color:#f5c451;margin-bottom:6px}
-  .lph-fresh-row{display:flex;align-items:flex-start;gap:10px;padding:6px 0}
-  .lph-fresh-row+.lph-fresh-row{border-top:1px solid rgba(255,255,255,.06)}
-  .lph-fresh-min{flex:0 0 auto;font-weight:800;font-size:10.5px;color:#f5c451;background:rgba(245,196,81,.13);
-    border-radius:6px;padding:2px 6px;min-width:30px;text-align:center;font-variant-numeric:tabular-nums}
-  /* libellé COMPLET (user 2026-09-18) : retour à la ligne autorisé -> plus de troncature « Cienciano… » */
-  .lph-fresh-sel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32;overflow-wrap:anywhere}
-  .lph-fresh-cote{flex:0 0 auto;white-space:nowrap;color:#eaf2fb;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
-  .lph-fresh-val{flex:0 0 auto;font-weight:800;color:#34d27b;font-size:11px;min-width:34px;text-align:right}
-  /* TOTAL des signaux du match (user 2026-09-18) : total en évidence + détail en cours/gagnés/perdus. */
-  .lph-gt-total{font-weight:800;color:#f2f6fb}
-  .lph-gt-won{color:#34d27b;font-weight:700}
-  .lph-gt-lost{color:#ff6b6b;font-weight:700}
+    letter-spacing:.06em;color:#f5c451;margin:6px 0 2px}
+  .lph-fresh .lph-p:first-of-type{border-top:none}          /* pas de filet juste sous l'en-tête ⚡ */
+  /* En-tête de section « Par marché » (user 2026-09-18) : MÊME petit label capitales que « ⚡ Derniers signaux »,
+     accent NEUTRE (les catégories sont secondaires, les derniers = accent doré) -> hiérarchie claire, harmonisée. */
+  .lph-sec-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#7f8fa2;margin:13px 2px 2px}
   .lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}
   .lph-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
   .lph-teams{font-weight:600;font-size:13.5px;color:#e6edf3}
@@ -12242,18 +12233,22 @@ def _lph_pick(sel_html: str, cote: str, ev: float | None, prob: float | None, mi
         body, meta = "", ""
     else:
         pct = int(round(prob * 100)) if isinstance(prob, (int, float)) else None
+        # value MASQUÉE si ≤ 0 (user 2026-09-17) : après recalibration d'affichage, beaucoup de « value » deviennent
+        # nulles/négatives (le modèle était sur-confiant) -> on n'affiche PAS un « value +0% » mensonger.
+        _ev_txt = (f'value +{ev * 100:.0f}%' if isinstance(ev, (int, float)) and ev > 0 else "")
         body = ""
         if pct is not None:
             hue = int(round(1.2 * max(0, min(100, pct))))   # 0 %=rouge, 100 %=vert (comme _live_bar_html)
             fill = f"linear-gradient(180deg,hsl({hue},74%,54%),hsl({hue},68%,42%))"
+            # « chance estimée » (user 2026-09-18 : « modèle » = jargon incompris) + VALUE sur la MÊME ligne.
+            _ev_inline = f' · <span class="lph-ev">{_ev_txt}</span>' if _ev_txt else ""
             body = (f'<div class="lph-bar"><span class="lph-bar-tk"><i style="width:{pct}%;background:{fill}"></i></span>'
-                    f'<span class="lph-bar-v">{pct}% <s>modèle</s></span></div>')
-        # value MASQUÉE si ≤ 0 (user 2026-09-17) : après recalibration d'affichage, beaucoup de « value » deviennent
-        # nulles/négatives (le modèle était sur-confiant) -> on n'affiche PAS un « value +0% » mensonger.
-        ev_html = (f'<span class="lph-ev">value +{ev * 100:.0f}%</span>'
-                   if isinstance(ev, (int, float)) and ev > 0 else "")
+                    f'<span class="lph-bar-v">{pct}% <s>chance estimée</s>{_ev_inline}</span></div>')
         rt = cote_html
-        meta = f'{ev_html}{cur_html}'
+        # meta = valeur COURANTE seule (ex. « 8 corners ») ; value déplacée sur la ligne d'estimation. Repli value
+        # sur la meta SEULEMENT si pas de barre (proba absente) -> on ne la perd jamais.
+        meta = (cur_html if pct is not None
+                else (f'<span class="lph-ev">{_ev_txt}</span>' if _ev_txt else "") + cur_html)
     return (f'<div class="lph-p lph-p-{html.escape(status)}{" lph-p-rec" if recent else ""}"><div class="lph-p-h">'
             f'{badge}<span class="lph-p-sel">{sel_html}</span><span class="lph-p-rt">{rt}</span></div>'
             f'{body}' + (f'<div class="lph-p-m">{meta}</div>' if meta else "") + "</div>")
@@ -12354,16 +12349,17 @@ def _signaux_match_card(m: dict) -> str:
             _fr.append((_ffm if isinstance(_ffm, int) else -1, _fv if isinstance(_fv, (int, float)) else None, p))
         _fr.sort(key=lambda it: (it[0], it[1] if it[1] is not None else -9.0), reverse=True)   # + récents, puis value
         if _fr:
+            # MÊME FORMAT que les signaux par marché (user 2026-09-18) : on rend chaque « dernier » avec le MÊME
+            # `_lph_pick` que les familles (minute colorée par statut, barre de proba, value, cote) -> zéro écart
+            # visuel entre les 2 sections. Seule différence : le conteneur épinglé + l'en-tête doré ⚡.
             _frows = []
             for _ffm, _v, _p in _fr[:3]:
-                _fsel = _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", "")))
-                _fcote = analyses.fmt_cote(_p["odds"]) or "?"
-                _fvt = (f'<span class="lph-fresh-val">+{round(_v * 100)}%</span>'
-                        if isinstance(_v, (int, float)) and _v > 0 else '<span class="lph-fresh-val"></span>')
-                _frows.append(f'<div class="lph-fresh-row"><span class="lph-fresh-min">'
-                              f'{_ffm if _ffm >= 0 else "?"}\'</span>'
-                              f'<span class="lph-fresh-sel">{_fsel}</span>'
-                              f'<span class="lph-fresh-cote">{_fcote}</span>{_fvt}</div>')
+                _dp, _de = _sig_disp(_p, _pmap)             # proba/value recalibrées (comme les familles)
+                _frows.append(_lph_pick(
+                    _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", ""))),
+                    analyses.fmt_cote(_p["odds"]) or "?", _de, _dp,
+                    f"{_p.get('first_min', '?')}'", status=_p.get("status", "open"),
+                    cur=_p.get("cur"), recent=_is_recent(m, _p, _live), stale=bool(_p.get("stale"))))
             _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux ({len(_frows)})</div>'
                            f'{"".join(_frows)}</div>')
     # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
@@ -12440,22 +12436,11 @@ def _signaux_match_card(m: dict) -> str:
                 f'<span class="lph-mf-chev">▸</span></span></summary>')
         rows.append(f'<details class="lph-mf">{_sum}<div class="lph-mf-body">{"".join(_fam_rows)}</div></details>')
     elif not _finished and _gtot > 0:
-        # EN COURS (user 2026-09-18) : TOTAL des signaux du match EN ÉVIDENCE + détail (en cours / gagnés / perdus).
-        # Familles VISIBLES en direct (on suit le match) — le repli ne vaut que pour les terminés.
-        _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push") and not p.get("stale"))
-        _bits = [f'<span class="lph-gt-total">{_gtot} {"signaux" if _gtot != 1 else "signal"}</span>']
-        # DÉTAIL affiché SEULEMENT si des signaux sont RÉGLÉS (sinon « N signaux · N en cours » = doublon, user
-        # 2026-09-18) : tout en cours -> « N signaux » suffit (la barre « Signaux en direct » dit déjà le live).
-        if gw or gl:
-            if _gopen:
-                _bits.append(f'<span class="lph-fg-live">{_gopen} en cours</span>')
-            if gw:
-                _bits.append(f'<span class="lph-gt-won">{gw} ✓</span>')
-            if gl:
-                _bits.append(f'<span class="lph-gt-lost">{gl} ✗</span>')
-        _gright = " · ".join(_bits)
-        rows.append(f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
-                    f'<span class="lph-fg-r">{_gright}</span></div>')
+        # HARMONISÉ (user 2026-09-18) : sur un DIRECT le total brut n'apporte rien d'actionnable -> RETIRÉ (la
+        # barre « Signaux en direct · N signaux »). Deux sections cohérentes : « Derniers signaux » (épinglé,
+        # inséré en tête plus bas) puis « Par marché » (familles). Le statut vit dans chaque famille (« •N en
+        # cours » / ratio) -> pas besoin d'un compteur global. Familles VISIBLES en direct (on suit le match).
+        rows.append('<div class="lph-sec-h">Par marché</div>')
         rows.extend(_fam_rows)
     else:
         rows.extend(_fam_rows)                           # ni terminé-avec-résultat ni live-avec-signaux : brut
