@@ -2810,17 +2810,22 @@ CSS = """
   .lph-reco b{color:#34d27b}
   /* « Derniers signaux » ÉPINGLÉ en tête de chaque carte (user 2026-09-17) : les 2-3 signaux les + frais du
      match, classés frais->value ; doublon voulu avec les familles en dessous. Accent doré (live). */
-  .lph-fresh{background:rgba(245,196,81,.06);border:1px solid rgba(245,196,81,.18);border-radius:10px;padding:6px 9px;margin:2px 2px 9px}
-  .lph-fresh-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#f5c451;margin-bottom:3px}
-  .lph-fresh-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;color:#e6edf3}
-  .lph-fresh-row+.lph-fresh-row{border-top:1px solid rgba(255,255,255,.05)}
-  .lph-fresh-min{font-weight:800;color:#f5c451;min-width:30px;flex:0 0 auto}
+  /* HARMONISÉ sur le langage de la carte (user 2026-09-18 « 100% premium ») : mêmes typo/cote/minute que les
+     pick-rows `.lph-p`, accent doré discret réservé au titre ⚡ + à la pastille minute. */
+  .lph-fresh{background:linear-gradient(180deg,rgba(245,196,81,.05),rgba(245,196,81,0));
+    border:1px solid rgba(245,196,81,.15);border-radius:12px;padding:8px 11px 6px;margin:2px 2px 10px}
+  .lph-fresh-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.06em;color:#f5c451;margin-bottom:6px}
+  .lph-fresh-row{display:flex;align-items:flex-start;gap:10px;padding:6px 0}
+  .lph-fresh-row+.lph-fresh-row{border-top:1px solid rgba(255,255,255,.06)}
+  .lph-fresh-min{flex:0 0 auto;font-weight:800;font-size:10.5px;color:#f5c451;background:rgba(245,196,81,.13);
+    border-radius:6px;padding:2px 6px;min-width:30px;text-align:center;font-variant-numeric:tabular-nums}
   /* libellé COMPLET (user 2026-09-18) : retour à la ligne autorisé -> plus de troncature « Cienciano… » */
-  .lph-fresh-sel{flex:1 1 auto;min-width:0;line-height:1.3;overflow-wrap:anywhere}
-  .lph-fresh-cote{font-variant-numeric:tabular-nums;color:#cfe0f0;flex:0 0 auto}
-  .lph-fresh-val{font-weight:800;color:#34d27b;min-width:38px;text-align:right;flex:0 0 auto}
+  .lph-fresh-sel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;color:#e6edf3;line-height:1.32;overflow-wrap:anywhere}
+  .lph-fresh-cote{flex:0 0 auto;white-space:nowrap;color:#eaf2fb;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+  .lph-fresh-val{flex:0 0 auto;font-weight:800;color:#34d27b;font-size:11px;min-width:34px;text-align:right}
   /* TOTAL des signaux du match (user 2026-09-18) : total en évidence + détail en cours/gagnés/perdus. */
-  .lph-gt-total{font-weight:800;color:#e6edf3}
+  .lph-gt-total{font-weight:800;color:#f2f6fb}
   .lph-gt-won{color:#34d27b;font-weight:700}
   .lph-gt-lost{color:#ff6b6b;font-weight:700}
   .lph-card{background:#0f1620;border:1px solid #1c2733;border-radius:12px;padding:10px 12px;margin:8px 0}
@@ -12439,12 +12444,15 @@ def _signaux_match_card(m: dict) -> str:
         # Familles VISIBLES en direct (on suit le match) — le repli ne vaut que pour les terminés.
         _gopen = sum(1 for p in _picks if p.get("status") not in ("won", "lost", "push") and not p.get("stale"))
         _bits = [f'<span class="lph-gt-total">{_gtot} {"signaux" if _gtot != 1 else "signal"}</span>']
-        if _gopen:
-            _bits.append(f'<span class="lph-fg-live">{_gopen} en cours</span>')
-        if gw:
-            _bits.append(f'<span class="lph-gt-won">{gw} ✓</span>')
-        if gl:
-            _bits.append(f'<span class="lph-gt-lost">{gl} ✗</span>')
+        # DÉTAIL affiché SEULEMENT si des signaux sont RÉGLÉS (sinon « N signaux · N en cours » = doublon, user
+        # 2026-09-18) : tout en cours -> « N signaux » suffit (la barre « Signaux en direct » dit déjà le live).
+        if gw or gl:
+            if _gopen:
+                _bits.append(f'<span class="lph-fg-live">{_gopen} en cours</span>')
+            if gw:
+                _bits.append(f'<span class="lph-gt-won">{gw} ✓</span>')
+            if gl:
+                _bits.append(f'<span class="lph-gt-lost">{gl} ✗</span>')
         _gright = " · ".join(_bits)
         rows.append(f'<div class="lph-gpct"><span class="lph-gpct-l">Signaux en direct</span>'
                     f'<span class="lph-fg-r">{_gright}</span></div>')
