@@ -25,6 +25,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from app import analyses as A                       # noqa: E402
+from app import confidence_pick as _CP, value_pick as _VP   # noqa: E402  (seuils de sélection = source de vérité)
 import tools.backtest_confidence as B               # noqa: E402
 
 Z = 1.96
@@ -133,9 +134,11 @@ def _curated(ds, market, prob_min, cote_lo, cote_hi, ev_floor, tiebreak):
 def panel_promotion(ds):
     rows = []
     for mk in _MARKETS_B:
-        # règles CONFIANCE (conf>=80, cote courte, le plus sûr) et VALUE (conf>=58, cote grasse, EV>=+5%, cote haute)
-        conf = _metrics(_curated(ds, mk, 80, 1.05, 1.50, -0.15, "prob"))
-        val = _metrics(_curated(ds, mk, 58, 1.40, 2.30, 0.05, "cote_hi"))
+        # règles CONFIANCE (conf≥PROB_MIN, cote courte, le plus sûr) et VALUE (conf≥PROB_MIN, cote grasse, EV≥EV_MIN,
+        # cote haute). Seuils LUS des sélecteurs réels (confidence_pick/value_pick) -> jamais périmés (bug 2026-09-19 :
+        # ils étaient figés en dur à 58/1.05/1.40, périmés depuis les MAJ des 07 et 12/09).
+        conf = _metrics(_curated(ds, mk, _CP.PROB_MIN, _CP.COTE_LO, _CP.COTE_HI, -0.15, "prob"))
+        val = _metrics(_curated(ds, mk, _VP.PROB_MIN, _VP.COTE_LO, _VP.COTE_HI, _VP.EV_MIN, "cote_hi"))
         def _promo(x):
             return "OUI" if (x.get("n", 0) >= 25 and x.get("wlb", 0) > x.get("be", 100)) else \
                    ("proche" if x.get("n", 0) >= 10 and x.get("wlb", 0) > x.get("be", 100) else "non")
