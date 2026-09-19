@@ -910,7 +910,23 @@ async def render_card(d: dict, out_png: str) -> str:
 
             await cmd("Page.enable")
             await cmd("Page.navigate", {"url": "file:///" + htmlf.replace("\\", "/")})
-            await asyncio.sleep(1.0)
+            # ATTENDRE que les logos FotMob DISTANTS aient fini de charger OU d'échouer avant la capture.
+            # Sinon un logo lent laisse un TROU (ni blason ni monogramme : l'`onerror` de repli n'a pas encore
+            # basculé au moment du screenshot — cause vécue des écussons manquants, user 2026-09-19).
+            # `img.complete` passe à true sur load ET sur error → le monogramme est alors révélé. Cap 8 s.
+            for _ in range(80):                       # 80 × 0.1 s = 8 s max
+                r = await cmd("Runtime.evaluate", {"expression":
+                    "[].slice.call(document.images).every(function(x){return x.complete;})",
+                    "returnByValue": True})
+                if r.get("result", {}).get("result", {}).get("value"):
+                    break
+                await asyncio.sleep(0.1)
+            # Filet DÉTERMINISTE : tout logo encore en attente (dépassé le cap, ou hangé) → forcer son `onerror`
+            # pour révéler le monogramme → JAMAIS d'emplacement vide, même si FotMob ne répond pas.
+            await cmd("Runtime.evaluate", {"expression":
+                "[].slice.call(document.images).forEach(function(x){"
+                "if(!x.complete||!x.naturalWidth){x.dispatchEvent(new Event('error'));}});"})
+            await asyncio.sleep(0.2)                   # laisse l'onerror poser le monogramme + le layout se figer
             # Boîte EXACTE de la carte -> capture CLIPPÉE dessus : le PNG épouse la carte, AUCUN bord noir.
             # La carte a une largeur FIXE (920px) -> tous les tickets font la MÊME largeur (peu importe le
             # sport / la longueur des textes) ; seule la HAUTEUR varie avec le contenu.
