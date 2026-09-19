@@ -9,6 +9,18 @@ import pytest
 from app import analyses, live_pick as lp
 
 
+@pytest.fixture(autouse=True)
+def _clean_live_caches():
+    """HERMÉTICITÉ (« Tests PURS ») : vide les caches live PARTAGÉS en mémoire avant chaque test. Sans ça, un
+    test antérieur qui exerce le pipeline live (ex. un TestClient sur /directs dans un AUTRE fichier) laisse des
+    entrées qui rendent `observe_match`/le modèle non déterministes en suite complète (bug d'ordre 2026-09-19).
+    Les tests qui ont besoin d'une entrée la posent EUX-MÊMES dans leur corps (après cette fixture)."""
+    for _c in (lp._PREMATCH_CACHE, lp._STATS_RATE_CACHE, lp._FIXID_CACHE, lp._AF_STATS_CACHE, lp._G90_CACHE,
+               lp._SUMMARY_CACHE, lp._CURRENT_ALL_CACHE, lp._SETTLED_CACHE, lp._PM_TIER_CACHE):
+        _c.clear()
+    yield
+
+
 def _cat():
     return [
         {"id": 1, "text": "Double chance - Lyon ou match nul", "odds": 1.35},
@@ -140,6 +152,7 @@ def test_observe_settle_summary_end_to_end(tmp_path, monkeypatch):
                         lambda sport, h, a: {"score": {"home": 1, "away": 0},
                                              "matchClock": {"minute": 60}})
     monkeypatch.setattr(analyses, "live_catalog", lambda mid: _cat())
+    monkeypatch.setattr(lp, "_af_live_stats", lambda *a, **k: None)   # test PUR (aucun réseau) : pas de fetch stats live
 
     d = {"sport": "foot", "id": "EVT1", "home": "Lyon", "away": "Rennes",
          "comp": "Ligue 1", "start": "2026-09-13T18:00:00Z"}
@@ -178,6 +191,7 @@ def test_settle_all_fast_from_apifootball(tmp_path, monkeypatch):
                         lambda sport, h, a: {"score": {"home": 1, "away": 0},
                                              "matchClock": {"minute": 60}})
     monkeypatch.setattr(analyses, "live_catalog", lambda mid: _cat())
+    monkeypatch.setattr(lp, "_af_live_stats", lambda *a, **k: None)   # test PUR (aucun réseau) : pas de fetch stats live
 
     d = {"sport": "foot", "id": "EVT2", "home": "Lyon", "away": "Rennes",
          "comp": "Ligue 1", "start": "2026-09-13T18:00:00Z"}
