@@ -10082,7 +10082,15 @@ def _planning_cards(sport: str = "foot") -> tuple[list, list]:
             elif dt is not None and dt > _now:
                 pending.append((m, dt, "prog"))            # PRÉ-MATCH STRICT (KO futur) -> Programme (neutre)
             # else : KO passé mais ni en cours ni réglé (latence de règlement) -> RIEN au Programme (user 2026-09-17)
-        # sinon : a un pari -> carte dans sa zone Confiance/Value
+        elif not _settled and analyses.status_of(d) == "inprogress":
+            # MATCH AVEC PARI (Confiance/Value) EN COURS (user 2026-09-19) : il reste dans sa zone Confiance/Value,
+            # MAIS ses SIGNAUX live (corners/cartons/tirs · chance live) doivent AUSSI apparaître dans la zone
+            # « Signaux » — comme les abstentions live. Avant, un pari EN COURS était absent des Signaux (seules les
+            # abstentions y figuraient). Overlay assumé (le match peut figurer en 2 zones). Sélection/ROI inchangés.
+            _scard = _signaux_live_card_for_sidecar(d)
+            if _scard:
+                sig.append(_scard)
+        # sinon : a un pari à venir/terminé -> carte dans sa zone Confiance/Value uniquement
     return pending, abst, sig
 
 
