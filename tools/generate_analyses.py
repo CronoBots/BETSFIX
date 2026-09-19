@@ -1132,7 +1132,7 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
 
     # ── PARI DE CONFIANCE (profil 93% du backtest 2026-08-29) ─────────────────────────────────────
     # Sélecteur MÉCANIQUE (app.confidence_pick) : par match foot À VENIR du jour, le favori DC/Handicap le
-    # plus sûr (confiance≥80, cote 1.05-1.50) pris dans le VIVIER COMPLET (fantômes+bets) — pas le pick de
+    # plus sûr (confiance≥80, cote 1.12-1.50) pris dans le VIVIER COMPLET (fantômes+bets) — pas le pick de
     # Claude (l'analyste ne commit qu'~1 pari/match). Posé dans `confidence_bet`, il devient LE pari retenu
     # « Confiance » (retained_bet le renvoie en priorité, bypass EV). Idempotent (gel du prix). Site + Telegram
     # suivent via retained_bet/freeze_published_bet. Try/except : ne casse jamais le scan.
@@ -1144,7 +1144,7 @@ async def _build_combo_montante_from_analysis(day: str, client, ko_from=None, ko
         print(f"  (paris de confiance ignorés : {_cpe})")
     # ── PARI DE VALUE (profil « grassy » backtest) — APRÈS la confiance (elle est prioritaire, 1/match) ──
     # Sélecteur MÉCANIQUE (app.value_pick) : par match foot À VENIR SANS pari de confiance, le pari safe4 à
-    # meilleure value (conf≥58, cote 1.40-2.30, EV≥+5 %, cote la plus haute). Posé dans `value_bet`.
+    # meilleure value (conf≥66, cote 1.30-2.30, EV≥+5 %, cote la plus haute). Posé dans `value_bet`.
     try:
         from app import value_pick as _valp
         _nvp = _valp.apply_for_day(day)

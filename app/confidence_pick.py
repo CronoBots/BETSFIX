@@ -5,7 +5,8 @@ Contexte : le backtest exhaustif sur tout l'historique (tools/backtest_confidenc
 1 pari/match) a désigné comme MEILLEUR profil « réussite max » :
     marchés {Double chance, Handicap} · confiance BRUTE ≥ 80 % · cote 1.05-1.30 · le PLUS SÛR d'abord
   -> 93 % de réussite (107-8), série de 26, ROI +6 %, stable juin/juillet/août, test ≥ train.
-⚠️ Le plafond de cote EN VIGUEUR est COTE_HI = 1.50 (porté de 1.30 le 2026-08-29, cf. note l.32) —
+⚠️ Les bornes EN VIGUEUR sont COTE_LO = 1.12 (relevée de 1.05 le 2026-09-07 : la bande 1.05–1.12 était
+   net-négative, 89 % mais ROI −2,9 %) et COTE_HI = 1.50 (porté de 1.30 le 2026-08-29, cf. note l.32) —
    la borne « 1.05-1.30 » ci-dessus décrit le backtest d'origine, pas le code actuel.
 
 ⚠️ Ce profil ne PEUT PAS venir du pick committé par Claude : l'analyste ne commit qu'~1 pari/match

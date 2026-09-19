@@ -497,8 +497,14 @@ def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
 try:
     from app import confidence_pick as _CP, value_pick as _VP
     _BANDS = {"confiance": (_CP.COTE_LO, _CP.COTE_HI), "value": (_VP.COTE_LO, _VP.COTE_HI)}
+    # Phrase des seuils (fiche d'abstention) DÉRIVÉE des vraies constantes -> ne dérive plus jamais (les seuils
+    # ont déjà changé 3× : 1.05->1.12 le 07/09, 68->66 et 1.40->1.30 le 12/09). Bug : la phrase était figée en dur.
+    _TIER_BANDS_TXT = ("Confiance : conf ≥ %g · cote %.2f–%.2f — Value : conf ≥ %g · cote %.2f–%.2f · EV ≥ +%g %%"
+                       % (_CP.PROB_MIN, _CP.COTE_LO, _CP.COTE_HI,
+                          _VP.PROB_MIN, _VP.COTE_LO, _VP.COTE_HI, _VP.EV_MIN * 100))
 except Exception:
-    _BANDS = {"confiance": (1.05, 1.50), "value": (1.40, 2.30)}
+    _BANDS = {"confiance": (1.12, 1.50), "value": (1.30, 2.30)}
+    _TIER_BANDS_TXT = "Confiance : conf ≥ 80 · cote 1.12–1.50 — Value : conf ≥ 66 · cote 1.30–2.30 · EV ≥ +5 %"
 
 
 def _qc_audit(d: dict, rb: dict | None, sig: dict) -> dict:
@@ -624,7 +630,7 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
             lines += ["", f"💬 Pourquoi ce pari : {str(wtext).strip()[:800]}"]
     else:
         lines.append("⏸️ ABSTENTION — aucun pari mécanique ≥ seuil")
-        lines.append("   (Confiance : conf ≥ 80 · cote 1.05–1.50 — Value : conf ≥ 68 · cote 1.40–2.30 · EV ≥ +5 %)")
+        lines.append(f"   ({_TIER_BANDS_TXT})")
         skip = _md_section(mdtxt, "Le pari à jouer")
         if skip:
             # Le .md « Le pari à jouer » peut être une vraie ABSTENTION (« À éviter / SKIP ») OU un pari
