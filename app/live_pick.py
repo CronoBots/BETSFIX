@@ -237,26 +237,30 @@ def _af_live_stats(mid, home, away, ko, allow_fetch: bool = False):
         return hit[1]
     if not allow_fetch:
         return None
+    # ANTI-EMPOISONNEMENT (bug user 2026-09-19) : si une PRÉCONDITION manque (clé absente / ko/home/away vides),
+    # on n'a même PAS tenté de fetch -> NE PAS cacher un None (il bloquerait 180 s un appel ultérieur qui, lui,
+    # a le bon ko). On ne cache QUE le résultat d'une VRAIE tentative réseau (succès OU miss API légitime).
+    from app import apifootball as _AF
+    if not (_AF.configured() and home and away and ko):
+        return None
     ss = None
     try:
-        from app import apifootball as _AF
-        if _AF.configured() and home and away and ko:
-            with _AF._client() as cl:
-                fid = _FIXID_CACHE.get(mid)
-                if not fid:                                # None (jamais résolu) OU 0 (échec précédent) -> RETENTER
-                    # RÉSOLUTION via le MÊME appariement fuzzy que le SCORE (`live_fixture_id` sur live_all) — plus
-                    # `resolve_fixture` qui ÉCHOUAIT sur les noms BETSFIX (« Corinthians-SP ») -> plus de corners/
-                    # cartons/tirs sur ces matchs (régression user 2026-09-17). Le score marchait, pas les stats.
-                    _rid = _AF.live_fixture_id(cl, home, away, ko) or 0
-                    # ⚠️ NE CACHER QUE LES SUCCÈS (bug user 2026-09-17 : Corinthians-Estudiantes SANS corners/
-                    # cartons/tirs tout le match). Avant, un échec de résolution TRANSITOIRE cachait `0` EN
-                    # PERMANENCE -> stats jamais récupérées pour ce match. Sur échec on ne cache pas -> nouvelle
-                    # tentative au prochain passage (throttlée par _STATS_RATE_TTL 180 s : ~1 re-résolution/3 min).
-                    if _rid:
-                        _FIXID_CACHE[mid] = _rid
-                    fid = _rid
-                if fid:
-                    ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or None
+        with _AF._client() as cl:
+            fid = _FIXID_CACHE.get(mid)
+            if not fid:                                # None (jamais résolu) OU 0 (échec précédent) -> RETENTER
+                # RÉSOLUTION via le MÊME appariement fuzzy que le SCORE (`live_fixture_id` sur live_all) — plus
+                # `resolve_fixture` qui ÉCHOUAIT sur les noms BETSFIX (« Corinthians-SP ») -> plus de corners/
+                # cartons/tirs sur ces matchs (régression user 2026-09-17). Le score marchait, pas les stats.
+                _rid = _AF.live_fixture_id(cl, home, away, ko) or 0
+                # ⚠️ NE CACHER QUE LES SUCCÈS (bug user 2026-09-17 : Corinthians-Estudiantes SANS corners/
+                # cartons/tirs tout le match). Avant, un échec de résolution TRANSITOIRE cachait `0` EN
+                # PERMANENCE -> stats jamais récupérées pour ce match. Sur échec on ne cache pas -> nouvelle
+                # tentative au prochain passage (throttlée par _STATS_RATE_TTL 180 s : ~1 re-résolution/3 min).
+                if _rid:
+                    _FIXID_CACHE[mid] = _rid
+                fid = _rid
+            if fid:
+                ss = (_AF.live_match_stats(cl, fid) or {}).get("stats") or None
     except Exception:
         ss = None
     _AF_STATS_CACHE[mid] = (_t.time(), ss)
@@ -793,7 +797,11 @@ def warm_live_stats(d: dict) -> dict | None:
     # CACHE g90 LIVE (avec tirs, cache chaud) pour la barre « chance live » Confiance/Value (user 2026-09-17) —
     # calculé ICI (le fond fetch), lu au rendu par `analyses.live_prob` via `match_goals90_cached`. Avant le gate
     # `qual`/`catalog` -> alimenté pour TOUT match foot suivi, même sans signal qualifiant.
-    _g90c = _match_goals90(hs, as_, minute, mid, home, away, allow_fetch=True, pre_g90=pre)
+    # ⚠️ `ko` OBLIGATOIRE (bug user 2026-09-19) : sans lui `_match_goals90` -> `_stats_rate90` -> `_af_live_stats`
+    # reçoit ko=None, SAUTE le fetch (garde `ko` ligne ~243) et CACHE None 180 s -> empoisonne le cache stats ;
+    # price_catalog rappelle ensuite avec le bon ko mais lit le None caché -> corners/cartons/tirs à ZÉRO tout
+    # le match. Passer d.get("start") ici = le fetch stats réussit dès le 1er appel (le catalogue peut être vide).
+    _g90c = _match_goals90(hs, as_, minute, mid, home, away, d.get("start"), allow_fetch=True, pre_g90=pre)
     if _g90c is not None:
         import time as _t
         _G90_CACHE[_g90_key(home, away)] = (_t.time(), _g90c)
