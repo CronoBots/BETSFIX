@@ -10212,6 +10212,18 @@ def _signaux_zone(sport: str, has_prog: bool) -> str:
     return ""                                                   # journée finie sans aucun signal -> pas de zone orpheline
 
 
+def _signaux_day_zone(sport: str, day: str) -> str:
+    """Zone « Signaux » d'un JOUR PASSÉ donné (`day` = ISO local) — RÉGLÉS seulement, pour la vue d'un jour de
+    l'historique du calendrier Pronos (`/jour`). Le jour COURANT passe par `_signaux_zone` (live + réglés) déjà
+    inclus dans `_today_zones`. Remplace l'ancien `_signaux_day_matches` retiré à la refonte Signaux
+    (2026-09-17) — son oubli côté routeur cassait `/jour` en 500. "" si aucun signal réglé ce jour."""
+    cards = list(_signaux_settled_cards(sport, day))
+    if not cards:
+        return ""
+    return _zone("lph", "Signaux", "", len(cards), _join_cards(cards),
+                 zk="pj-signaux", collapsible=True, open_=True)
+
+
 def render_dashboard(match_rows: list, *, live_count: int = 0, results: list | None = None,
                      frag: bool = False, source: dict | None = None) -> str:
     """Onglet « Pronos » (ex-« À venir », renommé 2026-07-19) : un CALENDRIER horizontal en tête pour revoir
@@ -12640,7 +12652,7 @@ def _signaux_settled_cards(sport: str, day: str) -> list:
         if mday == day:
             day_ms.append(m)
     if not day_ms:
-        return ""
+        return []
 
     def _msucc(mm):                                          # taux de réussite du match (won/réglés), -1 si rien réglé
         _w = sum(1 for p in mm.get("picks", []) if p.get("result") == "won")

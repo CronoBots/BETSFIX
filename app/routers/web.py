@@ -355,13 +355,12 @@ async def jour(date: str, sport: str = "", frag: int = 1) -> HTMLResponse:
         # amont par `list_for` (donc absentes de _home_match_rows) -> seuls les VRAIS paris joués live passent.
         rows = list(await _home_match_rows())
         results = _past_day_cards(today_iso)               # paris terminés d'aujourd'hui -> zone dédiée
-        body = web._today_zones(rows, sp, results)[0]
-        body += web._signaux_day_matches("foot", today_iso)   # SIGNAUX LIVE du jour (détail par jour, user 2026-09-13)
+        body = web._today_zones(rows, sp, results)[0]      # inclut DÉJÀ la zone « Signaux » (live+réglés) via _signaux_zone
         fragcache.put(ckey, body, ttl=PANEL_TTL)           # jour courant : bouge -> TTL court
         return HTMLResponse(body)
     # `_day_view` bâtit lui-même ses cartes -> l'ancien `day_rows = _past_day_cards(date)` n'était jamais
     # lu (calcul mort à chaque consultation d'un jour passé). Retiré 2026-09-02.
-    body = web._day_view(date, sp) + web._signaux_day_matches("foot", date)   # + SIGNAUX LIVE de CE jour
+    body = web._day_view(date, sp) + web._signaux_day_zone("foot", date)   # + SIGNAUX réglés de CE jour
     fragcache.put(ckey, body, ttl=1800)                    # jour passé : ~immuable -> 30 min
     return HTMLResponse(body)
 
