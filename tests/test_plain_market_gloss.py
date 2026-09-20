@@ -101,3 +101,18 @@ def test_selfcheck_gloss_coverage_present_et_ok():
     # sur l'état réel du dépôt : jamais d'anomalie (pari sans explication). Le repli générique = info tolérée.
     assert res["level"] in ("ok", "info"), res["items"]
     assert not any("SANS explication" in it for it in res["items"]), res["items"]
+
+
+# ------------------------------------------------ handicap mal phrasé « <équipe> marque (+0.5) » (bug 2026-09-20)
+def test_handicap_marque_parenthese_label_et_glose_suivent_le_code():
+    """Bournemouth-Liverpool : le ghost LLM a phrasé le handicap « Liverpool marque (+0.5) » (code HCAP
+    AWAY +0.5, réglé en handicap). Label ET glose doivent décrire le HANDICAP, jamais « marque au moins 1 but »
+    (marché différent) — l'affichage suit le CODE. Le « marque ( ) » débris est aussi éliminé."""
+    from app.analyses import pretty_sel
+    assert pretty_sel("Liverpool marque (+0.5)", "Bournemouth", "Liverpool") == "Handicap asiatique Liverpool +0.5"
+    assert web._bet_gloss("Liverpool marque (+0.5)", "foot", "Bournemouth", "Liverpool") == "gagne ou match nul"
+    # NON-RÉGRESSION : un VRAI total d'équipe (« marque (Total X +0.5) » / « marque (Plus de 0.5 but) ») garde sa glose
+    assert web._bet_gloss("Racing Club marque (Total Racing +0.5)", "foot", "Racing Club", "X") == \
+        "Racing Club marque au moins 1 but"
+    assert web._bet_gloss("Argentine marque (Plus de 0.5 but)", "foot", "France", "Argentine") == \
+        "Argentine marque au moins 1 but"

@@ -6286,6 +6286,14 @@ def _plain_market(sel: str, sport: str, home: str = "", away: str = "") -> str:
     s = (sel or "").strip()
     if not s:
         return ""
+    # HANDICAP MAL PHRASÉ « <équipe> marque (+0.5) » (bug user 2026-09-20, Bournemouth-Liverpool) : le sélecteur
+    # Confiance ne joue QUE DC/Handicap et `code_from_pick` code bien ce sel en HCAP (les parenthèses = ligne de
+    # handicap), MAIS la branche « marque … +X.5 » ci-dessous le glosait « marque au moins 1 but » (= total
+    # équipe, marché DIFFÉRENT) → glose qui CONTREDIT le pari joué. On enlève le « marque » parasite et on
+    # déballe la ligne signée UNIQUEMENT quand les parenthèses ne contiennent QU'un nombre signé (« (+0.5) »),
+    # jamais un vrai total d'équipe (« (Total Racing +0.5) » / « (Plus de 0.5 but) » gardent leur glose). Après
+    # ça, la branche HANDICAP signé plus bas prend le relais (« gagne ou match nul »). Purement AFFICHAGE.
+    s = re.sub(r"\s+marque\w*\s*\(\s*([+\-−–]\s?\d+(?:[.,]\d+)?)\s*\)", r" \1", s, flags=re.I)
     sl = s.lower()
     unit = "buts" if sport == "foot" else ("jeux" if sport == "tennis" else "points")
     _u = lambda k: unit if k != 1 else {"buts": "but", "points": "point", "jeux": "jeu"}.get(unit, unit)
