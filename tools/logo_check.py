@@ -239,6 +239,24 @@ def check(check_http: bool = True, repair: bool = True) -> dict:
             "repaired": repaired}
 
 
+def _fotmob_absent(name: str) -> bool:
+    """True si FotMob ne connaît AUCUNE équipe proche de ce nom -> AUCUN alias ne peut réparer le logo
+    (foot féminin/amateur/D-inférieure hors couverture FotMob). On n'arrive ici que pour des équipes déjà
+    NON résolues ET non réparées par les fixtures du jour ; si la recherche « suggest » (nom nettoyé + tokens
+    distinctifs) ne renvoie RIEN non plus, il n'existe aucune cible d'alias -> l'alerte « ajoute un alias »
+    serait un faux positif. Réseau douteux -> False (on n'affirme pas l'absence, on laisse alerter)."""
+    import re as _r
+    terms = [C._clean(name)]
+    terms += [w for w in _r.split(r"[\s.\-]+", C._clean(name)) if len(C._norm(w)) >= 5]
+    for t in terms:
+        try:
+            if C._fetch(t):                 # au moins une suggestion -> potentiellement réparable par alias
+                return False
+        except Exception:
+            return False                    # panne réseau -> ne PAS déclarer absent (sécurité : on alerte)
+    return True
+
+
 def _dedup_new(day: str, names: list[str]) -> list[str]:
     """Ne garde que les équipes PAS encore signalées aujourd'hui (1 alerte/équipe/jour)."""
     try:
@@ -261,8 +279,15 @@ def _dedup_new(day: str, names: list[str]) -> list[str]:
 def run(quiet: bool = False, alert: bool = False, check_http: bool = True, repair: bool = True) -> int:
     r = check(check_http=check_http, repair=repair)
     day = r["day"] or datetime.now().strftime("%Y-%m-%d")
-    bad = r["unresolved"] + [(b[0], None) for b in r["broken"]]
-    n_ok, n_un, n_br = len(r["ok"]), len(r["unresolved"]), len(r["broken"])
+    # Débruitage (user 2026-09-21) : on ne considère comme PROBLÈME (alerte + exit 1) que les logos RÉPARABLES —
+    # FotMob a un candidat qu'un alias peut viser, ou l'image est cassée (id valide). Une équipe HORS couverture
+    # FotMob (féminin/amateur : recherche muette) n'a aucun alias possible -> monogramme = comportement CORRECT,
+    # pas une alerte (sinon faux positif chronique « ajoute un alias » sur des noms qu'aucun alias ne réparera).
+    fixable, absent = [], []
+    for nm, ms in r["unresolved"]:
+        (absent if _fotmob_absent(nm) else fixable).append((nm, ms))
+    bad = fixable + [(b[0], None) for b in r["broken"]]
+    n_ok, n_fx, n_ab, n_br = len(r["ok"]), len(fixable), len(absent), len(r["broken"])
 
     print(f"═══ LOGOS DES ÉQUIPES — {day} ═══")
     print(f"Programme : {r['n_matches']} match(s) · {r['n_teams']} équipe(s)")
@@ -271,28 +296,30 @@ def run(quiet: bool = False, alert: bool = False, check_http: bool = True, repai
             print(f"  ✅ {nm}  (id {tid})")
     for nm, tid in r.get("repaired") or []:
         print(f"  🔧 {nm} — RÉPARÉ via les fixtures du jour (id {tid}, mis en cache)")
-    for nm, ms in r["unresolved"]:
-        print(f"  ❌ {nm} — AUCUN blason (FotMob n'a pas résolu ce nom) · {', '.join(x for x in ms if x)[:60]}")
+    for nm, ms in fixable:
+        print(f"  ❌ {nm} — non résolu mais FotMob a un candidat (alias possible) · {', '.join(x for x in ms if x)[:60]}")
+    for nm, ms in absent:
+        print(f"  ℹ️ {nm} — hors couverture FotMob (féminin/amateur) : monogramme, AUCUN alias possible")
     for nm, tid, url in r["broken"]:
         print(f"  ⚠️ {nm} — id {tid} mais image INDISPONIBLE ({url})")
     if r["unknown"]:
         print(f"  … {len(r['unknown'])} équipe(s) non vérifiées (réseau injoignable) — sans conclusion")
     print("── BILAN ──")
-    print(f"  {n_ok}/{r['n_teams']} logo(s) OK · {n_un} non résolu(s) · {n_br} image(s) cassée(s)")
-    if n_un or n_br:
+    print(f"  {n_ok}/{r['n_teams']} logo(s) OK · {n_fx} réparable(s) · {n_ab} hors couverture · {n_br} image(s) cassée(s)")
+    if n_fx or n_br:
         print("  💡 Réparation : ajouter le nom dans `crest._ALIAS` (sigle -> nom FotMob complet).")
 
     if alert and bad:
         new = _dedup_new(day, [b[0] for b in bad])
         if new:
             from app import notify
-            _body = (f"{len(new)} équipe(s) du programme sortiront une carte SANS blason :\n"
+            _body = (f"{len(new)} équipe(s) du programme sortiront une carte SANS blason (réparable) :\n"
                      + "\n".join(f"• {n}" for n in new))
             notify.owner_alert(f"Logos manquants ({day})", _body, severity="warn",
                                action="ajouter un alias dans crest._ALIAS (sigle → nom FotMob complet).",
                                diag="python tools/logo_check.py")
             print(f"  (alerte privée envoyée : {len(new)} équipe(s))")
-    return 1 if (n_un or n_br) else 0
+    return 1 if (n_fx or n_br) else 0
 
 
 if __name__ == "__main__":
