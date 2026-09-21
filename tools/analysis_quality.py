@@ -38,7 +38,11 @@ for _s in (sys.stdout, sys.stderr):
 from app import analyses as A  # noqa: E402
 
 MIN_MD = 2500            # octets : en-dessous, l'analyse est un stub (les vraies font ~2900-5900 o)
-CONV_ALERT = 0.25        # conversion < 25 % -> alerte (gagnante ~0.49 ; diluée ~0.11)
+CONV_ALERT = 0.25        # conversion < 25 % : SEUIL D'INFO seulement (imprimé au BILAN), PLUS une alerte (règle
+#                          permanente #3 : peu de paris un jour = NORMAL, créneau sans value). La superficialité
+#                          RÉELLE est captée par `shallow` (.md stub). user 2026-09-21 (débruitage).
+CONV_DRY_SLATE = 10      # SEUL cas de conversion encore alerté : un slate ENTIER (≥ N analysés) SANS AUCUN pari
+#                          = signal de pipeline cassé (ancre sharp / catalogue Pinnacle vide), pas un jour sans value.
 WAVE_LEAD_H = 0.75       # la vague analyse à KO-1.0 h ; on ne crie "manqué" qu'APRÈS + une marge de ~15 min
 #                          (KO-0.75 h). ⚠️ Doit être < 1.0 : un seuil >= au lead de la vague (ex. l'ancien 1.6)
 #                          déclarait "manqué" AVANT que la vague ne tourne -> faux positif (Atletico Grau
@@ -346,8 +350,11 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
     # CONVERSION : jugée SEULEMENT en fin de journée (pending == 0). Tôt le matin, seules les abstentions du
     # slate jour sont analysées (les vagues n'ont pas tourné) -> conversion trompeuse. Les abstentions du matin
     # seront re-analysées près du KO (Option B) et peuvent devenir des paris.
-    if pending == 0 and analysed >= 4 and conv < CONV_ALERT:
-        alert.append(f"conversion {100*conv:.0f}% < {100*CONV_ALERT:.0f}% -> analyse peut-être superficielle")
+    # CONVERSION basse = NORMALE (règle permanente #3 : créneau sans value) -> plus d'alerte en tant que telle
+    # (bruit chronique, user 2026-09-21). On n'alerte QUE le cas catastrophe : un slate ENTIER à 0 pari, qui
+    # trahit un pipeline cassé (ancre sharp morte / catalogue Pinnacle vide, cf. scan_cron « 0 match au catalogue »).
+    if pending == 0 and analysed >= CONV_DRY_SLATE and bets == 0:
+        alert.append(f"slate ENTIER ({analysed} analysés) sans AUCUN pari -> vérifier le pipeline (ancre sharp / catalogue)")
     if shallow:
         alert.append(f"{len(shallow)} analyse(s) superficielle(s) (.md stub)")
     # PARI JOUÉ FRAGILE : un pilier SÉLECTION/SOURCES ❌ sur un pari réellement joué = à corriger (capital en jeu).
@@ -378,8 +385,8 @@ def run(date: str | None = None, send_alert: bool = False) -> int:
         # ENVOI PRIVÉ (owner) — dédupliqué : chaque problème n'alerte qu'UNE fois par jour.
         keys = ([f"missed:{n}" for n in missed_list] + [f"shallow:{n}" for n in shallow]
                 + [f"badbet:{n}" for n, _ in bad_bets] + [f"cotedrift:{n}" for n, _ in cote_drift])
-        if pending == 0 and analysed >= 4 and conv < CONV_ALERT:
-            keys.append("conversion")
+        if pending == 0 and analysed >= CONV_DRY_SLATE and bets == 0:
+            keys.append("dry-slate")
         new = _new_issues(day, keys)
         if send_alert and new:
             from app import notify
@@ -762,6 +769,11 @@ ROI_GAP = 15.0           # + écart de ROI (points) ; l'alerte exige AUSSI un RO
 WATCH_WINDOW = 50        # fenêtre glissante = les N derniers paris Confiance JOUÉS réglés
 WATCH_MIN_N = 40         # recul mini avant de juger (sinon variance)
 WATCH_MIN_PCT = 85.0     # sous ce taux de réussite sur la fenêtre = alerte (baseline mesurée ~91%)
+# VEILLE (user 2026-09-21) : le décrochage Confiance ~10-17/09 (84%) est ACTÉ comme VARIANCE (P=4,2%, mémoire
+# confidence-recent-dip-variance-watch ; décision : re-juger FIN OCTOBRE). La surveillance CONTINUE de calculer
+# et d'imprimer, mais l'ALERTE PRIVÉE est en veille jusqu'à cette date, puis reprend AUTOMATIQUEMENT (si toujours
+# sous le seuil après le 31/10, elle re-sonne). Réactiver tout de suite = mettre la date à "" / None.
+WATCH_SNOOZE_UNTIL = "2026-10-31"
 
 
 def _bucket_stats(rows: list) -> dict:
@@ -867,8 +879,17 @@ def recent_confidence_watch(send_alert: bool = False) -> int:
     print(f"  {st['n']} décisifs · {st['win']:.0f}% réussite · ROI {st['roi']:+.1f}%  "
           f"(alerte si < {WATCH_MIN_PCT:.0f}% avec ≥ {WATCH_MIN_N} paris)")
     if st["n"] >= WATCH_MIN_N and st["win"] < WATCH_MIN_PCT:
-        print("🔴 ALERTE : réussite Confiance durablement SOUS le seuil -> régression probable (au-delà de la variance).")
         import datetime as _dt
+        # VEILLE : dip acté = variance -> on n'envoie PAS l'alerte tant qu'on est avant WATCH_SNOOZE_UNTIL.
+        try:
+            _snoozed = bool(WATCH_SNOOZE_UNTIL) and _dt.date.today().isoformat() <= WATCH_SNOOZE_UNTIL
+        except Exception:
+            _snoozed = False
+        if _snoozed:
+            print(f"🟡 SOUS le seuil ({st['win']:.0f}%) mais alerte EN VEILLE jusqu'au {WATCH_SNOOZE_UNTIL} "
+                  f"(dip acté = variance, mémoire confidence-recent-dip-variance-watch). Reprise auto ensuite.")
+            return 0
+        print("🔴 ALERTE : réussite Confiance durablement SOUS le seuil -> régression probable (au-delà de la variance).")
         try:
             wk = _dt.date.today().strftime("%G-W%V")                   # dédup PAR SEMAINE (pas de spam quotidien)
         except Exception:
