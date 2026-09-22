@@ -432,6 +432,30 @@ def _ko_bx(start: str) -> str:
 
 _SRC_TOKENS = ("fotmob", "flashscore", "sportradar", "understat", "sofascore", "espn", "livescore")
 
+# Un lien markdown vers une source RÉELLE compte comme une source. Le compteur `_SRC_TOKENS` ci-dessus ne
+# reconnaît que 7 providers legacy en dur -> une analyse HONNÊTE qui cite « [Sofascore](…), [scores24](…),
+# [prvaliga.rs](…) » n'en voyait qu'UNE (sofascore) -> faux « <2 sources » -> 🔴 SOURCES à tort (mesuré
+# 2026-09-22 : 2 des 4 rouges SOURCES sur 19-21/09 étaient ce faux positif, ligues obscures correctement
+# abstenues). On COMPTE donc les domaines réellement cités dans les liens du .md, en PLUS des tokens (jamais
+# à leur place) : on n'assouplit AUCUN seuil (toujours ≥2), on apprend juste au voyant à LIRE les sources.
+# Effet inverse voulu : un .md verbeux SANS aucun lien réel (0 domaine) reste rouge -> anti « beau texte creux ».
+_MD_LINK = re.compile(r"\]\(\s*https?://([^/)\s]+)", re.I)
+
+
+def _cited_domains(mdtxt: str) -> set:
+    """Domaines racine DISTINCTS cités via un lien markdown dans le .md (grounding réel, indep. du whitelist)."""
+    doms = set()
+    for m in _MD_LINK.finditer(mdtxt or ""):
+        host = m.group(1).lower().strip()
+        if host.startswith("www."):
+            host = host[4:]
+        # racine « domaine.tld » (soccerway sous us.women.soccerway.com, en.wikipedia.org -> wikipedia.org)
+        parts = host.split(".")
+        root = ".".join(parts[-2:]) if len(parts) >= 2 else host
+        if root:
+            doms.add(root)
+    return doms
+
 
 def _md_text(md: str | None) -> str:
     try:
@@ -475,8 +499,15 @@ def _qc_collect(d: dict, md: str | None, mdtxt: str) -> dict:
         low = mdtxt.lower()
         src_names = [t for t in _SRC_TOKENS if t in low]
     md_ko = (os.path.getsize(md) / 1000.0) if (md and os.path.exists(md)) else 0.0
+    # n_src = MAX(providers reconnus, domaines réellement cités). `src_names` reste la liste des providers
+    # (affichage + waiver `apifootball`) ; le comptage domaines ne fait qu'AJOUTER de la reconnaissance -> il
+    # ne crée jamais de faux VERT sur un pari publié (gardes ancre/omap/bande inchangées) et éteint le faux
+    # ROUGE des abstentions honnêtes. Sous-comptage possible (token+domaine disjoints) = côté PRUDENT (reste
+    # rouge), jamais l'inverse. Cf. `_cited_domains` / `_MD_LINK`.
+    cited = _cited_domains(mdtxt)
+    n_src = max(len(src_names), len(cited))
     return {
-        "src_names": src_names, "n_src": len(src_names),
+        "src_names": src_names, "n_src": n_src, "n_cited": len(cited), "cited": sorted(cited),
         # ANCRE SHARP présente si : map par marché persistée, OU l'analyse CITE une ancre chiffrée (« sharp 50 % »/
         # « Pinnacle 82 % » — `_SHARP_CITE`, pas seulement le mot « pinnacle »). Le verrou `no_sharp` DIFFÈRE déjà
         # tout match SANS ancre -> un match ANALYSÉ (donc non différé) qui cite un sharp EN A un. Corrige le FAUX
@@ -657,7 +688,9 @@ def _qc_card(d: dict, m: dict, md: str | None) -> str:
         lines += ["", "📋 Les faits (analyse) :", facts[:900]]
     lines += ["", "📊 Détail qualité",
               f"  • Sources : {sig['n_src']}"
-              + (f" ({', '.join(sig['src_names'][:5])})" if sig["src_names"] else " (aucune trace)"),
+              + (f" ({', '.join(sig['src_names'][:5])})" if sig["src_names"] else "")
+              + (f" · cités : {', '.join(sig['cited'][:5])}" if sig.get("cited") else "")
+              + ("" if (sig["src_names"] or sig.get("cited")) else " (aucune trace)"),
               f"  • Ancre sharp (Pinnacle) : {'✅' if sig['sharp_ok'] else '❌'}",
               f"  • Cotes réelles Unibet (omap) : {'✅ ' + str(sig['n_omap']) if sig['n_omap'] else '❌'}",
               f"  • Profondeur : {sig['md_ko']:.1f} ko {'✅' if sig['md_ok'] else '⚠️'}"
