@@ -150,8 +150,11 @@ tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
 | **Sportradar (GISMO)** | forme · **streaks de pari** (sans défaite/marque/BTTS/over) · H2H · classement · **moyennes buts & over 2.5** — feed LIBRE `lsc.fn.sportradar.com`, `app/sportradar.py` branché à `sources.extras` + routeur `/sportradar/*` · **+ RÈGLEMENT** : `sportradar.final_score()` lit `match_info.periods` (repli `need_periods` dans settle_analyst) | ✅ |
 | **SofaScore** | séries de pari · votes · scores live · event/h2h/lineups/incidents (Sportradar GISMO reste l'upstream principal) | ✅ **re-vérifié vivant 2026-07-28** |
 
-> **Ancre sharp** : Pinnacle brut via **iProyal** (proxy, prioritaire, monde entier, `app/pinnacle.py`) ;
-> **The Odds API** en secours (~68 ligues, `app/theoddsapi.py`). Verrou `no_sharp` dans `build_dossier` : un
+> **Ancre sharp** (ANCIENNE LOGIQUE RESTAURÉE 2026-09-23, après un aller-retour API-Football 09-09→09-22) :
+> Pinnacle brut via **iProyal** (proxy, **PRIORITAIRE**, monde entier, `app/pinnacle.py`) → **The Odds API**
+> (~68 ligues, `app/theoddsapi.py`) → **API-Football** en DERNIER FILET (`_APIFOOTBALL_SHARP` autorise le filet ;
+> plus primaire). iProyal découplé de SofaScore : flag dédié **`BETSFIX_DROP_IPROYAL_SHARP`** (défaut 0 = iProyal
+> ON), le `config.drop_iproyal()` partagé garde SofaScore hors proxy. Verrou `no_sharp` dans `build_dossier` : un
 > match foot SANS ancre sharp live est **différé** → 100 % des paris publiés portent une ancre. Mémoire `sharp-anchor-theoddsapi`.
 > **Garde anti-résolution-fausse (2026-09-02)** : si le favori sharp CONTREDIT le favori marché (réf omap,
 > écarts nets opposés), l'ancre est JETÉE → `no_sharp` → différé (flag `sharp_conflict`). Évite un EV calculé
@@ -174,8 +177,11 @@ tennis/basket ci-dessous décrit un rôle **dormant**, pas actif.
 - Reste vrai : **Elo tennis RETIRÉ** (4ee2d45) + garde-fou anti-écrasement des builds (ba61e1b).
 
 ### L'enrichissement vivant = `app/sources.py`
-- `sources.extras(client, sport, match)` → FotMob/Understat + Flashscore + Sportradar,
-  **branché au scan** (`tools/generate_analyses.py`).
+- `sources.extras(client, sport, match)` → **FotMob + API-Football (primaire) + Understat + Flashscore + Sportradar**,
+  **branché au scan** (`tools/generate_analyses.py`). ⚠️ **Flashscore + Understat RÉTABLIS 2026-09-23** (user) :
+  ajoutés PAR-DESSUS API-Football (Flashscore plus gaté `if not af_on` ; Understat = 2e source xG indépendante),
+  après avoir été remplacés par API-Football le 10/09. Mesuré neutre sur le taux (data ≠ cause de la chute sept),
+  pur gain de robustesse d'analyse. `_af_enrich` reste la source d'enrichissement primaire.
 
 ### Le scan = `tools/generate_analyses.py`
 - Pilote Claude headless (`claude -p`), faits web ≥2 sources.
