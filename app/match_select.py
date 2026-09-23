@@ -97,16 +97,37 @@ _BIG_TOURNEY_KW = ("world cup", "coupe du monde", "champions league", "ligue des
 # matchs peuvent toujours entrer via le top-N normal si leur profondeur de marché les classe (elle ne le fait pas).
 _MINOR_CONFED_KW = ("caf", "afc", "concacaf", "african", "asian")
 
+# FOOT FÉMININ exclu du FORCE-ADD élite (user 2026-09-23, MESURÉ). La « Ligue des Champions Femmes » et la
+# « Coupe d'Europe (F) » matchaient le mot-clé générique « champions league »/« europa » du pack élite et
+# étaient FORCÉES par-dessus le cap 7+7 (un jour de matchday féminin UEFA gonflait le slate à 10, ex. 23/09).
+# Or le pack élite a été pensé pour ne JAMAIS rater les grosses affiches MASCULINES — ratisser le féminin est
+# un effet de bord du mot-clé, pas une décision. Mesure sur 1096 sidecars foot : féminin = 12 sidecars (2 paris,
+# n≈bruit) mais TAUX DE CONFLIT D'ANCRE 25% (3/12) vs 1% masculin (12/1084) -> le marché sharp, socle de l'edge,
+# y est peu fiable. On CESSE juste le passe-droit : le féminin reste éligible via le top-N normal (s'il classe
+# sur la profondeur de marché) et garde ses fantômes/calibration. Analyse/sélecteurs INCHANGÉS. Réversible :
+# FORCE_WOMEN_ELITE=True. Mémoire `women-football-not-force-added`.
+_WOMEN_KW = ("femme", "féminin", "feminin", "women", "(f)", "(w)", " f)", " w)")
+FORCE_WOMEN_ELITE = False
+
+
+def is_women_comp(comp: str) -> bool:
+    """La compétition est-elle du foot FÉMININ ? Détection par libellé (« Femmes », « (F) », « Women »…)."""
+    c = (comp or "").lower()
+    return any(k in c for k in _WOMEN_KW)
+
 
 def is_elite_comp(comp: str) -> bool:
     """PACK ÉLITE = gros tournoi international à DONNÉES RICHES + marché SHARP : UEFA (UCL/Europa/Conference,
     qualifs incluses) + CONMEBOL (Copa Libertadores/Sudamericana/Copa America) + Euro/Coupe du Monde
     (`_BIG_TOURNEY_KW`). Forcés TOUJOURS dans le slate (jamais cappés par le top-N). **EXCLUS** : les
     confédérations MINEURES (CAF/AFC/CONCACAF, `_MINOR_CONFED_KW`) dont la « Champions League » matchait le
-    mot-clé générique sans en avoir la donnée/le sharp (0 pari publié sur tout l'historique). Analyse et
-    sélecteurs mécaniques INCHANGÉS : on n'élargit QUE le vivier."""
+    mot-clé générique sans en avoir la donnée/le sharp (0 pari publié sur tout l'historique) ; et le FOOT
+    FÉMININ (`_WOMEN_KW`, marché sharp peu fiable, cf. note). Ces deux peuvent encore entrer via le top-N
+    normal. Analyse et sélecteurs mécaniques INCHANGÉS : on n'élargit QUE le vivier."""
     c = (comp or "").lower()
     if any(k in c for k in _MINOR_CONFED_KW):     # confédération mineure -> jamais forcée (peut entrer via top-N)
+        return False
+    if not FORCE_WOMEN_ELITE and is_women_comp(comp):  # foot féminin -> jamais forcé (peut entrer via top-N)
         return False
     return any(k in c for k in _BIG_TOURNEY_KW)
 

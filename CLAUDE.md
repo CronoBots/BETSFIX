@@ -326,7 +326,12 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   qualifs **CAF/AFC/CONCACAF** (ex. 7 qualifs CAF gonflant le slate matin à 17) alors qu'elles n'ont ni la donnée
   ni le sharp du pack. **Mesuré sur 876 sidecars : CAF+AFC = 0 pari publié** (vs UEFA 43, CONMEBOL 3) → exclues via
   `_MINOR_CONFED_KW` (0 pari historique retiré). Elles peuvent encore entrer via le top-N si leur profondeur de
-  marché les classe (elle ne le fait pas). Mémoire `daily-construction-methodology`
+  marché les classe (elle ne le fait pas). **+ FOOT FÉMININ retiré du force-add élite (user 2026-09-23, MESURÉ)** :
+  la « Ligue des Champions Femmes » / « Coupe d'Europe (F) » matchait « champions league »/« europa » et était
+  FORCÉE par-dessus le cap (23/09 : slate à 10 un jour 90 % féminin). Mesuré : féminin = 12 sidecars (2 paris = bruit)
+  mais **conflit d'ancre 25 %** (3/12) vs **1 %** masculin (12/1084) → marché sharp peu fiable. `_WOMEN_KW` +
+  `is_women_comp` : le féminin ne force plus (reste éligible via top-N, garde fantômes/calibration). Réversible
+  `FORCE_WOMEN_ELITE=True`. Mémoire `women-football-not-force-added`. Mémoire `daily-construction-methodology`
   (flux de référence + invariants anti-bug) + `combos-stopped-single-wave-analysis`.
 - **EXCLUSION DURE DU SLATE = AFC Champions League Two SEULEMENT (user 2026-09-17, MESURÉ)** :
   `match_select.is_excluded_comp` retire du **vivier** (filtre dans `rank_important`, avant top-N ET pack élite)
