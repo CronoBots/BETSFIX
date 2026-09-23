@@ -508,9 +508,81 @@ async def _foot_extras(client, match: dict) -> list[str]:
     return facts
 
 
-# ------------------------------------------------------------------ FOOT — xG
-# Understat RETIRÉ 2026-09-10 (user) : l'xG vient d'API-Football (`apifootball.team_xg_form`, top-5)
-# via le bloc hybride `enrich_facts`. Understat (scraping) n'était plus appelé (hybride ON) — nettoyé.
+# ------------------------------------------------------------------ FOOT — Understat (xG)
+# RÉTABLI 2026-09-23 (user « rétablir un maximum de sources ») : Understat revient comme 2e source xG
+# INDÉPENDANTE (top-5 + Russie), EN PLUS de l'xG API-Football (redondance « ≥2 sources », pas une donnée
+# absente — l'xG n'a jamais manqué en sept, cf. investigation chute). Best-effort, non bloquant.
+_UNDERSTAT = "https://understat.com"
+_US_LEAGUE = {"premier league": "EPL", "laliga": "La_liga", "la liga": "La_liga",
+              "bundesliga": "Bundesliga", "serie a": "Serie_A", "ligue 1": "Ligue_1",
+              # Understat couvre AUSSI la Russie (6e ligue) ; hors de ces 6, il n'y a PAS d'xG Understat
+              # (2e divisions/coupes non publiées) -> repli sur les autres sources sans xG, c'est structurel.
+              "premier liga": "RFPL", "russian premier": "RFPL"}
+_US_CACHE: dict[str, dict] = {}    # league -> {team_name: [matchs (d, xG, xGA, res)]}
+
+
+def _us_season(start_iso: str) -> str:
+    """Saison Understat (année de DÉBUT) du match : août-déc -> année courante, sinon année-1."""
+    dt = _start_dt(start_iso) or datetime.now(timezone.utc)
+    return str(dt.year if dt.month >= 8 else dt.year - 1)
+
+
+async def _understat_league(client, league: str, season: str) -> dict:
+    key = f"{league}/{season}"
+    if key in _US_CACHE:
+        return _US_CACHE[key]
+    j = await _get_json(client, f"{_UNDERSTAT}/getLeagueData/{league}/{season}",
+                        headers={"X-Requested-With": "XMLHttpRequest",
+                                 "Referer": f"{_UNDERSTAT}/league/{league}/{season}"})
+    teams = {}
+    for t in ((j or {}).get("teams") or {}).values():
+        hist = t.get("history") or []
+        teams[t.get("title") or ""] = hist
+    _US_CACHE[key] = teams
+    return teams
+
+
+async def _foot_xg(client, match: dict) -> list[str]:
+    comp = (match.get("comp") or "").lower()
+    league = next((v for k, v in _US_LEAGUE.items() if k in comp), None)
+    if not league:
+        return []
+    teams = await _understat_league(client, league, _us_season(match.get("start") or ""))
+    facts = []
+    for label in (match.get("home", ""), match.get("away", "")):
+        # MEILLEUR recouvrement (pas le 1er « ≥1 jeton ») : sinon « Manchester City » pouvait renvoyer
+        # « Manchester United », ou un Madrid l'autre. On prend l'équipe Understat la plus proche.
+        hist, best = None, 0
+        for nm, h in teams.items():
+            sc = _ov(nm, label)
+            if sc > best:
+                hist, best = h, sc
+        if not hist:
+            continue
+        last5 = hist[-5:]
+        try:
+            xg = sum(float(m.get("xG") or 0) for m in last5) / len(last5)
+            xga = sum(float(m.get("xGA") or 0) for m in last5) / len(last5)
+            facts.append(f"xG [{label}] (moy. 5 derniers) : {xg:.2f} créés / {xga:.2f} concédés (Understat)")
+        except (TypeError, ZeroDivisionError):
+            continue
+        # Style de jeu : PPDA (passes concédées par action défensive = intensité du pressing, bas = presse
+        # haut) + deep completions (passes dans les 20 m adverses = pénétration offensive). Éclaire les
+        # marchés tempo/over/BTTS : deux blocs hauts qui se cherchent -> plus de buts/occasions.
+        try:
+            ppdas = [float(m["ppda"]["att"]) / float(m["ppda"]["def"])
+                     for m in last5 if (m.get("ppda") or {}).get("att") and (m.get("ppda") or {}).get("def")]
+            if ppdas:
+                ppda = sum(ppdas) / len(ppdas)
+                style = ("pressing très haut" if ppda < 9 else "pressing haut" if ppda < 12
+                         else "bloc médian" if ppda < 15 else "bloc bas/replié")
+                deep = [float(m.get("deep") or 0) for m in last5]
+                deepm = sum(deep) / len(deep) if deep else None
+                extra = f", {deepm:.0f} passes profondes/match" if deepm else ""
+                facts.append(f"Style [{label}] : PPDA {ppda:.1f} ({style}){extra} (Understat)")
+        except (TypeError, ZeroDivisionError, KeyError):
+            pass
+    return facts
 
 # (code TENNIS + BASKET ESPN RETIRÉ 2026-09-11 : BETSFIX = 100% foot depuis 2026-08-07)
 
@@ -592,20 +664,22 @@ async def extras(client, sport: str, match: dict, prov: dict | None = None) -> s
                 print(f"  ⚠️ API-FOOTBALL ENRICH VIDE : {match.get('name', '?')} "
                       f"(fixture non résolu / fetch KO) — enrichissement API-Football manquant.")
             facts += af_facts
-        # (revert enrich OFF, af_on False : plus de source xG — Understat retiré ; FotMob + Flashscore +
-        #  Sportradar restent via les blocs plus bas. Mode de secours dégradé, jamais le chemin par défaut.)
+        # Understat (xG) RÉTABLI 2026-09-23 : 2e source xG indépendante EN PLUS d'API-Football (top-5 + Russie),
+        # best-effort (un échec ne détruit pas les autres faits). Redondance « ≥2 sources », pas une donnée absente.
+        facts += await _safe(_foot_xg(client, match), "understat")
     # (branches enrichissement tennis/basket RETIRÉES 2026-09-11 : BETSFIX = 100% foot)
     out = ""
     if facts:
-        _src = "ESPN / FotMob / API-Football" if af_on else "ESPN / FotMob"
+        _src = "ESPN / FotMob / API-Football / Understat" if af_on else "ESPN / FotMob"
         out += (f"\n\nDONNÉES MULTI-SOURCES ({_src} — source indépendante n°2, "
                 "à CROISER avec ta recherche web ; un fait présent ici ET confirmé ailleurs = 2 sources) :\n- "
                 + "\n- ".join(facts))
-    if not af_on:                          # Flashscore remplacé par le bloc API-Football (Understat aussi, + haut)
-        fb = await _flashscore_block(sport, match)
-        if fb and fb.strip():
-            tracker["flashscore"] = True
-        out += fb
+    # Flashscore (forme/H2H/compos) RÉTABLI 2026-09-23 (user « rétablir un maximum de sources ») : n'est PLUS
+    # sauté quand API-Football est ON — c'est une source INDÉPENDANTE ajoutée PAR-DESSUS (H2H réel, 2e source).
+    fb = await _flashscore_block(sport, match)
+    if fb and fb.strip():
+        tracker["flashscore"] = True
+    out += fb
     try:                                   # Sportradar (GISMO, GRATUIT, SANS proxy) — TOUJOURS gardé : séries de
         from app import sportradar         # pari granulaires (alimentent `_cool_conf`) qu'API-Football ne couvre
         sb = await sportradar.block(client, sport, match)   # pas aussi finement. Ne dépend PAS d'iProyal.
