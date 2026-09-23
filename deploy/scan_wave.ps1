@@ -37,7 +37,9 @@ if ($running) {
 # ⚠️ Point décimal « . » obligatoire (locale FR -> "1,5" rejeté par argparse) -> InvariantCulture.
 $hours = $WindowHours.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 Log ("WAVE ANALYSE : matchs imminents (1re analyse + re-vérif pré-match --refresh-early)")
-& $py 'tools\generate_analyses.py' --sport foot --top 10 --hours $hours --from-programme --refresh-early 2>&1 |
+# --top 7 = cosmétique ici : --from-programme force un fetch de 200 puis filtre aux IDs du programme
+# (cf. generate_analyses _nsel), donc AUCUN match du programme n'est droppé — le vrai cap est à la SÉLECTION.
+& $py 'tools\generate_analyses.py' --sport foot --top 7 --hours $hours --from-programme --refresh-early 2>&1 |
     Add-BfxStream $log
 Log ("WAVE ANALYSE DONE (exit {0})" -f $LASTEXITCODE)
 

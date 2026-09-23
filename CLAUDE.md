@@ -313,9 +313,9 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   les libellés n'ont aucun token commun : « Saint-Trond » ↔ « St.Truiden »), **alerte privée** si un logo manque.
 - **KO−1h — vagues** (`deploy/scan_wave.ps1` → `--refresh-early`) : **analyse (UNE seule fois)** chaque match
   ~1h avant SON coup d'envoi, **PUBLIE** le pari (app + Telegram), puis reconcile (règlement + résultats
-  combinés par jambe). Cap **10+10** (jour+nuit) + pack élite
-  (relevé de 7+7 le 2026-09-11, permis par le retrait de la double analyse : ~2× moins de charge Claude/match →
-  ~20-24 matchs/jour restent à/sous l'ancienne consommation). **PACK ÉLITE = UEFA + CONMEBOL + Euro/CdM SEULEMENT**
+  combinés par jambe). Cap **7+7** (jour+nuit) + pack élite
+  (RE-BAISSÉ de 10+10 le 2026-09-22 sur demande user — retour au cap d'origine ; le `--top` de la vague reste
+  cosmétique, `--from-programme` fetch 200 puis filtre aux IDs du programme). **PACK ÉLITE = UEFA + CONMEBOL + Euro/CdM SEULEMENT**
   (`match_select.is_elite_comp` ; user 2026-09-12) : le mot-clé générique « champions league » forçait AUSSI les
   qualifs **CAF/AFC/CONCACAF** (ex. 7 qualifs CAF gonflant le slate matin à 17) alors qu'elles n'ont ni la donnée
   ni le sharp du pack. **Mesuré sur 876 sidecars : CAF+AFC = 0 pari publié** (vs UEFA 43, CONMEBOL 3) → exclues via
@@ -348,8 +348,10 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   c'était la catastrophe ») : le **rang de sélection PAR SLATE** est figé dans le programme puis le sidecar
   (`sel_rank`/`sel_slate`, reporté à la vague — le rang de la boucle vague n'est PAS le rang de sélection). Le
   match `--programme` tague le cœur top-N (0..N-1) ; élite forcé = pas de rang. `analysis_quality.py --tail-check`
-  (lancé 1×/jour dans `scan_daily.ps1`) compare les paris JOUÉS réglés de la **QUEUE (rang ≥ 7 = ajoutés par le
-  cap 7→10)** au **CŒUR (<7)** : réussite % + ROI + conversion du jour. Alerte privée SEULEMENT si la queue
+  (lancé 1×/jour dans `scan_daily.ps1`) compare les paris JOUÉS réglés de la **QUEUE (rang ≥ 7 = matchs ajoutés
+  du temps du cap 10+10, 09-11→09-22)** au **CŒUR (<7)** : réussite % + ROI + conversion du jour. ⚠️ Depuis le
+  retour à **7+7 (2026-09-22)** plus aucun match neuf n'a de rang ≥ 7 → le tail-check ne juge plus que l'historique
+  10+10 (détecteur dormant, réactif si on ré-élargit). Alerte privée SEULEMENT si la queue
   sous-performe NETTEMENT (n≥12, réussite −12 pts ET ROI −15 pts ET ROI queue négatif) → preuve chiffrée que le
   nombre ne dilue pas (et détecteur si un jour ça change). Mémoire `per-match-verification-count-independent`.
 
