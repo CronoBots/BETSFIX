@@ -1094,10 +1094,16 @@ def _check_omap_coverage(rows) -> dict:
             "items": bad}
 
 
-# Période où le pipeline persiste l'ancre sharp STRUCTURÉE pour 100 % des paris publiés (verrou `no_sharp`
-# actif depuis 2026-08-14 + persistance sidecar confirmée propre en septembre). Les paris d'AVANT — Coupe du
-# Monde / ligues hors catalogue sharp / avant le verrou — sont grandfathered (legacy, non re-jugeables).
-_SHARP_ANCHOR_ENFORCED_FROM = "2026-09-01"
+# Période où le pipeline REFUSE réellement de publier un pari sans ancre sharp valide. La discipline complète
+# n'existe QUE depuis les DEUX verrous du 2026-09-12 : `722adfe` (abstention sans `sharp_map` — CAF « à sec »)
+# et `15812e2` (« abstention si ancre sharp REJETÉE — futur Sunderland » : un `sharp_conflict` DIFFÈRE le match).
+# AVANT le 12/09, `confidence_pick` pouvait encore publier malgré un conflit (cas Sunderland–Hull 08/09, resté en
+# warn perpétuel). PREUVE que le verrou est étanche : sur 16 sidecars `sharp_conflict`, le SEUL pari publié est
+# ce Sunderland pré-verrou ; les 15 depuis le 11/09 sont TOUS différés (0 pari). Dater l'application au 01/09
+# faisait donc crier au loup sur un pari d'un monde où le garde-fou n'existait pas. On grandfather AVANT le 12/09
+# (legacy non re-jugeable) ; la protection reste TOTALE depuis (ERROR « misé à sec » + WARN conflit). Le legacy
+# anchor-less est COMPTÉ en INFO dans le détail (transparence : rien n'est masqué, ça n'alarme juste plus).
+_SHARP_ANCHOR_ENFORCED_FROM = "2026-09-12"
 
 
 def _check_played_bet_sharp_anchor(rows) -> dict:
@@ -1106,13 +1112,16 @@ def _check_played_bet_sharp_anchor(rows) -> dict:
     publié SANS ancre = misé « à sec » = régression majeure (toute la sélection/EV/value repose sur l'ancre).
     `sharp_map` étant RETENU après règlement, on vérifie les paris à-venir ET réglés récents. Les paris
     d'avant la période disciplinée sont grandfathered (persistance non systématique alors). 100 % lecture seule."""
-    bad, conflict, n = [], [], 0
+    bad, conflict, n, legacy = [], [], 0, 0
     for _s, d in rows:
         if d.get("sport") != "foot" or d.get("roi_void"):
             continue
         if not d.get("stat_bet"):                          # seulement les paris RÉELLEMENT publiés/comptés
             continue
+        _has_anchor = isinstance(d.get("sharp_map"), dict) and d.get("sharp_map")
         if (d.get("start") or "")[:10] < _SHARP_ANCHOR_ENFORCED_FROM:
+            if not _has_anchor:                            # legacy pré-verrou SANS ancre -> COMPTÉ (transparence), pas alarmé
+                legacy += 1
             continue                                       # legacy grandfathered
         n += 1
         if isinstance(d.get("sharp_map"), dict) and d.get("sharp_map"):
@@ -1138,6 +1147,9 @@ def _check_played_bet_sharp_anchor(rows) -> dict:
     else:
         detail = (f"0 — les {n} pari(s) publié(s) depuis {_SHARP_ANCHOR_ENFORCED_FROM} portent tous leur "
                   f"ancre sharp structurée.")
+    if legacy:                                             # transparence : le legacy pré-verrou reste VISIBLE, sans alarmer
+        detail += (f" (+ {legacy} pari(s) legacy pré-{_SHARP_ANCHOR_ENFORCED_FROM} sans ancre structurée — "
+                   f"grandfathered : le verrou anti-« à sec » n'existait pas encore, non re-jugeable.)")
     return {"key": "played_bet_sharp_anchor",
             "level": level,
             "title": "Ancre sharp sur les paris publiés",
