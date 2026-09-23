@@ -400,6 +400,13 @@ async def lifespan(app: FastAPI):
     if "pytest" not in sys.modules:          # JAMAIS sur les données réelles pendant les tests
         _apply_pending_reset()               # purge en attente (sentinelle) AVANT lecture des stores
     from app import role
+    # CADENCE ADAPTATIVE du poll live API-Football (économie quota, user 2026-09-23) : `live_all` reste à 12 s
+    # QUAND un match suivi est en fenêtre live, et ralentit à 300 s sinon (fin des ~5760 appels/j à vide).
+    try:
+        from app import apifootball, match_select
+        apifootball.set_live_active_hint(match_select.any_tracked_live_window)
+    except Exception as _exc:
+        log.debug("live-active hint: %s", _exc)
     # SERVICE (tourne dans TOUS les rôles) : pré-chauffe des panneaux SPA -> réponses rapides côté web.
     tasks = [asyncio.create_task(_panel_warmer())]
     if role.is_collector():

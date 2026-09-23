@@ -458,6 +458,30 @@ def _af_live_on() -> bool:
     return os.environ.get("BETSFIX_AF_LIVE", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def any_tracked_live_window(now=None) -> bool:
+    """Un match foot SUIVI est-il en FENÊTRE LIVE, i.e. son coup d'envoi tombe dans [now-3h30, now+15min] ?
+    Sert de hint à `apifootball.live_all` : DANS la fenêtre -> poll live 12 s (score frais) ; HORS -> 300 s
+    (économie quota, cf. note dans apifootball). La borne +15 min bascule en cadence rapide AVANT le KO ->
+    score déjà frais dès la 1re minute ; la borne -3h30 couvre prolongations/arrêts. 0 réseau : lit
+    `analyses.iter_meta('foot')` (cache 2 s). FAIL-SAFE : True si erreur (on privilégie la fraîcheur au quota)."""
+    try:
+        from app import analyses
+        now = now or datetime.now(timezone.utc)
+        lo, hi = now - timedelta(hours=3, minutes=30), now + timedelta(minutes=15)
+        for d in analyses.iter_meta("foot"):
+            dt = d.get("_start_dt")
+            if not dt:
+                continue
+            try:
+                if lo <= dt <= hi:
+                    return True
+            except TypeError:                 # KO naïf vs now aware -> ne pas trancher, rester frais
+                return True
+        return False
+    except Exception:
+        return True
+
+
 def _af_live_all_sync():
     """Matchs live API-Football (sync -> asyncio.to_thread). None si non configuré / erreur. Best-effort."""
     try:

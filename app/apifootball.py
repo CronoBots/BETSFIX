@@ -455,7 +455,34 @@ def final_score(sport: str, d: dict, allow_live: bool = False, cl: httpx.Client 
 
 
 _LIVE_ALL_CACHE: dict = {}      # -> (expire_ts, [matchs live]) : 1 appel /fixtures?live=all partagé
-_LIVE_ALL_TTL = 12
+_LIVE_ALL_TTL = 12              # fenêtre LIVE : score frais toutes les 12 s (cf. live-score-source-cadence)
+# CADENCE ADAPTATIVE (économie quota API-Football, user 2026-09-23) : hors fenêtre live, `/fixtures?live=all`
+# était re-fetché toutes les ~12 s 24h/24 (le réchauffeur d'accueil à 15 s ratait le cache 12 s à CHAQUE
+# cycle) = ~5760 appels/j À VIDE = ~77 % du quota Pro brûlé même la nuit sans un seul match suivi. On garde
+# 12 s QUAND un match suivi est en fenêtre live (fraîcheur intacte) et on ralentit à 300 s sinon. Le hint
+# (0 réseau, lit `analyses.iter_meta` caché 2 s) est injecté par `main` au démarrage ; None -> 12 s (défaut
+# sûr, ex. tests). Fail-safe : le hint renvoie True en cas de doute -> on privilégie la fraîcheur.
+_LIVE_ALL_TTL_IDLE = 300
+_live_active_hint = None        # Callable[[], bool] | None -> True = fenêtre live (garder 12 s)
+
+
+def set_live_active_hint(fn) -> None:
+    """Enregistre le prédicat « un match suivi est-il en fenêtre live ? » (cf. live_all TTL adaptatif)."""
+    global _live_active_hint
+    _live_active_hint = fn
+
+
+def _live_all_ttl() -> int:
+    """TTL du cache live_all : 12 s en fenêtre live, 300 s à vide. Fail-safe -> 12 s si le hint lève."""
+    fn = _live_active_hint
+    if fn is None:
+        return _LIVE_ALL_TTL
+    try:
+        return _LIVE_ALL_TTL if fn() else _LIVE_ALL_TTL_IDLE
+    except Exception:
+        return _LIVE_ALL_TTL
+
+
 # Statut API-Football -> période façon Unibet matchClock (drop-in pour web.live_fields/live_clock).
 _PERIOD_ID = {"1H": "FIRST_HALF", "HT": "FIRST_HALF", "2H": "SECOND_HALF",
               "ET": "EXTRA_TIME", "BT": "EXTRA_TIME", "P": "PENALTIES", "LIVE": "SECOND_HALF"}
@@ -490,7 +517,7 @@ def live_all(cl: httpx.Client) -> list:
                         "periods": fxt.get("periods") or {}})
     except Exception:
         out = (hit[1] if hit else [])
-    _LIVE_ALL_CACHE["all"] = (time.time() + _LIVE_ALL_TTL, out)
+    _LIVE_ALL_CACHE["all"] = (time.time() + _live_all_ttl(), out)
     return out
 
 

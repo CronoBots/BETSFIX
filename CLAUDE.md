@@ -404,6 +404,15 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   snapshot `data/_stats_snapshot.json`, et surtout **throttle 2 s de `_fid_index` + `iter_meta`** (`_FID_SIG_TTL`/
   `_ITERMETA_TTL`, `3a190fa`) : sans lui le rendu re-scannait+re-parsait les ~720 sidecars des MILLIERS de fois/
   requête. La barre de nav mobile est recalée à la réouverture (bfcache iOS) via `_relayout` sur `pageshow`.
+- **QUOTA API-Football — cadence live ADAPTATIVE (user 2026-09-23)** : `apifootball.live_all` (`/fixtures?live=all`)
+  était re-fetché ~toutes les 12 s **24h/24** (le réchauffeur d'accueil à 15 s ratait le cache 12 s à CHAQUE cycle)
+  = **~5760 appels/j À VIDE** = ~77 % du quota Pro (7500/j) brûlé même la nuit sans un seul match suivi. Fix : TTL
+  **adaptatif** — 12 s (fraîcheur intacte, cf. `live-score-source-cadence`) **uniquement** quand un match foot suivi
+  est en fenêtre live (`match_select.any_tracked_live_window` : KO ∈ [now-3h30, now+15min], 0 réseau via `iter_meta`
+  caché 2 s), sinon **300 s**. Le hint est injecté par `main` au démarrage (`apifootball.set_live_active_hint`) ;
+  None = 12 s (défaut sûr, tests). Fail-safe : hint True si doute (on paie le quota plutôt que servir un score figé).
+  UNE modif du cache bas-niveau `live_all` couvre TOUS les consommateurs (rendu + boucles de règlement + watchdog).
+  Conso à vide ~5760 → ~300/j. Mémoire `apifootball-quota-adaptive-live-cadence`.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».
