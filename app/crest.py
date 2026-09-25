@@ -73,6 +73,57 @@ _ALIAS = {
 }
 
 
+# ÉQUIPES NATIONALES : FotMob (suggest) est EN ANGLAIS -> les libellés FRANÇAIS d'Unibet (« Belgique »,
+# « Espagne », « Allemagne », « Brésil »…) ne résolvent pas, et certains résolvent MÊME vers un club homonyme
+# (« Italie » -> « CS Italien GE » id 372962). On force donc le nom ANGLAIS FotMob (tous vérifiés résolvants,
+# user 2026-09-25 « il manque plein des logos d'équipe nationale »). Clé = nom FR normalisé (_norm) ; valeur =
+# nom EXACT FotMob (comme _ALIAS). Variantes d'orthographe -> plusieurs entrées. Extensible.
+_NATIONS_FR = {
+    # Europe
+    "Belgique": "Belgium", "Espagne": "Spain", "Angleterre": "England", "Allemagne": "Germany",
+    "Pays-Bas": "Netherlands", "Italie": "Italy", "France": "France", "Portugal": "Portugal",
+    "Écosse": "Scotland", "Pays de Galles": "Wales", "Norvège": "Norway", "Suède": "Sweden",
+    "Danemark": "Denmark", "Croatie": "Croatia", "Autriche": "Austria", "Suisse": "Switzerland",
+    "Turquie": "Turkiye", "Grèce": "Greece", "Pologne": "Poland", "Serbie": "Serbia",
+    "Slovénie": "Slovenia", "Slovaquie": "Slovakia", "Hongrie": "Hungary", "Roumanie": "Romania",
+    "Irlande": "Ireland", "Irlande du Nord": "Northern Ireland", "Ukraine": "Ukraine",
+    "Rép. tchèque": "Czechia", "République tchèque": "Czechia", "Tchéquie": "Czechia",
+    "Islande": "Iceland", "Finlande": "Finland", "Monténégro": "Montenegro", "Albanie": "Albania",
+    "Bulgarie": "Bulgaria", "Géorgie": "Georgia", "Arménie": "Armenia", "Azerbaïdjan": "Azerbaijan",
+    "Kazakhstan": "Kazakhstan", "Israël": "Israel", "Chypre": "Cyprus", "Luxembourg": "Luxembourg",
+    "Malte": "Malta", "Moldavie": "Moldova", "Biélorussie": "Belarus", "Lettonie": "Latvia",
+    "Lituanie": "Lithuania", "Estonie": "Estonia", "Îles Féroé": "Faroe Islands", "Féroé": "Faroe Islands",
+    "Gibraltar": "Gibraltar", "Kosovo": "Kosovo", "Macédoine du Nord": "North Macedonia",
+    "Bosnie-Herzégovine": "Bosnia and Herzegovina", "Bosnie": "Bosnia and Herzegovina",
+    # Amérique du Sud / Nord / Centrale
+    "Brésil": "Brazil", "Argentine": "Argentina", "Uruguay": "Uruguay", "Colombie": "Colombia",
+    "Chili": "Chile", "Pérou": "Peru", "Équateur": "Ecuador", "Paraguay": "Paraguay",
+    "Bolivie": "Bolivia", "Venezuela": "Venezuela", "Mexique": "Mexico", "États-Unis": "USA",
+    "Canada": "Canada", "Costa Rica": "Costa Rica", "Honduras": "Honduras", "Panama": "Panama",
+    "Jamaïque": "Jamaica", "El Salvador": "El Salvador", "Guatemala": "Guatemala", "Haïti": "Haiti",
+    "Trinité-et-Tobago": "Trinidad and Tobago",
+    # Afrique
+    "Côte d'Ivoire": "Ivory Coast", "Cameroun": "Cameroon", "Sénégal": "Senegal", "Maroc": "Morocco",
+    "Algérie": "Algeria", "Tunisie": "Tunisia", "Égypte": "Egypt", "Nigéria": "Nigeria",
+    "Nigeria": "Nigeria", "Ghana": "Ghana", "Afrique du Sud": "South Africa", "Mali": "Mali",
+    "Burkina Faso": "Burkina Faso", "Guinée": "Guinea", "Cap-Vert": "Cape Verde", "Gabon": "Gabon",
+    "Angola": "Angola", "Zambie": "Zambia", "Kenya": "Kenya", "Ouganda": "Uganda", "Bénin": "Benin",
+    "Togo": "Togo", "Mauritanie": "Mauritania", "Madagascar": "Madagascar", "Mozambique": "Mozambique",
+    "Soudan": "Sudan", "Libye": "Libya", "Namibie": "Namibia", "Zimbabwe": "Zimbabwe",
+    "Guinée équatoriale": "Equatorial Guinea", "Comores": "Comoros", "Botswana": "Botswana",
+    "RD Congo": "DR Congo", "République démocratique du Congo": "DR Congo",
+    # Asie / Océanie
+    "Japon": "Japan", "Corée du Sud": "South Korea", "Corée du Nord": "North Korea", "Chine": "China",
+    "Australie": "Australia", "Iran": "Iran", "Irak": "Iraq", "Qatar": "Qatar",
+    "Arabie saoudite": "Saudi Arabia", "Émirats arabes unis": "United Arab Emirates", "Oman": "Oman",
+    "Bahreïn": "Bahrain", "Koweït": "Kuwait", "Jordanie": "Jordan", "Syrie": "Syria",
+    "Liban": "Lebanon", "Ouzbékistan": "Uzbekistan", "Inde": "India", "Thaïlande": "Thailand",
+    "Viêt Nam": "Vietnam", "Vietnam": "Vietnam", "Indonésie": "Indonesia", "Malaisie": "Malaysia",
+    "Nouvelle-Zélande": "New Zealand",
+}
+_NATIONS = {_norm(k): v for k, v in _NATIONS_FR.items()}
+
+
 def _fetch(term: str) -> list:
     """Résultats FotMob (suggest) pour un libellé de recherche. Peut lever (panne réseau)."""
     r = httpx.get("https://apigw.fotmob.com/searchapi/suggest",
@@ -128,7 +179,8 @@ def team_id(name: str):
     tid = None
     sname = _clean(name)                  # nom sans suffixe état/genre -> meilleure résolution FotMob
     skey = _norm(sname) or key
-    _al = _ALIAS.get(key) or _ALIAS.get(skey)   # sigle connu -> nom complet (recherche + matching)
+    _al = (_ALIAS.get(key) or _ALIAS.get(skey)     # sigle connu -> nom complet (recherche + matching)
+           or _NATIONS.get(key) or _NATIONS.get(skey))  # équipe nationale FR -> nom anglais FotMob
     if _al:
         sname, skey = _al, _norm(_al)
     # FotMob suggest est SENSIBLE au libellé exact (« AS Monaco » -> 0 résultat, « Monaco » -> OK). On essaie
