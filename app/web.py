@@ -12221,15 +12221,16 @@ def _is_recent(m: dict, p: dict, live: bool, window: int = 15) -> bool:
     return isinstance(_mn, int) and isinstance(_fm, int) and 0 <= (_mn - _fm) <= window
 
 
-def _sig_disp(p: dict, prob_map: dict | None):
+def _sig_disp(p: dict, prob_map: dict | None, class_maps: dict | None = None):
     """(proba_affichée, value_affichée) RECALIBRÉES d'un signal — AFFICHAGE SEUL (user 2026-09-17) : le « % modèle »
     et la value collent au taux RÉEL (modèle sur-confiant). La SÉLECTION/le store/le ROI restent sur la proba brute.
-    Identité si pas de mapping. value = proba_calibrée × cote − 1 (peut devenir ≤0 -> badge value masqué)."""
+    Calibration PAR CLASSE de marché si `class_maps` fourni (buts/résultat/comptés calibrent différemment,
+    user 2026-09-26), repli map globale puis identité. value = proba_calibrée × cote − 1 (≤0 -> badge value masqué)."""
     _p = p.get("prob")
-    if not isinstance(_p, (int, float)) or not prob_map:
+    if not isinstance(_p, (int, float)) or not (prob_map or class_maps):
         return _p, p.get("ev")
     from app import live_pick as _lpc
-    _cp = _lpc.calibrate_display(_p, prob_map)
+    _cp = _lpc.calibrate_display(_p, prob_map, family=p.get("family"), class_maps=class_maps)
     _o = p.get("odds")
     _ev = round(_cp * _o - 1.0, 4) if isinstance(_o, (int, float)) and _o else None
     return round(_cp, 4), _ev
@@ -12352,9 +12353,11 @@ def _signaux_match_card(m: dict) -> str:
     _live = not bool(m.get("settled"))
     try:                                                    # RECALIBRATION D'AFFICHAGE (user 2026-09-17) : « % modèle »
         from app import live_pick as _lpm                  # + value collent au réel. Sélection/ROI inchangés. 1 map/carte.
-        _pmap = _lpm.display_prob_map()
+        _pmap = _lpm.display_prob_map()                    # map GLOBALE (repli)
+        _cmaps = _lpm.display_prob_map_by_class()          # maps PAR CLASSE buts/résultat/comptés (user 2026-09-26)
     except Exception:
         _pmap = {}
+        _cmaps = {}
 
     def _pick_sort(p):
         _st = 2 if p.get("stale") else _ord.get(p.get("status", "open"), 1)   # dépassé sous les actifs
@@ -12375,7 +12378,7 @@ def _signaux_match_card(m: dict) -> str:
         for p in _picks:
             if p.get("status") != "open" or p.get("stale"):      # ACTIFS seulement (plaçables ; ni tombés ni dépassés)
                 continue
-            _fp, _fv = _sig_disp(p, _pmap)                       # value recalibrée pour l'affichage (sélection intacte)
+            _fp, _fv = _sig_disp(p, _pmap, _cmaps)               # value recalibrée pour l'affichage (sélection intacte)
             _ffm = p.get("first_min")
             _fr.append((_ffm if isinstance(_ffm, int) else -1, _fv if isinstance(_fv, (int, float)) else None, p))
         _fr.sort(key=lambda it: (it[0], it[1] if it[1] is not None else -9.0), reverse=True)   # + récents, puis value
@@ -12385,7 +12388,7 @@ def _signaux_match_card(m: dict) -> str:
             # visuel entre les 2 sections. Seule différence : le conteneur épinglé + l'en-tête doré ⚡.
             _frows = []
             for _ffm, _v, _p in _fr[:3]:
-                _dp, _de = _sig_disp(_p, _pmap)             # proba/value recalibrées (comme les familles)
+                _dp, _de = _sig_disp(_p, _pmap, _cmaps)     # proba/value recalibrées (comme les familles)
                 _frows.append(_lph_pick(
                     _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", ""))),
                     analyses.fmt_cote(_p["odds"]) or "?", _de, _dp,
@@ -12418,7 +12421,7 @@ def _signaux_match_card(m: dict) -> str:
         gl += nl
         _lparts = []
         for p in ps:
-            _dp, _de = _sig_disp(p, _pmap)                  # proba/value RECALIBRÉES pour l'affichage (sélection intacte)
+            _dp, _de = _sig_disp(p, _pmap, _cmaps)          # proba/value RECALIBRÉES pour l'affichage (sélection intacte)
             _lparts.append(_lph_pick(
                 _h.escape(analyses.pretty_sel(p["sel"], m.get("home", ""), m.get("away", ""))),
                 analyses.fmt_cote(p["odds"]) or "?", _de, _dp,

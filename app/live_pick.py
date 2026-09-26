@@ -65,6 +65,23 @@ _ALLOW_COUNTED = frozenset({"Corners", "Cartons", "Tirs", "Tirs cadrés",
                             # user 2026-09-14 « tout le mesurable » : compteurs API-Football supplémentaires
                             "Fautes", "Hors-jeu", "Arrêts", "Passes", "Possession"})   # activés si ALL_MARKETS_ON
 
+# CLASSE de marché pour la RECALIBRATION D'AFFICHAGE PAR FAMILLE (user 2026-09-26) : les buts sont massivement
+# sur-confiants (gap +13 pts), le résultat beaucoup moins, les comptés (corners/tirs) encore autrement — un mapping
+# décile→réel GLOBAL les mélange et sur/sous-corrige chacun. On calibre l'affichage par CLASSE (repli map globale
+# puis identité). ⚠️ AFFICHAGE SEUL — aucune classe ne touche la sélection/les gates/le store/le ROI.
+_DISP_CLASS_BUTS = frozenset({"Total Over", "Total Under", "Total équipe", "Les 2 marquent", "Total buts MT"})
+_DISP_CLASS_RESULTAT = frozenset({"Vainqueur", "Double chance", "Handicap"})
+
+
+def _disp_class(family) -> str:
+    """Classe de calibration d'affichage d'une famille : 'buts' / 'resultat' / 'comptes'. Défaut 'comptes'
+    (corners/cartons/tirs/… ont leur propre profil de sur-confiance)."""
+    if family in _DISP_CLASS_BUTS:
+        return "buts"
+    if family in _DISP_CLASS_RESULTAT:
+        return "resultat"
+    return "comptes"
+
 # BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés en
 # total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %). On les
 # rejette AVANT classification. Corners/cartons/tirs NE sont PLUS bannis (désormais pricés via compteurs live) —
@@ -1708,7 +1725,11 @@ def summary() -> dict:
                           in sorted(by_fam_all.items(), key=lambda kv: -len(kv[1]))},
         "calibration": _calib(allsnaps),
         # mesure du NOUVEAU modèle SEULEMENT (démarre à ~0, se remplit au fil des matchs post-optim) :
-        "current_model": {"n_settled": len(_cur), "canonical": _roi(_cur_canon), "calibration": _calib(_cur)},
+        "current_model": {"n_settled": len(_cur), "canonical": _roi(_cur_canon), "calibration": _calib(_cur),
+                          # calibration PAR CLASSE de marché (buts/resultat/comptes) pour la recalibration
+                          # d'affichage par famille (user 2026-09-26). AFFICHAGE seul — 0 impact sélection/ROI.
+                          "calibration_by_class": {_cl: _calib([s for s in _cur if _disp_class(s.get("family")) == _cl])
+                                                   for _cl in ("buts", "resultat", "comptes")}},
         "gates": {"ev_min": EV_MIN, "ev_max": EV_MAX, "prob_min": PROB_MIN, "prob_max": PROB_MAX,
                   "minute_log_min": MINUTE_LOG_MIN, "minute_canon_min": MINUTE_CANON_MIN,
                   "log_gap_min": LOG_GAP_MIN},
@@ -1717,33 +1738,56 @@ def summary() -> dict:
     return _res
 
 
-def display_prob_map() -> dict:
-    """Mapping DÉCILE de proba modèle -> taux de réussite RÉEL v3 (0-1), pour RECALIBRER L'AFFICHAGE (« % modèle »
-    + value) afin qu'il colle au réel — le modèle est sur-confiant (annonce 92 %, réel ~74 %). ⚠️ AFFICHAGE SEUL :
-    la SÉLECTION, les gates, le store et le ROI restent sur la proba BRUTE (aucun impact). Monotone (running max).
-    {} si pas assez de données par décile (n<20) -> pas de recalibration (identité). Décile absent -> identité."""
-    cal = (summary().get("current_model") or {}).get("calibration") or []
+def _decile_map(cal: list, min_n: int = 20) -> dict:
+    """{décile -> taux réel 0-1} depuis une liste de calibration `_calib` (buckets 0-9), MONOTONE non-décroissant
+    (running max). Ignore un décile sous `min_n` réglés (échantillon non représentatif -> identité pour lui)."""
     m: dict = {}
-    for row in cal:
+    for row in cal or []:
         try:
             d = int(str(row["bucket"]).split("-")[0]) // 10
         except (ValueError, KeyError, TypeError):
             continue
-        if row.get("n", 0) >= 20 and isinstance(row.get("real"), (int, float)):
+        if row.get("n", 0) >= min_n and isinstance(row.get("real"), (int, float)):
             m[d] = row["real"] / 100.0
-    for i, k in enumerate(sorted(m)):                       # monotone non-décroissant (running max)
-        if i and m[k] < m[sorted(m)[i - 1]]:
-            m[k] = m[sorted(m)[i - 1]]
+    ks = sorted(m)
+    for i, k in enumerate(ks):                              # monotone non-décroissant (running max)
+        if i and m[k] < m[ks[i - 1]]:
+            m[k] = m[ks[i - 1]]
     return m
 
 
-def calibrate_display(prob, prob_map: dict | None = None):
-    """Proba d'AFFICHAGE recalibrée (0-1) à partir de la proba brute + `display_prob_map`. Identité si pas de
-    mapping pour ce décile / pas de données. AFFICHAGE SEUL (jamais la sélection)."""
+def display_prob_map() -> dict:
+    """Mapping DÉCILE de proba modèle -> taux de réussite RÉEL v3 (0-1) GLOBAL (toutes familles), pour RECALIBRER
+    L'AFFICHAGE (« % modèle » + value) afin qu'il colle au réel — le modèle est sur-confiant (annonce 92 %, réel
+    ~74 %). ⚠️ AFFICHAGE SEUL : la SÉLECTION, les gates, le store et le ROI restent sur la proba BRUTE (aucun
+    impact). {} si pas assez de données par décile (n<20) -> identité. Décile absent -> identité. Sert de REPLI
+    aux maps par classe (`display_prob_map_by_class`) quand une classe manque de données sur un décile."""
+    return _decile_map((summary().get("current_model") or {}).get("calibration") or [])
+
+
+def display_prob_map_by_class() -> dict:
+    """{classe -> {décile -> taux réel 0-1}} pour la recalibration d'affichage PAR FAMILLE (user 2026-09-26) :
+    buts / resultat / comptes calibrent DIFFÉREMMENT (les buts sont bien plus sur-confiants). Même seuil n>=20
+    par (classe, décile) — sous ça, le décile est absent et l'appelant retombe sur la map GLOBALE puis l'identité.
+    ⚠️ AFFICHAGE SEUL, aucun impact sélection/ROI (comme `display_prob_map`)."""
+    cbc = (summary().get("current_model") or {}).get("calibration_by_class") or {}
+    return {cl: _decile_map(cal) for cl, cal in cbc.items()}
+
+
+def calibrate_display(prob, prob_map: dict | None = None, family=None, class_maps: dict | None = None):
+    """Proba d'AFFICHAGE recalibrée (0-1). Si `family` + `class_maps` fournis et que la CLASSE de la famille a une
+    valeur pour ce décile -> on l'utilise (calibration par classe, la plus juste). Sinon repli sur `prob_map`
+    (map GLOBALE), puis identité. AFFICHAGE SEUL (jamais la sélection). Rétro-compatible : appelé sans family/
+    class_maps -> comportement global d'avant."""
     if not isinstance(prob, (int, float)):
         return prob
+    d = min(9, max(0, int(prob * 10)))
+    if family is not None and class_maps:
+        cm = class_maps.get(_disp_class(family))
+        if isinstance(cm, dict) and d in cm:
+            return cm[d]
     pm = prob_map if prob_map is not None else display_prob_map()
-    return pm.get(min(9, max(0, int(prob * 10))), prob)
+    return pm.get(d, prob)
 
 
 def success_series() -> dict:
