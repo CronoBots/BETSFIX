@@ -82,6 +82,26 @@ def _disp_class(family) -> str:
         return "resultat"
     return "comptes"
 
+
+# SIGNAUX « RETENUS » (à jouer) vs « observés » — FILTRE DE PROFIL mesuré (user 2026-09-29). Sur 265 matchs /
+# 6867 signaux distincts, le track live n'a PAS d'edge GLOBAL (ROI −4/−5 %, modèle sur-confiant partout). MAIS
+# la CLASSE de marché départage nettement : les familles BUTS/RÉSULTAT plein-match sont CALIBRÉES et positives
+# (ROI mesuré +6,9 % ALL *** / +6,0 % v4, gap calib. +5), alors que les COMPTÉS (corners/cartons/tirs) et les
+# micro-marchés (buts MT) sont fortement sur-confiants et perdants (−3 à −24 %, gap +12 à +26). Ajouter un
+# plancher de MINUTE n'améliore rien (l'effet minute n'était qu'un PROXY de la classe : les comptés se
+# déclenchent tôt) -> RETENU = classe de marché SEULE. ⛔ N'affecte NI le logging NI les gates NI le store NI
+# le ROI : c'est un tag d'AFFICHAGE (mise en avant « à jouer ») — TOUTES les familles restent loggées/mesurées
+# (surveillance des mauvaises intacte + validation forward retenu-vs-observé dans summary()). Réversible
+# (RETENU_ON=False -> plus de section « à jouer », tout redevient « observé »). Mémoire `live-phantom-track`.
+RETENU_ON = True
+_RETENU_FAMILIES = frozenset({"Total Over", "Vainqueur", "Les 2 marquent", "Résultat MT"})
+
+
+def is_retenu(family) -> bool:
+    """True si la famille de marché appartient au sous-ensemble CALIBRÉ/positif mesuré (signal « à jouer »).
+    AFFICHAGE seul (mise en avant/tri) — aucune incidence sélection/logging/gates/ROI. Voir bloc _RETENU_FAMILIES."""
+    return bool(RETENU_ON and family in _RETENU_FAMILIES)
+
 # BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés en
 # total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %). On les
 # rejette AVANT classification. Corners/cartons/tirs NE sont PLUS bannis (désormais pricés via compteurs live) —
@@ -1746,6 +1766,12 @@ def summary() -> dict:
         # tous les marchés séparés, triés par volume décroissant (le plus « travaillé » en tête).
         "by_family_all": {fam: _roi(rows) for fam, rows
                           in sorted(by_fam_all.items(), key=lambda kv: -len(kv[1]))},
+        # RETENU (à jouer) vs OBSERVÉ (mesuré seul) — VALIDATION FORWARD du filtre de profil (user 2026-09-29) :
+        # « retenu » = familles calibrées buts/résultat (is_retenu), mises en avant sur le site ; « observé » = le
+        # reste (loggé/mesuré mais pas mis en avant). On surveille en continu que le retenu bat bien l'observé
+        # (sinon le filtre ne tient pas -> revoir _RETENU_FAMILIES). Unité = signaux DISTINCTS réglés.
+        "by_retenu": {"Retenu (à jouer)": _roi([s for s in distinct if is_retenu(s.get("family"))]),
+                      "Observé (mesuré seul)": _roi([s for s in distinct if not is_retenu(s.get("family"))])},
         # UNITÉ INDÉPENDANTE (1 signal/match/famille) + écart de calibration — le stat par famille HONNÊTE
         # (user 2026-09-29). n = nb de matchs, pas les lignes de seuil corrélées. Trié par volume décroissant.
         "by_family_indep": {fam: _fam_stat(rows) for fam, rows

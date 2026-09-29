@@ -2828,6 +2828,18 @@ CSS = """
   .lph-fresh-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;
     letter-spacing:.06em;color:#f5c451;margin:6px 0 2px}
   .lph-fresh .lph-p:first-of-type{border-top:none}          /* pas de filet juste sous l'en-tête ⚡ */
+  /* 🎯 À JOUER · PROFIL CALIBRÉ (user 2026-09-29) : section ÉPINGLÉE = signaux des familles RETENUES (calibrées/
+     positives mesurées). Accent ÉMERAUDE (distinct du doré « derniers signaux ») -> priorité de jeu claire. */
+  .lph-play{background:rgba(52,210,123,.05);border:1px solid rgba(52,210,123,.18);
+    border-left:2px solid rgba(52,210,123,.6);border-radius:12px;padding:4px 11px 6px;margin:2px 2px 10px}
+  .lph-play-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;
+    letter-spacing:.06em;color:#7ff0b6;margin:6px 0 2px}
+  .lph-play .lph-p:first-of-type{border-top:none}
+  /* Tag « à jouer »/« observé » sur l'en-tête de chaque famille (détail par marché) : repère de profil. */
+  .lph-fg-tag{margin-left:7px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+    padding:1px 6px;border-radius:999px;vertical-align:middle}
+  .lph-fg-tag.ret{background:rgba(52,210,123,.14);color:#7ff0b6}
+  .lph-fg-tag.obs{background:rgba(255,255,255,.05);color:#7f8fa2}
   /* En-tête de section « Par marché » (user 2026-09-18) : MÊME petit label capitales que « ⚡ Derniers signaux »,
      accent NEUTRE (les catégories sont secondaires, les derniers = accent doré) -> hiérarchie claire, harmonisée. */
   .lph-sec-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#7f8fa2;margin:13px 2px 2px}
@@ -12438,6 +12450,13 @@ def _signaux_match_card(m: dict) -> str:
     except Exception:
         _pmap = {}
         _cmaps = {}
+    # FILTRE DE PROFIL « à jouer » (user 2026-09-29) : les familles CALIBRÉES/positives mesurées (buts/résultat
+    # plein-match) sont « retenues » (mises en avant) ; le reste = « observé ». Accès sûr (repli = rien de retenu).
+    try:
+        from app import live_pick as _lp_ret
+        _is_ret = _lp_ret.is_retenu
+    except Exception:
+        _is_ret = lambda _f: False
 
     def _pick_sort(p):
         _st = 2 if p.get("stale") else _ord.get(p.get("status", "open"), 1)   # dépassé sous les actifs
@@ -12476,6 +12495,32 @@ def _signaux_match_card(m: dict) -> str:
                     cur=_p.get("cur"), recent=_is_recent(m, _p, _live), stale=bool(_p.get("stale"))))
             _fresh_html = (f'<div class="lph-fresh"><div class="lph-fresh-h">⚡ Derniers signaux ({len(_frows)})</div>'
                            f'{"".join(_frows)}</div>')
+    # 🎯 À JOUER — PROFIL CALIBRÉ (user 2026-09-29) : section ÉPINGLÉE tout en haut = les signaux ACTIFS des
+    # familles RETENUES (buts/résultat plein-match — les seules calibrées/positives mesurées, ROI +6,9 %). C'est
+    # le sous-ensemble à jouer en priorité ; les autres familles (comptés/micro-marchés, sur-confiants/perdants)
+    # restent visibles plus bas en « observé ». PURE MISE EN AVANT — aucune incidence sélection/logging/ROI.
+    _play_html = ""
+    if _live:
+        _pl = []
+        for p in _picks:
+            if p.get("status") != "open" or p.get("stale") or not _is_ret(p.get("family")):
+                continue
+            _pfp, _pfv = _sig_disp(p, _pmap, _cmaps)
+            _pfm = p.get("first_min")
+            _pl.append((_pfm if isinstance(_pfm, int) else -1,
+                        _pfv if isinstance(_pfv, (int, float)) else None, p))
+        _pl.sort(key=lambda it: (it[0], it[1] if it[1] is not None else -9.0), reverse=True)
+        if _pl:
+            _prows = []
+            for _pfm, _pv, _p in _pl[:5]:
+                _dp, _de = _sig_disp(_p, _pmap, _cmaps)
+                _prows.append(_lph_pick(
+                    _h.escape(analyses.pretty_sel(_p["sel"], m.get("home", ""), m.get("away", ""))),
+                    analyses.fmt_cote(_p["odds"]) or "?", _de, _dp,
+                    f"{_p.get('first_min', '?')}'", status=_p.get("status", "open"),
+                    cur=_p.get("cur"), recent=_is_recent(m, _p, _live), stale=bool(_p.get("stale"))))
+            _play_html = (f'<div class="lph-play"><div class="lph-play-h">🎯 À jouer · profil calibré ({len(_prows)})</div>'
+                          f'{"".join(_prows)}</div>')
     # GROUPER PAR MARCHÉ (user 2026-09-15 : « ne propose-t-il pas trop de signaux ? » -> ~24/match dont 2,4× de
     # LIGNES redondantes d'un même marché). On regroupe par FAMILLE dans un pli déroulant : carte COMPACTE, rien
     # de caché (1 clic déplie). Familles avec un signal validé/en cours d'abord, tout-tombé en dernier ; puis volume.
@@ -12533,8 +12578,12 @@ def _signaux_match_card(m: dict) -> str:
             right = f'<span class="lph-fg-stale">{nst} dépassé{"s" if nst > 1 else ""}</span>'
         else:
             right = ''
+        # TAG « à jouer » (user 2026-09-29) sur les familles RETENUES (profil calibré) ; les autres = « observé »
+        # (mesuré seul). Repère visuel dans le détail par marché, cohérent avec la section épinglée « À jouer ».
+        _famtag = ('<span class="lph-fg-tag ret">à jouer</span>' if _is_ret(fam)
+                   else '<span class="lph-fg-tag obs">observé</span>')
         _fam_rows.append(f'<details class="lph-fg"><summary class="lph-fg-h">'
-                         f'<span class="lph-fg-n">{_h.escape(str(fam))}</span>'
+                         f'<span class="lph-fg-n">{_h.escape(str(fam))}{_famtag}</span>'
                          f'<span class="lph-fg-r">{right}</span></summary>'
                          f'<div class="lph-fg-b">{lines}</div></details>')
     # EN TÊTE (user 2026-09-17) : % de réussite du match SEULEMENT une fois TERMINÉ (prématuré en live) ; EN COURS
@@ -12564,6 +12613,8 @@ def _signaux_match_card(m: dict) -> str:
         rows.append(f'<div class="lph-p lph-none">{msg}</div>')
     if _fresh_html:                                     # « Derniers signaux » ÉPINGLÉ tout en haut de la carte
         rows.insert(0, _fresh_html)
+    if _play_html:                                      # « À jouer · profil calibré » ÉPINGLÉ AU-DESSUS des derniers
+        rows.insert(0, _play_html)
     _sc = (m.get("score") or "").strip()
     if m.get("settled"):                                # carte TERMINÉE (zone « Signaux Live — terminés ») : même
         center = (f'<span class="tm-live"><b>{_h.escape(_sc.replace("-", " - ")) if _sc else ""}</b>'
@@ -12731,6 +12782,10 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
             out.append(f'<div class="lph-row"{_st}><span class="lph-sel">{_h.escape(str(k))}</span>'
                        f'<span class="lph-m">{r.get("winrate", 0)}% · n={n} · cote {r.get("avg_cote", 0)}{_g}{_sfx}</span></div>')
         return "".join(out)
+    # À JOUER vs OBSERVÉ (user 2026-09-29) — validation FORWARD du filtre de profil : le sous-ensemble « retenu »
+    # (familles buts/résultat calibrées, mises en avant) doit battre « observé » (le reste). En tête = headline.
+    reco += _card("À jouer vs observé", "profil calibré vs mesuré seul · réussite · ROI · n",
+                  _rows(_s.get("by_retenu") or {}))
     # 1 signal INDÉPENDANT par match/famille + sur-confiance (repli sur l'ancien comptage si absent).
     _fam = _s.get("by_family_indep") or _s.get("by_family_all") or _s.get("by_family") or {}
     reco += _card("Par marché", "1 signal indépendant / match · sur-confiance", _fam_rows(_fam))
