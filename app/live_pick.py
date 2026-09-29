@@ -102,6 +102,29 @@ def is_retenu(family) -> bool:
     AFFICHAGE seul (mise en avant/tri) — aucune incidence sélection/logging/gates/ROI. Voir bloc _RETENU_FAMILIES."""
     return bool(RETENU_ON and family in _RETENU_FAMILIES)
 
+
+# TEMPO du match au DÉCLENCHEMENT d'un signal (INSTRUMENTATION SEULE, user 2026-09-29) = rythme de buts/90 déjà
+# réalisé (buts marqués / fraction de match jouée). Mesure exploratoire : au niveau du MATCH le « calme » semblait
+# porteur, mais mesuré à l'instant de la décision (déclenchement) c'était un ARTEFACT post-hoc — le vrai gradient
+# (marchés RÉSULTAT) est un TEMPO MODÉRÉ = bon (pace 1-3.5 → +18/+26 % ROI), match MOU = mauvais (pace<1 → −8 %,
+# finit souvent nul → le nul tue le résultat), chaos = médiocre. ⛔ Échantillon MINCE (n≈36-108/cellule), NON
+# train/testé -> on N'EN FAIT PAS un filtre : on l'INSTRUMENTE (summary().by_tempo*) pour accumuler et valider en
+# forward. Aucune incidence sélection/logging/gates/ROI. Mémoire `live-phantom-track`.
+_RESULT_FAMILIES_TEMPO = frozenset({"Vainqueur", "Résultat MT"})
+
+
+def _signal_tempo(snap) -> str | None:
+    """Bucket de tempo au déclenchement d'un signal : 'Mou (<1)' / 'Modéré (1-3.5)' / 'Chaos (3.5+)' d'après le
+    rythme de buts/90 réalisé (buts marqués / (minute/90)). None si score/minute indispo (minute < 15 = trop tôt)."""
+    if not isinstance(snap, dict):
+        return None
+    mn = snap.get("minute") or 0
+    hs, as_ = snap.get("hs"), snap.get("as")
+    if not isinstance(hs, int) or not isinstance(as_, int) or mn < 15:
+        return None
+    pace = (hs + as_) / (mn / 90.0)
+    return "Mou (<1)" if pace < 1.0 else "Modéré (1-3.5)" if pace < 3.5 else "Chaos (3.5+)"
+
 # BAN DUR par LIBELLÉ (mesuré sur données réelles 2026-09-13) : `_leg_metric` mal-parse certains marchés en
 # total/handicap de BUTS (ex. « Pascal Gross - Marque au moins 3 buts » -> Total Under, EV +6500 %). On les
 # rejette AVANT classification. Corners/cartons/tirs NE sont PLUS bannis (désormais pricés via compteurs live) —
@@ -1772,6 +1795,14 @@ def summary() -> dict:
         # (sinon le filtre ne tient pas -> revoir _RETENU_FAMILIES). Unité = signaux DISTINCTS réglés.
         "by_retenu": {"Retenu (à jouer)": _roi([s for s in distinct if is_retenu(s.get("family"))]),
                       "Observé (mesuré seul)": _roi([s for s in distinct if not is_retenu(s.get("family"))])},
+        # TEMPO du match au déclenchement (INSTRUMENTATION exploratoire, user 2026-09-29) — buts/90 réalisé :
+        # mou/modéré/chaos. Sur les signaux RETENUS (à jouer) + une vue MARCHÉS RÉSULTAT SEULS (la + propre, non
+        # mécanique). ⛔ Ne filtre RIEN — on accumule pour valider en train/test (n mince). Voir `_signal_tempo`.
+        "by_tempo": {b: _roi([s for s in distinct if is_retenu(s.get("family")) and _signal_tempo(s) == b])
+                     for b in ("Mou (<1)", "Modéré (1-3.5)", "Chaos (3.5+)")},
+        "by_tempo_result": {b: _roi([s for s in distinct
+                                     if s.get("family") in _RESULT_FAMILIES_TEMPO and _signal_tempo(s) == b])
+                            for b in ("Mou (<1)", "Modéré (1-3.5)", "Chaos (3.5+)")},
         # UNITÉ INDÉPENDANTE (1 signal/match/famille) + écart de calibration — le stat par famille HONNÊTE
         # (user 2026-09-29). n = nb de matchs, pas les lignes de seuil corrélées. Trié par volume décroissant.
         "by_family_indep": {fam: _fam_stat(rows) for fam, rows

@@ -12786,6 +12786,13 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
     # (familles buts/résultat calibrées, mises en avant) doit battre « observé » (le reste). En tête = headline.
     reco += _card("À jouer vs observé", "profil calibré vs mesuré seul · réussite · ROI · n",
                   _rows(_s.get("by_retenu") or {}))
+    # TEMPO DU MATCH au déclenchement (INSTRUMENTATION exploratoire, user 2026-09-29) — buts/90 réalisé : on
+    # SURVEILLE si un tempo modéré porte les signaux résultat (n mince → ne filtre rien, on accumule). Vue « retenus »
+    # + vue « marchés résultat seuls » (la + propre). ⚠️ échantillon en cours de constitution.
+    reco += _card("Par tempo du match · retenus", "buts/90 au déclenchement · réussite · ROI · n",
+                  _rows(_s.get("by_tempo") or {}))
+    reco += _card("Par tempo · marchés résultat", "Vainqueur/MT (le + propre) · réussite · ROI · n",
+                  _rows(_s.get("by_tempo_result") or {}))
     # 1 signal INDÉPENDANT par match/famille + sur-confiance (repli sur l'ancien comptage si absent).
     _fam = _s.get("by_family_indep") or _s.get("by_family_all") or _s.get("by_family") or {}
     reco += _card("Par marché", "1 signal indépendant / match · sur-confiance", _fam_rows(_fam))
