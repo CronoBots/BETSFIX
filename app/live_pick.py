@@ -1633,12 +1633,22 @@ def summary() -> dict:
         return _hit[1]
     canon, allsnaps, distinct = [], [], []
     dist_with, dist_without = [], []          # signaux distincts : match AVEC vs SANS pari pré-match (doublon)
+    fam_indep: dict[str, list] = {}           # famille -> 1 signal REPRÉSENTATIF par match (n = matchs, pas lignes)
     matches = pending = 0
     for rec in _iter_records():
         matches += 1
         settled = [s for s in rec.get("snaps", []) if s.get("result") in ("won", "lost", "push")]
         pending += sum(1 for s in rec.get("snaps", []) if s.get("result") not in ("won", "lost", "push"))
         allsnaps.extend(settled)
+        # PAR FAMILLE — UNITÉ INDÉPENDANTE (user 2026-09-29) : 1 signal REPRÉSENTATIF par (match, famille) =
+        # celui détecté le plus TÔT dans le match (pas de survivorship). Sinon chaque famille comptait TOUTES ses
+        # lignes de seuil corrélées (Corners -3.5/-4.5/-5.5… ≈ 9/match) -> n gonflé (2423 pour ~265 matchs) et taux
+        # trompeur. Ici n = nb de matchs où la famille a émis un signal -> échantillon réellement indépendant.
+        _fam_first: dict = {}
+        for s in sorted(settled, key=lambda s: (s.get("minute", 0), s.get("sel", ""))):
+            _fam_first.setdefault(s.get("family", "?"), s)
+        for _f, _s1 in _fam_first.items():
+            fam_indep.setdefault(_f, []).append(_s1)
         # DISTINCT : 1 signal par (match, sel) = 1re détection (les snapshots d'un même signal sont corrélés ->
         # ne pas les compter N fois). Sert au détail PAR MARCHÉ (tous les types séparés, stats justes).
         _seen: dict = {}
@@ -1682,6 +1692,19 @@ def summary() -> dict:
                  "real": round(100.0 * v[1] / v[0], 1) if v[0] else 0.0}
                 for b, v in sorted(buckets.items())]
 
+    def _fam_stat(rows):
+        """Stats d'une famille SUR SON UNITÉ INDÉPENDANTE + écart de CALIBRATION (modèle % vs réel %). Le gap
+        (>0 = sur-confiance) révèle ce qu'un simple taux de réussite masque : une famille à 64 % PRICÉE/MODÉLISÉE
+        à 85 % est en réalité mauvaise. `real` = winrate (sur les réglés) ; `model` = proba modèle moyenne SUR LES
+        MÊMES réglés (dénominateur cohérent, push exclus des deux)."""
+        base = _roi(rows)
+        dec = [s for s in rows if s.get("result") in ("won", "lost")]
+        model = round(100.0 * sum(s.get("prob", 0.0) for s in dec) / len(dec), 1) if dec else 0.0
+        base["model"] = model
+        base["real"] = base["winrate"]
+        base["gap"] = round(model - base["winrate"], 1)
+        return base
+
     by_fam: dict[str, list] = {}
     for s in canon:
         by_fam.setdefault(s.get("family", "?"), []).append(s)
@@ -1723,6 +1746,10 @@ def summary() -> dict:
         # tous les marchés séparés, triés par volume décroissant (le plus « travaillé » en tête).
         "by_family_all": {fam: _roi(rows) for fam, rows
                           in sorted(by_fam_all.items(), key=lambda kv: -len(kv[1]))},
+        # UNITÉ INDÉPENDANTE (1 signal/match/famille) + écart de calibration — le stat par famille HONNÊTE
+        # (user 2026-09-29). n = nb de matchs, pas les lignes de seuil corrélées. Trié par volume décroissant.
+        "by_family_indep": {fam: _fam_stat(rows) for fam, rows
+                            in sorted(fam_indep.items(), key=lambda kv: -len(kv[1]))},
         "calibration": _calib(allsnaps),
         # mesure du NOUVEAU modèle SEULEMENT (démarre à ~0, se remplit au fil des matchs post-optim) :
         "current_model": {"n_settled": len(_cur), "canonical": _roi(_cur_canon), "calibration": _calib(_cur),

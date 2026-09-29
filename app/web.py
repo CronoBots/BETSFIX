@@ -12572,15 +12572,17 @@ def _live_phantom_settled_zone(sport: str, title: str = "Signaux — terminés",
             reco = (f'<div class="lph-reco">📊 <b>Track record</b> (1 pari indépendant/match) : '
                     f'<b>{_c.get("winrate", 0)}%</b> réussite · ROI <b>{_c.get("roi", 0):+g}%</b> · '
                     f'n={_c.get("n", 0)} · cote moy {_c.get("avg_cote", 0)}.</div>')
-        # PAR MARCHÉ : TOUS les types séparés (signaux distincts) — quel type de marché tient ? (user 2026-09-14)
-        _fam = _s.get("by_family_all") or _s.get("by_family") or {}
+        # PAR MARCHÉ — UNITÉ INDÉPENDANTE (user 2026-09-29) : n = nb de matchs (1 signal/match/famille) + écart de
+        # calibration modèle→réel, cohérent avec l'onglet Analyse (fini le n gonflé par les lignes de seuil corrélées).
+        _fam = _s.get("by_family_indep") or _s.get("by_family_all") or _s.get("by_family") or {}
         if _fam:
             _fr = "".join(
                 f'<div class="lph-row"><span class="lph-sel">{_h.escape(str(f))}</span>'
-                f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}</span></div>'
+                f'<span class="lph-m">{r.get("winrate", 0)}% · ROI {r.get("roi", 0):+g}% · n={r.get("n", 0)}'
+                f' · modèle {r.get("model", 0)}%→réel {r.get("real", 0)}%</span></div>'
                 for f, r in _fam.items())
             reco += (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">Par marché</span>'
-                     f'<span class="lph-min">tous les signaux</span></div>{_fr}</div>')
+                     f'<span class="lph-min">1 signal indépendant / match</span></div>{_fr}</div>')
         # CALIBRATION : proba annoncée par le modèle vs réalisé (tous snapshots) -> révèle sur/sous-confiance.
         _cal = _s.get("calibration") or []
         if _cal:
@@ -12628,9 +12630,30 @@ def _signaux_stats_zone(sport: str = "foot", open_: bool = True) -> str:
     def _card(title, sub, rows_html):
         return (f'<div class="lph-card"><div class="lph-hd"><span class="lph-teams">{title}</span>'
                 f'<span class="lph-min">{sub}</span></div>{rows_html}</div>') if rows_html else ""
-    # PAR MARCHÉ : TOUS les types séparés (user 2026-09-14) — signaux distincts, triés par volume.
-    _fam = _s.get("by_family_all") or _s.get("by_family") or {}
-    reco += _card("Par marché", "tous les signaux", _rows(_fam, only_nonzero=False))
+    # PAR MARCHÉ — UNITÉ HONNÊTE (user 2026-09-29) : n = nb de MATCHS (1 signal représentatif/match/famille), plus
+    # les lignes de seuil corrélées qui gonflaient le n (Corners « n=2423 » = ~9 lignes × 265 matchs). + écart de
+    # CALIBRATION modèle→réel (>0 = sur-confiance) : une famille à 64 % modélisée 85 % est mauvaise, le taux seul
+    # le cachait. Petit échantillon (< _SMALL_FAM_N matchs) grisé + annoté (pas représentatif).
+    _SMALL_FAM_N = 15
+
+    def _fam_rows(d: dict):
+        out = []
+        for k, r in d.items():
+            n = r.get("n", 0)
+            if not n:
+                continue
+            gap = r.get("gap", 0)
+            _g = (f' · modèle {r.get("model", 0)}%→réel {r.get("real", 0)}%'
+                  + (f' <b style="color:#ff8a8a">⚠ +{gap:g}</b>' if isinstance(gap, (int, float)) and gap >= 8 else ''))
+            _weak = n < _SMALL_FAM_N
+            _st = ' style="opacity:.45"' if _weak else ''
+            _sfx = ' · échantillon faible' if _weak else ''
+            out.append(f'<div class="lph-row"{_st}><span class="lph-sel">{_h.escape(str(k))}</span>'
+                       f'<span class="lph-m">{r.get("winrate", 0)}% · n={n} · cote {r.get("avg_cote", 0)}{_g}{_sfx}</span></div>')
+        return "".join(out)
+    # 1 signal INDÉPENDANT par match/famille + sur-confiance (repli sur l'ancien comptage si absent).
+    _fam = _s.get("by_family_indep") or _s.get("by_family_all") or _s.get("by_family") or {}
+    reco += _card("Par marché", "1 signal indépendant / match · sur-confiance", _fam_rows(_fam))
     # PAR TRANCHE DE COTE + PAR MINUTE DE CRÉATION (user 2026-09-14 : stats complètes).
     reco += _card("Par tranche de cote", "réussite · ROI · n", _rows(_s.get("by_cote") or {}))
     reco += _card("Par minute de création", "réussite · ROI · n", _rows(_s.get("by_minute") or {}))

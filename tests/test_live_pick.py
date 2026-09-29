@@ -221,3 +221,28 @@ def test_store_is_isolated_from_sidecars(tmp_path, monkeypatch):
     # le fichier ne porte aucune clé de sidecar (bets/stat_bet/shadow) -> pas de confusion possible
     rec = json.load(open(files[0], encoding="utf-8"))
     assert "bets" not in rec and "stat_bet" not in rec and "shadow" not in rec
+
+
+def test_by_family_indep_independent_unit_and_calibration(tmp_path, monkeypatch):
+    """by_family_indep = 1 signal REPRÉSENTATIF par (match, famille) -> n = nb de MATCHS (pas les lignes de
+    seuil corrélées) + écart de calibration modèle→réel (user 2026-09-29). Deux matchs, chacun 3 lignes
+    Corners corrélées : l'unité honnête compte 2 (matchs), l'ancien by_family_all compte 6 (lignes distinctes)."""
+    monkeypatch.setattr(lp, "_STORE", str(tmp_path))
+    monkeypatch.setattr(analyses, "meta", lambda sport, mid: {})   # aucun pari pré-match -> pas de tier
+
+    def _rec(mid, results):
+        snaps = [{"minute": 20 + i * 5, "sel": f"Plus de {3.5 + i} corners", "family": "Corners",
+                  "wside": None, "info": "", "prob": 0.80, "odds": 1.5, "ev": 0.1,
+                  "result": res, "mv": lp.MODEL_VERSION} for i, res in enumerate(results)]
+        return {"sport": "foot", "match_id": mid, "home": "A", "away": "B", "comp": "X",
+                "start": "2026-09-13T18:00:00Z", "snaps": snaps, "settled": True}
+
+    lp._save(_rec("M1", ["won", "lost", "lost"]))     # représentant (minute 20) = won
+    lp._save(_rec("M2", ["lost", "won", "won"]))       # représentant (minute 20) = lost
+    s = lp.summary()
+    fam = s["by_family_indep"]["Corners"]
+    assert fam["n"] == 2                    # 2 MATCHS, pas 6 lignes corrélées
+    assert fam["winrate"] == 50.0           # représentants : 1 won / 1 lost
+    assert fam["model"] == 80.0             # proba modèle moyenne des représentants réglés
+    assert fam["real"] == 50.0 and fam["gap"] == 30.0     # écart de sur-confiance = modèle − réel
+    assert s["by_family_all"]["Corners"]["n"] == 6        # l'ancien comptage = toutes les lignes distinctes
