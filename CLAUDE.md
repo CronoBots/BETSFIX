@@ -423,10 +423,16 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».
-- **BADGE « PROFIL A/B/C » + tri en tête (AFFICHAGE SEUL, user 2026-09-29)** : chaque signal **À VENIR** du site
-  porte une pastille **★ « Profil A/B/C »** (`web._sport_row`, CSS `.mc-profile`) et les meilleurs profils
-  **remontent en tête** de zone (`web._today_zones`, tri `(-profile_stars, start_ts)`) + halo émeraude sur le
-  profil A (`.mc-prof3`). Score = `analyses.profile_score(bet, tier, home, away, sport)` → composite pondéré des
+- **BADGE « PROFIL A/B/C » + tri en tête (AFFICHAGE SEUL, user 2026-09-29)** : chaque **carte de signal** du site
+  (à venir, **EN DIRECT** et **TERMINÉE** — étendu le soir même car sinon invisible hors fenêtre KO−1h→KO) porte
+  une pastille **★ « Profil A/B/C »** et les meilleurs profils **remontent en tête** de zone (`web._today_zones`,
+  tri `(-profile_stars, start_ts)`) + halo émeraude `.mc-prof3` **réservé aux cartes À VENIR** (jouables ; évite
+  le conflit avec le bord vert/rouge des terminés). Rendu à DEUX endroits (même markup `.mc-profrow`/`.mc-profile`) :
+  `web._sport_row` (à venir/live/terminé via `_sport_row`) **et** `web._leg_card` (param `profile=`, passé par
+  `_settled_bet_result_cards` pour les cartes RÉSULTAT ; les jambes de COMBINÉ ne le passent jamais → pas de badge).
+  Confiance source : à venir/live = pari publié/retenu ; terminé = `stat_bet` FIGÉ. Un match suivi live **sans
+  pari** (abstention) n'a **pas** de badge (pas un signal). Score = `analyses.profile_score(bet, tier, home, away,
+  sport)` → composite pondéré des
   **taux de réussite empiriques mesurés** (2026-09-29, 204 paris) sur les **seuls axes qui séparent** :
   **cote 40 %** (1.40-1.60 = 73 % vs <1.40 ≈ 90-93 %) · **confiance 30 %** · **marché 20 %** (DC 92 % >> Total
   Under 74 %) · **tier 10 %** (Confiance 89 % / Value 78 %). ⛔ **PAS la compétition/confédération** : mesuré NON

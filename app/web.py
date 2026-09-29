@@ -7574,7 +7574,8 @@ def _live_clock_html(sport_key, home, away, ld: dict | None = None) -> str:
 
 def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool = True,
               why_always: bool = False, why_label: str = "Pourquoi cette jambe",
-              prob_calibrated: bool = False, live_layout: bool = False, bare: bool = False) -> str:
+              prob_calibrated: bool = False, live_layout: bool = False, bare: bool = False,
+              profile: dict | None = None) -> str:
     """Rendu d'UNE jambe de combiné COMME UNE CARTE DE SIMPLE (demande user 2026-07-14) : en-tête
     « SPORT • match » + badge d'état, le pari en gras, l'explication en clair (gloss ↳), la COTE à droite,
     bord gauche coloré par état. En live : badge 🟢 LIVE + tableau de score sous la jambe. `why` = ajoute la
@@ -7601,6 +7602,16 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
     if _sel_disp.startswith("Double chance"):
         _sel_disp = re.sub(r"\s*\(.*\)\s*$", "", _sel_disp).strip()
     sel = html.escape(_sel_disp)
+    # BADGE PROFIL (AFFICHAGE SEUL, user 2026-09-29) : pastille « ★ Profil A/B/C » sur les cartes RÉSULTAT de
+    # signal simple (passée par `profile=` depuis _settled_bet_result_cards). Les jambes de COMBINÉ ne passent
+    # jamais `profile` -> aucun badge sur elles. Pas de halo ici (la carte réglée a déjà son bord vert/rouge).
+    _prof_row_c = ""
+    if isinstance(profile, dict) and profile.get("label"):
+        _pstars = "★" * profile["stars"] + "☆" * (3 - profile["stars"])
+        _prof_row_c = (f'<div class="mc-profrow"><span class="mc-profile mc-prof-{profile["label"].lower()}" '
+                       f'title="Profil {profile["label"]} — profil de réussite estimé {profile.get("pct")}%. '
+                       f'Purement indicatif."><span class="mc-prof-st">{_pstars}</span>'
+                       f'Profil {profile["label"]}</span></div>')
     # EN-TÊTE FAÇON PROVISOIRE (demande user 2026-07-18) : L1 = « SPORT • compétition » (plus le nom du
     # match condensé) ; L2 = les ÉQUIPES sur leur propre ligne, en gros (comme .mc-teams). Équipes depuis
     # home/away (repli : le nom du match « A - B »).
@@ -7835,6 +7846,7 @@ def _leg_card(l: dict, *, why: bool = True, verdict: bool = False, teams: bool =
         _bell_c = _notif_bell(l.get("mid")) if (l.get("mid") and not _res) else ""
         return (f'<div class="cleg {_state} cleg-res-live mc-prem">{_corner_c}{_bell_c}'
                 f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr"><span class="mc-comp">{_comp_c}</span></div>'
+                f'{_prof_row_c}'
                 f'<div class="mc-teams">{_teams_c}</div>'
                 f'{_vb}{_extra}{_why}</div>')
     _tdiv = '<div class="mc-div"></div>' if _teams_html else ""   # filet équipes↔pari (comme provisoires)
@@ -8762,6 +8774,10 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
                 continue                                   # carte réglée d'un AUTRE tier -> pas dans cette zone
             _code = (_cfp(rb.get("sel", ""), sp, d.get("home", ""), d.get("away", "")) or "")
             _umc = match_select.unibet_meta_for(sp, d.get("home"), d.get("away")) or {}   # pays (best-effort)
+            # PROFIL DE RÉUSSITE (affichage seul) : badge ★ sur la carte RÉSULTAT du signal (rb = pari FIGÉ,
+            # porte la cprob calibrée + la cote jouée) -> le user voit en rétrospectif la qualité du profil joué.
+            _prof = analyses.profile_score(rb, analyses.tier_of(d, rb),
+                                           d.get("home", ""), d.get("away", ""), sp)
             _rich = _leg_card(
                 {"sport": sp, "home": d.get("home"), "away": d.get("away"), "comp": d.get("comp"),
                  "country": (_umc.get("country") or d.get("country")           # live meta -> sidecar -> cache appris
@@ -8770,7 +8786,8 @@ def _settled_bet_result_cards(iso: str, sport: str | None = None, exclude_mids: 
                  "result": rb.get("result"), "score": _board.get("score") or _sco,
                  "periods": _board.get("periods"), "pens": _board.get("pens"), "start": d.get("start"),
                  "why": _prov_why_snippet(sp, fid, maxlen=100000, played=True)},
-                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix", live_layout=True)
+                why=True, verdict=True, why_always=True, why_label="Pourquoi ce choix", live_layout=True,
+                profile=_prof)
             out.append((_RES_RANK.get(rb.get("result"), 3), dt.timestamp(), _rich))
     # ORDRE (demande user 2026-08-01) : GAGNÉ d'abord, puis remboursé, puis PERDU ; à rang égal, le plus
     # récent en tête. Cohérent avec l'ordre voulu par type : non joué → live → gagné → perdu.
@@ -11927,17 +11944,26 @@ def _sport_row(r: dict) -> str:
                    f'<span class="tm-cd"><span class="cd" data-ts="{int(sdt.timestamp())}"></span></span></span>')
     else:
         _center = e(starthm)
-    # BADGE PROFIL (AFFICHAGE SEUL, user 2026-09-29) : sur un signal À VENIR (jamais live/terminé/combiné,
-    # non jouables/déjà réglés), une pastille étoiles indiquant le « profil de réussite » estimé (cote +
-    # confiance + marché + tier, mesuré empiriquement) -> l'utilisateur repère et joue d'abord les meilleurs
-    # profils. AUCUN impact sélection/ROI/calibration. Site-only (card_image Telegram a son propre markup).
-    # `mc-prof3` sur la carte = léger halo émeraude pour le profil A (mise en valeur au-delà du badge).
+    # BADGE PROFIL (AFFICHAGE SEUL, user 2026-09-29 ; étendu live+terminés le 2026-09-29 soir) : pastille étoiles
+    # indiquant le « profil de réussite » estimé (cote + confiance + marché + tier, mesuré empiriquement) sur
+    # TOUTE carte de signal — à venir, EN DIRECT et TERMINÉE (pas seulement l'étroite fenêtre KO−1h→KO, sinon
+    # invisible le soir). Le user repère les meilleurs profils, et en rétrospectif voit la qualité du profil joué.
+    # AUCUN impact sélection/ROI/calibration. Jamais sur combiné/abstention (pas de pari simple). Source de la
+    # confiance selon l'état : terminé = `stat_bet` FIGÉ (bets3 réglé n'a pas la cprob) ; à venir/live = le pari
+    # publié/retenu (bets3[0]). Site-only (card_image Telegram a son propre markup). `mc-prof3` = halo émeraude
+    # RÉSERVÉ aux cartes À VENIR (jouables) -> pas de conflit avec le bord vert/rouge won/lost du terminé.
     prof_badge = ""
     _prof_cls = ""
-    if _premium and not is_finished and not is_live and not is_combo and bets3:
+    if not is_combo and sport_key and _pmid:
         try:
-            _pf = analyses.profile_score(bets3[0], r.get("tier"),
-                                         r.get("home", ""), r.get("away", ""), sport_key or "foot")
+            if is_finished:
+                _pbet = analyses.stat_bet(analyses.meta(sport_key, _pmid) or {})
+            elif bets3:
+                _pbet = bets3[0]
+            else:
+                _pbet = None
+            _pf = (analyses.profile_score(_pbet, r.get("tier"), r.get("home", ""), r.get("away", ""), sport_key)
+                   if _pbet else None)
         except Exception:
             _pf = None
         if _pf:
@@ -11946,7 +11972,7 @@ def _sport_row(r: dict) -> str:
                           f'title="Profil {_pf["label"]} — profil de réussite estimé {_pf["pct"]}% '
                           f'(cote, confiance, marché ; hors variance). Purement indicatif.">'
                           f'<span class="mc-prof-st">{_stars}</span>Profil {_pf["label"]}</span>')
-            if _pf["stars"] == 3:
+            if _pf["stars"] == 3 and not is_finished and not is_live:
                 _prof_cls = " mc-prof3"
     prof_row = f'<div class="mc-profrow">{prof_badge}</div>' if prof_badge else ""
     teams = _teams_vs_html(r.get("home"), r.get("away"), _center)   # heure (ou score+minute en live) au centre + logos
