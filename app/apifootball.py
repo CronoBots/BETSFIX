@@ -517,6 +517,11 @@ def live_all(cl: httpx.Client) -> list:
                         "periods": fxt.get("periods") or {}})
     except Exception:
         out = (hit[1] if hit else [])
+    # Rendre la liste FRAÎCHE visible au hint AVANT de calculer le TTL : `_live_all_ttl` -> `any_tracked_live_window`
+    # -> `_tracked_match_in_play` lit CE cache pour détecter un match suivi EN JEU. Sans cette pré-écriture, il
+    # lirait la liste PRÉCÉDENTE -> un match qui vient de passer en jeu ne basculerait en 12 s qu'au fetch suivant
+    # (jusqu'à 300 s de retard à vide). Double écriture inoffensive (même liste, seul l'expiry change).
+    _LIVE_ALL_CACHE["all"] = (time.time() + _LIVE_ALL_TTL, out)
     _LIVE_ALL_CACHE["all"] = (time.time() + _live_all_ttl(), out)
     return out
 

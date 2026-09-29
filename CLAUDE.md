@@ -412,7 +412,14 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
   caché 2 s), sinon **300 s**. Le hint est injecté par `main` au démarrage (`apifootball.set_live_active_hint`) ;
   None = 12 s (défaut sûr, tests). Fail-safe : hint True si doute (on paie le quota plutôt que servir un score figé).
   UNE modif du cache bas-niveau `live_all` couvre TOUS les consommateurs (rendu + boucles de règlement + watchdog).
-  Conso à vide ~5760 → ~300/j. Mémoire `apifootball-quota-adaptive-live-cadence`.
+  Conso à vide ~5760 → ~300/j. **MAJ 2026-09-29 — fenêtre resserrée** : la limite était encore atteinte EN
+  JOURNÉE car le prédicat gardait 12 s de `KO−15min` à **`KO+3h30`** → sur un slate échelonné (aprem UE →
+  CONMEBOL nuit) les fenêtres s'enchaînaient = 12 s quasi 24h/24. Le prédicat ne se fie plus à une fenêtre
+  large : True seulement si **(A)** un KO suivi ∈ [now−15min, now+15min] (amorçage) **OU (B)** un match suivi
+  apparaît RÉELLEMENT en cours dans le dernier `live_all` (`match_select._tracked_match_in_play`, 0 réseau,
+  appariement nom+KO). À FT le match quitte `live_all` → 300 s au cycle suivant (fini le tail +3h30). `live_all`
+  pré-écrit sa liste fraîche dans le cache AVANT de calculer le TTL (détection sans retard). ZÉRO perte de
+  fraîcheur pendant le jeu (toujours 12 s). ⚠️ Ne PAS réélargir en `KO+Nh`. Mémoire `apifootball-quota-adaptive-live-cadence`.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».

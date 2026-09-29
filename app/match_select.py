@@ -458,16 +458,48 @@ def _af_live_on() -> bool:
     return os.environ.get("BETSFIX_AF_LIVE", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def _tracked_match_in_play(now=None) -> bool:
+    """Un match foot SUIVI apparaît-il RÉELLEMENT en cours dans le DERNIER `live_all` (cache mémoire
+    `apifootball._LIVE_ALL_CACHE`, 0 réseau) ? Apparie par NOM + coup d'envoi (±90 min) — MÊME logique que
+    `apifootball.live_clockdata`/`live_fixture_id` : si API-Football sait donner le score live du match, le
+    hint le voit ; sinon le score vient d'Unibet (cadence indépendante) et la fraîcheur API-Football est sans
+    objet -> aucune régression d'affichage. Exceptions -> propagées (le caller fail-safe à True)."""
+    from app import apifootball as _AF, analyses
+    hit = _AF._LIVE_ALL_CACHE.get("all")
+    if not hit:
+        return False
+    running = [x for x in (hit[1] or []) if x.get("short") in _AF.INPLAY_STATUS]
+    if not running:
+        return False
+    for d in analyses.iter_meta("foot"):
+        dt = d.get("_start_dt")
+        kts = dt.timestamp() if (dt and dt.tzinfo) else None      # KO naïf -> pas de filtre temps (nom seul)
+        nh, na = _AF._norm(d.get("home", "")), _AF._norm(d.get("away", ""))
+        for x in running:
+            xts = _AF._ts(x.get("ko"))
+            if kts and xts and abs(kts - xts) > 90 * 60:
+                continue
+            if (_AF._ov(nh, _AF._norm(x.get("home"))) + _AF._ov(na, _AF._norm(x.get("away")))) / 2 >= 0.5:
+                return True
+    return False
+
+
 def any_tracked_live_window(now=None) -> bool:
-    """Un match foot SUIVI est-il en FENÊTRE LIVE, i.e. son coup d'envoi tombe dans [now-3h30, now+15min] ?
-    Sert de hint à `apifootball.live_all` : DANS la fenêtre -> poll live 12 s (score frais) ; HORS -> 300 s
-    (économie quota, cf. note dans apifootball). La borne +15 min bascule en cadence rapide AVANT le KO ->
-    score déjà frais dès la 1re minute ; la borne -3h30 couvre prolongations/arrêts. 0 réseau : lit
-    `analyses.iter_meta('foot')` (cache 2 s). FAIL-SAFE : True si erreur (on privilégie la fraîcheur au quota)."""
+    """Hint de cadence pour `apifootball.live_all` : True -> poll live 12 s (score frais) ; False -> 300 s
+    (économie quota). True quand un match foot SUIVI est réellement pertinent en live :
+      (A) AMORÇAGE — un coup d'envoi suivi ∈ [now-15min, now+15min] : bascule en 12 s AVANT le KO -> score
+          frais dès la 1re minute ET live_all peuplé pour que (B) prenne le relais sans trou.
+      (B) EN JEU — un match suivi apparaît réellement en cours dans le dernier live_all (`_tracked_match_in_play`).
+    ⚠️ L'ANCIENNE fenêtre `KO+3h30` a été SUPPRIMÉE (user 2026-09-29 « atteint la limite API-Football avant la
+    fin du jour ») : elle gardait 12 s ~1 h 30 APRÈS la fin de CHAQUE match -> sur un slate échelonné (aprem
+    Europe -> CONMEBOL nuit) les fenêtres s'enchaînaient = 12 s quasi 24 h/24 = ~300 appels/h en continu = quota
+    Pro (7500/j) épuisé en journée. La détection EN JEU couvre toute la durée réelle du match SANS perte de
+    fraîcheur ; à FT le match quitte live_all -> retour à 300 s au cycle suivant. 0 réseau (lit iter_meta caché
+    2 s + le cache live_all). FAIL-SAFE : True si erreur (fraîcheur > quota). Mémoire `apifootball-quota-adaptive-live-cadence`."""
     try:
         from app import analyses
         now = now or datetime.now(timezone.utc)
-        lo, hi = now - timedelta(hours=3, minutes=30), now + timedelta(minutes=15)
+        lo, hi = now - timedelta(minutes=15), now + timedelta(minutes=15)
         for d in analyses.iter_meta("foot"):
             dt = d.get("_start_dt")
             if not dt:
@@ -477,7 +509,7 @@ def any_tracked_live_window(now=None) -> bool:
                     return True
             except TypeError:                 # KO naïf vs now aware -> ne pas trancher, rester frais
                 return True
-        return False
+        return _tracked_match_in_play(now)
     except Exception:
         return True
 
