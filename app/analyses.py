@@ -4072,6 +4072,86 @@ def market_of(code: str) -> str:
     return _MARKET_FAMILY.get(tok, "Autre")
 
 
+# ---- PROFIL DE RÉUSSITE (AFFICHAGE SEUL, 2026-09-29) -------------------------------------------------
+# Score de « sûreté » d'un signal, pour METTRE EN AVANT sur le SITE les paris au meilleur profil (badge
+# étoiles + tri en tête). ⛔ AUCUN impact sélection / ROI / calibration : c'est un classement d'AFFICHAGE
+# AU SEIN des paris DÉJÀ sélectionnés (le pari joué ne change pas, l'ordre des cartes et une pastille oui).
+# Ancré sur la MESURE empirique du 2026-09-29 (204 paris réglés, taux global 86 %) : on ne pondère QUE les
+# axes qui SÉPARENT significativement réussite haute/basse — cote (le + discriminant : 1.40-1.60 mesuré
+# 73 % vs 90 %+ sous 1.40), confiance (gradient monotone), famille de marché (DC 92 % >> totaux 74-80 %),
+# tier (Confiance 89 % vs Value 78 %). ⛔ PAS la compétition/confédération : mesuré NON significatif = bruit
+# (UEFA/CONMEBOL/élite recouvrent la moyenne) -> les mettre en avant graverait du hasard. Mémoire
+# `profile-score-display-only`. Un seuil changé ici doit rester cohérent avec cette mesure (re-mesurer avant).
+_PROFILE_MKT_WR = {"Double chance": .92, "Handicap": .84, "Total équipe": .80, "Total Under": .74,
+                   "Total Over": .84, "Vainqueur": .87, "Mi-temps": .84, "Les 2 marquent": .82}
+_PROFILE_MKT_DEFAULT = .86          # base globale : marché non mesuré -> neutre
+_PROFILE_TIER_WR = {"confiance": .89, "value": .78}
+_PROFILE_W = (.40, .30, .20, .10)   # poids : cote, confiance, marché, tier (cote = axe le + robuste)
+
+
+def _profile_wr_odds(cote) -> float | None:
+    """Taux de réussite empirique par bande de cote (mesure 2026-09-29)."""
+    try:
+        c = float(cote)
+    except (TypeError, ValueError):
+        return None
+    if c < 1.25:
+        return .90
+    if c < 1.40:
+        return .93
+    if c < 1.60:
+        return .74
+    if c < 2.00:
+        return .71
+    return .68
+
+
+def _profile_wr_conf(cprob) -> float | None:
+    """Taux de réussite empirique par bande de confiance CALIBRÉE (mesure 2026-09-29, gradient monotone)."""
+    try:
+        p = float(cprob)
+    except (TypeError, ValueError):
+        return None
+    if p >= 90:
+        return .95      # 90+ mesuré 100 % (n=12) -> plafonné à .95, ne pas sur-promettre
+    if p >= 80:
+        return .885
+    if p >= 70:
+        return .77
+    return .75
+
+
+def profile_score(bet: dict | None, tier: str | None = None,
+                  home: str = "", away: str = "", sport: str = "foot") -> dict | None:
+    """Score d'AFFICHAGE « profil de réussite » d'un signal -> {pct, stars(1-3), label('A'/'B'/'C')} ou None.
+    Composite pondéré des taux de réussite empiriques (cote / confiance / marché / tier). N'affecte QUE
+    l'affichage (badge + tri des cartes) ; jamais la sélection, le ROI ni la calibration. Voir bloc _PROFILE_*."""
+    if not isinstance(bet, dict):
+        return None
+    o = _profile_wr_odds(bet.get("cote"))
+    c = _profile_wr_conf(bet.get("cprob") if bet.get("cprob") is not None else bet.get("prob"))
+    if o is None or c is None:
+        return None                                  # sans cote NI confiance, pas de profil fiable
+    fam_wr = _PROFILE_MKT_DEFAULT
+    try:
+        from app.settle_analyst import code_from_pick as _cfp
+        _code = _cfp(bet.get("sel", ""), sport, home, away)
+        if _code:
+            fam_wr = _PROFILE_MKT_WR.get(market_of(_code), _PROFILE_MKT_DEFAULT)
+    except Exception:
+        pass
+    t_wr = _PROFILE_TIER_WR.get(tier or "value", _PROFILE_MKT_DEFAULT)
+    wo, wc, wm, wt = _PROFILE_W
+    score = wo * o + wc * c + wm * fam_wr + wt * t_wr
+    if score >= .885:
+        stars, label = 3, "A"
+    elif score >= .82:
+        stars, label = 2, "B"
+    else:
+        stars, label = 1, "C"
+    return {"pct": int(round(score * 100)), "stars": stars, "label": label}
+
+
 _CALIB_MAP_CACHE = {"ts": 0.0, "map": {}}
 _CALIB_SHRINK_K = 25     # force du a priori : la correction reste DOUCE tant qu'on manque de données
 _CALIB_ADJ_MIN_N = 20    # paris MINI par catégorie avant TOUTE recalibration (sous ça : échantillon

@@ -1151,6 +1151,18 @@ CSS = """
   .mc-live{background:rgba(52,210,123,.16);color:#5fe39b}
   .mc-done{background:rgba(255,255,255,.06);color:#cfe0f5}
   .mc-wait{background:rgba(246,197,74,.13);color:var(--gold)}
+  /* BADGE PROFIL (affichage seul, user 2026-09-29) : pastille « ★★★ Profil A/B/C » centrée sous la ligue,
+     sur les signaux À VENIR uniquement -> repère visuel du meilleur profil de réussite. Purement indicatif. */
+  .mc-profrow{display:flex;justify-content:center;margin-top:9px}
+  .mc-profile{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
+       padding:3px 9px;border-radius:999px;letter-spacing:.02em;white-space:nowrap;line-height:1.2;
+       border:1px solid transparent}
+  .mc-profile .mc-prof-st{font-size:11px;letter-spacing:-.5px}
+  .mc-prof-a{background:rgba(52,210,123,.14);color:#7ff0b6;border-color:rgba(52,210,123,.32)}
+  .mc-prof-b{background:rgba(246,197,74,.12);color:var(--gold);border-color:rgba(246,197,74,.26)}
+  .mc-prof-c{background:rgba(255,255,255,.05);color:var(--muted);border-color:rgba(255,255,255,.10)}
+  /* MISE EN VALEUR du meilleur profil (A / ★★★) : léger halo émeraude autour de la carte (au-delà du badge). */
+  .mc-prof3{box-shadow:0 0 0 1px rgba(52,210,123,.22),0 0 20px rgba(52,210,123,.12)}
   /* Chevron de dépli : EN BAS À DROITE du cadre replié. */
   .mc-chev{position:absolute;right:12px;bottom:9px;color:var(--muted);font-size:15px;
        transition:transform .18s}
@@ -8960,6 +8972,20 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
         except Exception:
             return True                        # doute -> fail-open (ne jamais cacher un vrai pari par erreur)
     play = [r for r in play if _has_display_bet(r)]
+    # PROFIL DE RÉUSSITE (AFFICHAGE SEUL, user 2026-09-29) : on attache à chaque signal du jour son profil
+    # (étoiles 1-3, mesuré sur cote+confiance+marché+tier) pour REMONTER les meilleurs profils en tête de zone
+    # (le badge est rendu par _sport_row). ⛔ Aucun impact sélection/ROI/calibration : PUR ordre d'affichage.
+    for _r in play:
+        try:
+            _sp = str(_r.get("sport") or sport or "foot").lower()
+            _mid = _r.get("id")
+            _bet = analyses.published_bet(_sp, _mid) or analyses.retained_bet(_sp, _mid)
+            _pf = (analyses.profile_score(_bet, _r.get("tier"), _r.get("home", ""), _r.get("away", ""), _sp)
+                   if _bet else None)
+            if _pf:
+                _r["profile_stars"] = _pf["stars"]
+        except Exception:
+            pass
     prov = (sorted([it for it in _prog if it.get("_prov")], key=lambda r: r.get("start_ts") or 0)
             if analyses.PROVISOIRES_ON else [])   # provisoires retirés (user 2026-08-11) : abstentions ignorées
     # PLUS de catégorie « à analyser » (demande user 2026-07-20 : la supprimer) : un match NON encore
@@ -8988,7 +9014,12 @@ def _today_zones(match_rows: list, sport: str | None = None, results: list | Non
     # ORDRE : Confiance → Value → Provisoire → Combiné. « Confiance » n'apparaît que s'il y a un
     # pari/résultat (demande user 2026-07-26).
     out = []
-    play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0, r.get("start_ts") or 0))
+    # TRI (user 2026-09-29) : non-joué avant live ; PARMI les à-venir, MEILLEUR PROFIL en tête (★★★ avant ★★
+    # avant ★), puis par coup d'envoi ; les live gardent l'ordre chronologique. PUR affichage (le pari joué et
+    # les stats ne bougent pas). Tous les rows sont du JOUR COURANT -> pas de mélange inter-jours.
+    play.sort(key=lambda r: (1 if r.get("status") == "inprogress" else 0,
+                             -(r.get("profile_stars") or 0) if r.get("status") != "inprogress" else 0,
+                             r.get("start_ts") or 0))
     # RÉSULTATS EN PLACE (demande user 2026-08-01) : plus de zone « Résultats du jour » en bas de l'onglet.
     # Chaque match RÉGLÉ reste dans SA section de type et sa carte affiche le résultat/score (comme les cartes
     # de résultat actuelles). Les combinés (include_settled=True ci-dessus) le font déjà en place ; ici on
@@ -11896,6 +11927,28 @@ def _sport_row(r: dict) -> str:
                    f'<span class="tm-cd"><span class="cd" data-ts="{int(sdt.timestamp())}"></span></span></span>')
     else:
         _center = e(starthm)
+    # BADGE PROFIL (AFFICHAGE SEUL, user 2026-09-29) : sur un signal À VENIR (jamais live/terminé/combiné,
+    # non jouables/déjà réglés), une pastille étoiles indiquant le « profil de réussite » estimé (cote +
+    # confiance + marché + tier, mesuré empiriquement) -> l'utilisateur repère et joue d'abord les meilleurs
+    # profils. AUCUN impact sélection/ROI/calibration. Site-only (card_image Telegram a son propre markup).
+    # `mc-prof3` sur la carte = léger halo émeraude pour le profil A (mise en valeur au-delà du badge).
+    prof_badge = ""
+    _prof_cls = ""
+    if _premium and not is_finished and not is_live and not is_combo and bets3:
+        try:
+            _pf = analyses.profile_score(bets3[0], r.get("tier"),
+                                         r.get("home", ""), r.get("away", ""), sport_key or "foot")
+        except Exception:
+            _pf = None
+        if _pf:
+            _stars = "★" * _pf["stars"] + "☆" * (3 - _pf["stars"])
+            prof_badge = (f'<span class="mc-profile mc-prof-{_pf["label"].lower()}" '
+                          f'title="Profil {_pf["label"]} — profil de réussite estimé {_pf["pct"]}% '
+                          f'(cote, confiance, marché ; hors variance). Purement indicatif.">'
+                          f'<span class="mc-prof-st">{_stars}</span>Profil {_pf["label"]}</span>')
+            if _pf["stars"] == 3:
+                _prof_cls = " mc-prof3"
+    prof_row = f'<div class="mc-profrow">{prof_badge}</div>' if prof_badge else ""
     teams = _teams_vs_html(r.get("home"), r.get("away"), _center)   # heure (ou score+minute en live) au centre + logos
     # LIVE : intitulé du pari EN HAUT puis SCORE+minute au centre (user 2026-08-15). La « Chance live » n'est
     # PLUS une barre séparée : elle est FUSIONNÉE dans la barre de confiance du verdict (« Confiance live »,
@@ -11904,6 +11957,7 @@ def _sport_row(r: dict) -> str:
     head = (f'<div class="mc-head"><div class="mc-main">'
             f'<div class="mc-line mc-line-c mc-lg-cleg mc-lg-ctr">'   # ligue CENTRÉE (user 2026-09-06) ; décompte en absolu à droite
             f'<span class="mc-comp">{comp_only}</span>{badge}</div>'
+            f'{prof_row}'
             f'<div class="mc-teams">{teams}</div>'
             f'<div class="mc-sub">{line3}</div>'
             f'{_pwhy if (is_live and _premium) else ""}</div>{_chev}</div>')
@@ -11969,9 +12023,9 @@ def _sport_row(r: dict) -> str:
     # live »). Ailleurs (Programme), un match live reste en style E. NE PAS gater sur `is_live` seul (trop large).
     # (bloc de rendu STYLE-E RETIRÉ 2026-09-10 : seul le style CLASSIC subsiste)
     if _no_expand:
-        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}">{_corner}{_bell}{head}</div>')
+        return (f'<div class="row pick mc mc-prem mc-flat{_rcls}{_prof_cls}">{_corner}{_bell}{head}</div>')
     return (f'<div class="row pick mc{" mc-prem" if _premium else ""}'
-            f'{" mc-islive" if is_live else ""}{_rcls}">{_corner}{_bell}{head}'
+            f'{" mc-islive" if is_live else ""}{_rcls}{_prof_cls}">{_corner}{_bell}{head}'
             f'<div class="mc-body" hidden>{body}</div></div>')
 
 _MC_SEP = '<div class="mc-sep"></div>'

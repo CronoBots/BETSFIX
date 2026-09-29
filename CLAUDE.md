@@ -423,6 +423,17 @@ soir** (scan soir, slate nuit). `app/combo_daily.py` + `tools/generate_analyses.
 - **UI** : calendrier stats = **taux de réussite** (jour/mois, plus le ROI), KPIs = jours-avec-paris + paris-joués
   (Confiance seule) ; « Programme du jour » **fermé** dès qu'un pari existe dans une catégorie ; intitulé DC
   « \<équipe\> ou nul (1X) ».
+- **BADGE « PROFIL A/B/C » + tri en tête (AFFICHAGE SEUL, user 2026-09-29)** : chaque signal **À VENIR** du site
+  porte une pastille **★ « Profil A/B/C »** (`web._sport_row`, CSS `.mc-profile`) et les meilleurs profils
+  **remontent en tête** de zone (`web._today_zones`, tri `(-profile_stars, start_ts)`) + halo émeraude sur le
+  profil A (`.mc-prof3`). Score = `analyses.profile_score(bet, tier, home, away, sport)` → composite pondéré des
+  **taux de réussite empiriques mesurés** (2026-09-29, 204 paris) sur les **seuls axes qui séparent** :
+  **cote 40 %** (1.40-1.60 = 73 % vs <1.40 ≈ 90-93 %) · **confiance 30 %** · **marché 20 %** (DC 92 % >> Total
+  Under 74 %) · **tier 10 %** (Confiance 89 % / Value 78 %). ⛔ **PAS la compétition/confédération** : mesuré NON
+  significatif = bruit (élite ≈ non-élite, 85 vs 86 %). ⛔ **AUCUN impact sélection / ROI / calibration** (pur
+  ordre + pastille indicative, gaté à-venir : rien sur live/terminé/combiné). **SITE only** (`card_image`
+  Telegram a son markup propre → badge absent). Un seuil du bloc `analyses._PROFILE_*` = **re-mesurer avant**.
+  Mémoire `profile-score-display-only`.
 - **CARTES = style « CLASSIC » (logos d'équipe + nom en dessous) — DÉFAUT depuis 2026-09-06** (`CARD_STYLE`
   dans `app/web.py`, défaut `classic`). Le user a **annulé la refonte « signature »** du 2026-09-05 et voulu
   revenir aux cartes « début de semaine » : **vrais logos (crest) des 2 équipes + nom dessous**, score central
