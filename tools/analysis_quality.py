@@ -808,6 +808,18 @@ WATCH_MIN_PCT = 85.0     # sous ce taux de réussite sur la fenêtre = alerte (b
 # sous le seuil après le 31/10, elle re-sonne). Réactiver tout de suite = mettre la date à "" / None.
 WATCH_SNOOZE_UNTIL = "2026-10-31"
 
+# ── SURVEILLANCE « le badge Profil A/B/C garde son sens » (user 2026-09-30) ──────────────────────────────────
+# Le badge ★ Profil (analyses.profile_score, AFFICHAGE SEUL) trie les cartes du profil le plus fiable (A) au
+# moins fiable (C). Mesuré au 2026-09-30 sur 182 paris simples réglés : A 90,6% > B 87,9% > C 73,7% (monotone,
+# ~17 pts A→C). Ce watch vérifie EN FORWARD que l'ordre tient. Il n'alerte QUE si, avec assez de recul PAR
+# CATÉGORIE, soit l'écart A→C s'effondre (le badge ne sépare plus rien), soit une catégorie BASSE dépasse
+# nettement une HAUTE (vraie inversion). Tolérance large : A et B sont proches par construction (seuils serrés
+# en haut) -> on ne sonne pas pour du bruit A↔B. Purement diagnostic : rien à corriger côté sélection/ROI —
+# si ça sonne, c'est le SCORING d'affichage qu'il faut re-mesurer (mémoire profile-score-display-only).
+PROF_WATCH_MIN_BUCKET = 15     # recul mini PAR catégorie avant de juger (sinon variance)
+PROF_WATCH_TOL = 5.0           # marge d'inversion tolérée (pts) : A↔B quasi à égalité ne doit pas sonner
+PROF_WATCH_MIN_SEP = 5.0       # écart A→C minimal (pts) pour que le badge « veuille encore dire quelque chose »
+
 
 def _bucket_stats(rows: list) -> dict:
     """n paris décisifs (won/lost), réussite %, ROI % (mise 1u/pari) d'un lot de (cote, result)."""
@@ -944,6 +956,76 @@ def recent_confidence_watch(send_alert: bool = False) -> int:
     return 0
 
 
+def profile_order_watch(send_alert: bool = False) -> int:
+    """SURVEILLANCE de l'ORDRE du badge Profil A/B/C (user 2026-09-30). Rejoue `analyses.profile_score` sur le
+    pari FIGÉ (`stat_bet`) de chaque match foot simple réglé, regroupe par label A/B/C, mesure la réussite
+    réelle par catégorie et vérifie que la hiérarchie tient (A ≥ B ≥ C, écart A→C significatif). Alerte privée
+    (1×/semaine ISO) UNIQUEMENT si — avec ≥ PROF_WATCH_MIN_BUCKET par catégorie concernée — l'ordre s'inverse
+    nettement OU l'écart A→C s'effondre. PUREMENT diagnostic d'affichage (rien en sélection/ROI/calibration).
+    0 = OK / recul insuffisant, 1 = alerte."""
+    buckets = {"A": [], "B": [], "C": []}      # label -> list de (cote, result)
+    for p in glob.glob(os.path.join(A.DIR, "foot_*.json")):
+        try:
+            d = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("roi_void") or (d.get("combo") or {}).get("legs"):
+            continue                           # void / combiné : le badge n'existe pas dessus
+        sb = A.stat_bet(d)
+        if not (isinstance(sb, dict) and sb.get("sel") and sb.get("result") in ("won", "lost", "push", "void")):
+            continue
+        prof = A.profile_score(sb, tier=A.tier_of(d),
+                               home=d.get("home", ""), away=d.get("away", ""), sport="foot")
+        if not prof:
+            continue
+        buckets[prof["label"]].append((sb.get("cote"), sb.get("result")))
+
+    stA, stB, stC = (_bucket_stats(buckets[k]) for k in ("A", "B", "C"))
+    print("═══ SURVEILLANCE ordre du badge Profil A/B/C ═══")
+    for lab, st in (("A", stA), ("B", stB), ("C", stC)):
+        print(f"  Profil {lab} : {st['n']:>3} décisifs · {st['win']:.1f}% réussite · ROI {st['roi']:+.1f}%")
+    print(f"  (attendu A ≥ B ≥ C ; alerte si inversion > {PROF_WATCH_TOL:.0f} pts ou écart A→C < "
+          f"{PROF_WATCH_MIN_SEP:.0f} pts, avec ≥ {PROF_WATCH_MIN_BUCKET}/catégorie concernée)")
+
+    # On ne juge QUE les catégories qui ont assez de recul (sinon variance).
+    mature = {k: st for k, st in (("A", stA), ("B", stB), ("C", stC)) if st["n"] >= PROF_WATCH_MIN_BUCKET}
+    problems = []
+    if "A" in mature and "B" in mature and stB["win"] - stA["win"] > PROF_WATCH_TOL:
+        problems.append(f"B ({stB['win']:.0f}%) dépasse A ({stA['win']:.0f}%) de {stB['win']-stA['win']:.0f} pts")
+    if "B" in mature and "C" in mature and stC["win"] - stB["win"] > PROF_WATCH_TOL:
+        problems.append(f"C ({stC['win']:.0f}%) dépasse B ({stB['win']:.0f}%) de {stC['win']-stB['win']:.0f} pts")
+    if "A" in mature and "C" in mature:
+        if stC["win"] - stA["win"] > PROF_WATCH_TOL:
+            problems.append(f"C ({stC['win']:.0f}%) dépasse A ({stA['win']:.0f}%) de {stC['win']-stA['win']:.0f} pts")
+        elif stA["win"] - stC["win"] < PROF_WATCH_MIN_SEP:
+            problems.append(f"écart A→C effondré ({stA['win']-stC['win']:.0f} pts < {PROF_WATCH_MIN_SEP:.0f})")
+
+    if problems:
+        print("🔴 ALERTE : la hiérarchie du badge Profil ne tient plus -> " + " ; ".join(problems))
+        import datetime as _dt
+        try:
+            wk = _dt.date.today().strftime("%G-W%V")               # dédup PAR SEMAINE
+        except Exception:
+            wk = "?"
+        if send_alert and _new_issues(wk, ["profile-order-broken"]):
+            from app import notify
+            _body = ("Le badge ★ Profil A/B/C (affichage seul) ne classe plus correctement : "
+                     + " ; ".join(problems) + f". Mesuré A {stA['win']:.0f}% (n={stA['n']}) / "
+                     f"B {stB['win']:.0f}% (n={stB['n']}) / C {stC['win']:.0f}% (n={stC['n']}). Baseline 30/09 : "
+                     "A 91% > B 88% > C 74%. RE-MESURER le scoring analyses._PROFILE_* avant de retoucher les seuils "
+                     "(mémoire profile-score-display-only). Aucun impact sélection/ROI — pur ordre d'affichage.")
+            if notify.owner_alert("Badge Profil déclassé", _body, severity="warn",
+                                  action="re-mesurer profile_score (cote/confiance/marché/tier) et réajuster les poids/seuils.",
+                                  diag="python tools/analysis_quality.py --profile-watch"):
+                print("   → alerte privée envoyée.")
+        return 1
+    if len(mature) < 3:
+        print(f"🟡 Recul insuffisant ({len(mature)}/3 catégories ≥ {PROF_WATCH_MIN_BUCKET}) — on continue de surveiller.")
+    else:
+        print("🟢 OK : l'ordre A ≥ B ≥ C tient et le badge sépare toujours nettement.")
+    return 0
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="jour ISO (défaut : programme courant)")
@@ -959,13 +1041,19 @@ if __name__ == "__main__":
     ap.add_argument("--conf-watch", action="store_true",
                     help="surveillance Confiance : réussite sur la fenêtre glissante des N derniers paris réglés ; "
                          "alerte privée (1×/semaine) si sous le seuil avec assez de recul. --alert = envoyer.")
+    ap.add_argument("--profile-watch", action="store_true",
+                    help="surveillance du badge Profil A/B/C : vérifie en forward que la hiérarchie A ≥ B ≥ C "
+                         "tient ; alerte privée (1×/semaine) si inversion nette ou écart A→C effondré. --alert = envoyer.")
     args = ap.parse_args()
     if args.tail_check:
         rc = tail_quality(send_alert=args.alert)
         rc |= recent_confidence_watch(send_alert=args.alert)     # surveillance Confiance dans le MÊME passage quotidien
+        rc |= profile_order_watch(send_alert=args.alert)         # surveillance ordre du badge Profil, même passage
         sys.exit(rc)
     if args.conf_watch:
         sys.exit(recent_confidence_watch(send_alert=args.alert))
+    if args.profile_watch:
+        sys.exit(profile_order_watch(send_alert=args.alert))
     if args.match_messages:
         sys.exit(notify_match_qc(args.date, send=args.alert))
     sys.exit(run(args.date, send_alert=args.alert))
