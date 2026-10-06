@@ -2851,7 +2851,7 @@ CSS = """
        border-top:1px dashed #1c2733}
   .lph-row:first-of-type{border-top:none}
   .lph-sel{font-size:12.5px;color:#cfe0f0}
-  .lph-m{font-size:11px;color:#8aa0b6;white-space:nowrap}
+  .lph-m{font-size:11px;color:#8aa0b6;white-space:normal;text-align:right;min-width:0;flex:1 1 auto;overflow-wrap:anywhere}
   .lph-m b{color:#34d27b}
   .lph-none{font-size:11.5px;color:#6f8098;font-style:italic}
   .lphr-w{color:#34d27b}.lphr-l{color:#ff6b6b}.lphr-n{color:#e0b341}
