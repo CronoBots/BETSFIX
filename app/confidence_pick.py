@@ -42,6 +42,16 @@ COTE_LO = 1.12
 # porté 1.30->1.50) : écarte une anomalie future (conf≥80 à cote haute = sur-confiance modèle vs marché =
 # probable erreur), pour ne pas polluer le produit « Confiance » (haute réussite). Aucun effet sur les stats.
 COTE_HI = 1.50
+# RÈGLE G (user 2026-10-07, backtest train/test sur 171 paris réglés). À l'INTÉRIEUR du profil, le segment
+# qui perd de l'argent est le HANDICAP à cote courte MOYENNEMENT sûr : ROI −5,9 % (négatif en test), alors
+# que la Double Chance à cote courte reste rentable (+4,4 %, robuste). On n'accepte donc un pari dont la cote
+# est SOUS SHORT_ODDS_MAX QUE s'il est en « Double chance » OU porté par une confiance ≥ SHORT_CONF_MIN.
+# Mesuré : ROI test −0,9 % → +2,3 %, ROI global +3,2 % → +6,0 %, réussite 88 % → 90 %, 80 % du volume gardé.
+# ⚠️ Écartées par la mesure (ne PAS re-débattre) : analyser plus tôt (timing — les paris à KO−1h faisaient
+# 95 %), capter de meilleures cotes tôt (CLV — prix identiques avant/après), réduire le volume (le retour au
+# cap 7+7 n'a rien restauré, le top-1/jour est PIRE). Seul le filtre de SEGMENT tient. Mémoire confidence-bet-backtest-93-profile.
+SHORT_ODDS_MAX = 1.20
+SHORT_CONF_MIN = 85.0
 # « DC 12 » bannie (double chance la plus faible, perd sur le nul — cohérent avec le combiné du jour).
 _BLOCK_CODES = frozenset({"DC 12"})
 
@@ -127,7 +137,10 @@ def pick_from_candidates(cands: list[dict]) -> dict | None:
     pool = [c for c in cands
             if c["market"] in MARKETS
             and c["prob"] >= PROB_MIN
-            and COTE_LO <= c["cote"] <= COTE_HI]
+            and COTE_LO <= c["cote"] <= COTE_HI
+            and (c["market"] == "Double chance"          # Règle G : la DC courte est rentable -> gardée
+                 or c["cote"] >= SHORT_ODDS_MAX           # cote assez haute -> gardée
+                 or c["prob"] >= SHORT_CONF_MIN)]         # sinon (handicap court) : exigence de confiance ≥85
     if not pool:
         return None
     return max(pool, key=lambda c: (c["prob"], -c["cote"], str(c.get("code") or "")))

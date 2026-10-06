@@ -200,7 +200,17 @@ mécaniques** backtestés :
   1.05–1.12 était NET-NÉGATIVE (45 paris, 89 % mais ROI −2,9 % — à cote ~1.08 il faut ~92 % pour l'équilibre).
   ROI +5,0 %→+9,0 %, robuste train +10,4 % / test +7,2 %, −32 % de volume. Historique **re-piqué** (45→abstention,
   1→value, 1 re-pick ; `stat_bet` re-figé via `backfill_stat_bets`, filigrane selfcheck réinitialisé à 118).
-  Plafond cote **1.50** (`3abb5f0`).
+  Plafond cote **1.50** (`3abb5f0`). **+ RÈGLE G (2026-10-07, user, après chute Août 95 %→Oct 77 %)** : à
+  l'intérieur du profil, un pari sous **`SHORT_ODDS_MAX`=1.20** n'est gardé QUE s'il est en **Double chance**
+  OU **conf ≥`SHORT_CONF_MIN`=85** (`pick_from_candidates`). Mesure : le HANDICAP à cote courte peu sûr perd
+  (ROI −5,8 %, négatif en test) alors que la DC courte est rentable (+4,4 %). Confiance 88,3 %→**90,4 %**, ROI
+  +2,6 %→**+5,2 %**, **80 % du volume gardé** (163 réglés → 125 gardés / 38 retirés). Historique **re-piqué**
+  (39 confiance→abstention via flag `_removed_rule_g`, `stat_bet`+`confidence_bet`+`published_bet` retirés,
+  **shadow/calibration INTACTS**, filigrane recalé 226→187, backup `data/_repick_confidence_G_backup_2026-10-07`).
+  ⚠️ **ÉCARTÉS PAR LA MESURE, ne pas re-débattre** : analyser plus tôt (timing — les paris KO−1h faisaient 95 %),
+  CLV/meilleures cotes tôt (prix identiques avant/après), réduire le volume (retour cap 7+7 n'a rien restauré ;
+  top-1/jour PIRE). Seul le filtre de SEGMENT tient ; le reste de la chute = variance. **+ label `stat_bet.kind`
+  reposé** (gel règlement + backfill, FR→EN ; trou 08→09 corrigé — repli de `tier_of`). Mémoire `confidence-bet-backtest-93-profile`.
 - **Value** = `app/value_pick.py` — conf **≥66** · cote **1.30–2.30** · EV ≥ +5 % (MAJ 2026-09-12 : ABAISSÉ de
   68/1.40 car « plus aucune value depuis 12 j » ; re-backtest TRAIN/TEST juin→auj : 66/1.30 tient dans les DEUX
   moitiés, ~75-79 % / +21-24 %, en DOUBLANT le volume ~5→~12/mois ; 64/60/58 s'affaiblissent en test, EV+3 %=piège.

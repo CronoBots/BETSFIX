@@ -1246,6 +1246,9 @@ def backfill_stat_bets() -> int:
             continue
         d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
                          "cote": _sf.get("cote"), "result": _rr, "cprob": _sf.get("cprob")}   # cprob FIGÉ -> tier monotone
+        _k = {"confiance": "confidence", "value": "value"}.get(_sf.get("tier") or "")   # label tier (repli tier_of)
+        if _k:
+            d["stat_bet"]["kind"] = _k
         try:
             tmp = side + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -1869,6 +1872,12 @@ async def _settle_analyses_impl(af_only: bool = False) -> int:
                         if _rr in ("won", "lost", "push"):
                             d["stat_bet"] = {"sel": _sf.get("sel"), "prob": _sf.get("prob"),
                                              "cote": _sf.get("cote"), "result": _rr, "cprob": _sf.get("cprob")}
+                            # Label tier FIGÉ (repli de tier_of si confidence_bet/value_bet nettoyé). Mapping
+                            # FR->EN (convention stat_bet.kind = anglais). Corrige le trou 2026-08→09 où le kind
+                            # n'était plus écrit (cosmétique mais tier_of s'en sert en repli).
+                            _k = {"confiance": "confidence", "value": "value"}.get(_sf.get("tier") or "")
+                            if _k:
+                                d["stat_bet"]["kind"] = _k
                 except Exception:
                     pass
             # Pari PUBLIÉ réinjecté (filet « ne pas flouter l'user », 2026-07-21) : `retained_bet` relit le
