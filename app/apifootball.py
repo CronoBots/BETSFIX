@@ -61,7 +61,15 @@ def _client() -> httpx.Client:
     key = _key()
     if not key:
         raise RuntimeError("Clé API-Football absente (BETSFIX_APIFOOTBALL_KEY en env ou .env).")
-    return httpx.Client(headers={"x-apisports-key": key}, timeout=_TIMEOUT)
+    # FORCE IPv4 (local_address="0.0.0.0") — `api-sports.io` est en dual-stack derrière Cloudflare et le DNS
+    # renvoie l'IPv6 EN PREMIER. Quand l'IPv6 de la machine casse (route FAI/routeur HS, vécu 2026-10-07),
+    # httpx tente les 2 adresses IPv6 — chacune ~21 s de timeout TCP sous Windows = ~42 s PAR connexion neuve —
+    # avant de retomber sur l'IPv4 qui marche. Chaque appel (ancre sharp, enrich, cotes scan, score/stats live)
+    # payait donc 42 s -> timeouts (_TIMEOUT=25) -> live_all vide (repli Unibet), scan matin gonflé à ~43 min
+    # (= vagues KO-1h planifiées trop tard -> « match MANQUÉ »). Binder l'IPv4 passe à ~0,18 s et immunise
+    # contre toute panne IPv6 future (la machine a toujours un IPv4 fonctionnel). N'affecte QUE API-Football.
+    return httpx.Client(headers={"x-apisports-key": key}, timeout=_TIMEOUT,
+                        transport=httpx.HTTPTransport(local_address="0.0.0.0"))
 
 
 def _get(cl: httpx.Client, path: str, **params) -> dict:
