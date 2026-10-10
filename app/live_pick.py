@@ -45,7 +45,14 @@ EV_MIN = 0.05            # edge live minimal : proba modèle × cote − 1 ≥ +
 EV_MAX = 0.30            # au-DELÀ, la cote Bet Builder est quasi sûrement PÉRIMÉE/mal attribuée (les books
 #                          live sont sharp : un edge réel dépasse rarement +10 %). On JETTE = data error, pas
 #                          un pari (sinon on logge du bruit +2300 % venu des props/handicaps de scoreline).
-PROB_MIN = 0.60          # plancher de proba MODÈLE (fraction 0-1)
+PROB_MIN = 0.80          # plancher de proba MODÈLE (fraction 0-1). RELEVÉ 0.60→0.80 (user 2026-10-11) pour
+#                          monter le TAUX DE RÉUSSITE PAR MATCH affiché : backtest sur le track réel (417 matchs,
+#                          10 778 signaux distincts réglés) -> le plancher de proba est le SEUL levier monotone du
+#                          taux (0.60=64,5 % · 0.70=68 % · 0.75=71 % · 0.80=72,7 % · 0.85=76 % par match ; minute &
+#                          bande EV n'aident pas). 0.80 garde ~18 signaux/match (vitrine encore riche). Sert AUSSI de
+#                          plancher d'AFFICHAGE : les signaux stockés sous 0.80 ne sont plus montrés (cf. recent_settled
+#                          & enriched_signals) -> l'historique déjà affiché monte aussi. ⛔ AFFICHAGE/track SEUL : ne
+#                          crée pas d'edge (ROI reste ~négatif), ne touche NI sélection NI ROI NI calibration.
 PROB_MAX = 0.95          # au-dessus = pari quasi ACQUIS (cote minuscule) : pas l'edge qu'on mesure + modèle
 #                          peu fiable aux extrêmes -> écarté (on veut la VRAIE value live, pas des certitudes).
 MINUTE_LOG_MIN = 15      # ne rien logger avant la 15e minute (bruit d'ouverture du modèle)
@@ -94,7 +101,11 @@ def _disp_class(family) -> str:
 # (surveillance des mauvaises intacte + validation forward retenu-vs-observé dans summary()). Réversible
 # (RETENU_ON=False -> plus de section « à jouer », tout redevient « observé »). Mémoire `live-phantom-track`.
 RETENU_ON = True
-_RETENU_FAMILIES = frozenset({"Total Over", "Vainqueur", "Les 2 marquent", "Résultat MT"})
+# BTTS « Les 2 marquent » RETIRÉ du tag « à jouer » (user 2026-10-11) : re-mesuré sur le track, c'est la pire des
+# familles retenues (ROI −4,6/−5,2 %, réussite 57 % — reste la plus basse même à prob≥0.80 : 65 %). Le sortir fait
+# passer le groupe « à jouer » de −1,0 % à +0,7 % de ROI. Les 3 restantes sont ~à l'équilibre (Vainqueur, Résultat
+# MT, Total Over). AFFICHAGE SEUL (tag/tri), aucune incidence sélection/ROI.
+_RETENU_FAMILIES = frozenset({"Total Over", "Vainqueur", "Résultat MT"})
 
 
 def is_retenu(family) -> bool:
@@ -1259,6 +1270,8 @@ def enriched_signals(d: dict, top: int = 50) -> list[dict]:
     for sel, s in last.items():
         if sel in open_sels:
             continue
+        if (s.get("prob") or 0.0) < PROB_MIN:      # PLANCHER D'AFFICHAGE (user 2026-10-11) : les signaux stockés
+            continue                               # sous le standard d'émission courant ne sont plus montrés
         st = None
         # MARCHÉS 1re MI-TEMPS : dès que le score de mi-temps est connu (pause franchie), on TRANCHE tout de
         # suite sur ce score (user 2026-09-15 : « pourquoi les mi-temps ne sont pas réglées plus vite ? ») —
@@ -1648,6 +1661,8 @@ def recent_settled(sport: str = "foot", hours: int = 48, limit: int = 8) -> list
         for s in rec.get("snaps", []):
             if s.get("result") not in ("won", "lost", "push"):
                 continue
+            if (s.get("prob") or 0.0) < PROB_MIN:      # PLANCHER D'AFFICHAGE (user 2026-10-11) : ne plus montrer
+                continue                               # les signaux stockés sous le standard d'émission actuel
             k = s.get("sel")
             if k not in seen:                          # 1re occurrence (minute la plus basse = 1re proposition)
                 seen[k] = {"sel": k, "family": s.get("family"), "result": s["result"],
