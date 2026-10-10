@@ -1695,7 +1695,12 @@ def summary() -> dict:
     matches = pending = 0
     for rec in _iter_records():
         matches += 1
-        settled = [s for s in rec.get("snaps", []) if s.get("result") in ("won", "lost", "push")]
+        # PLANCHER D'AFFICHAGE (user 2026-10-11) : summary() alimente le « Track record » + par famille + calibration
+        # de l'onglet Analyse & /monitor -> on applique le MÊME plancher PROB_MIN que les cartes/Stats (recent_settled,
+        # enriched_signals, success_series) pour UN SEUL standard cohérent partout. Les forward sont déjà ≥PROB_MIN
+        # (gate de logging) ; ça ne re-filtre que l'historique logué à l'ancien seuil. Réversible (PROB_MIN=0.60).
+        settled = [s for s in rec.get("snaps", []) if s.get("result") in ("won", "lost", "push")
+                   and (s.get("prob") or 0.0) >= PROB_MIN]
         pending += sum(1 for s in rec.get("snaps", []) if s.get("result") not in ("won", "lost", "push"))
         allsnaps.extend(settled)
         # PAR FAMILLE — UNITÉ INDÉPENDANTE (user 2026-09-29) : 1 signal REPRÉSENTATIF par (match, famille) =
@@ -1903,8 +1908,11 @@ def success_series() -> dict:
     for rec in _iter_records():
         seen: dict = {}                                # 1 signal par (match, sel) = 1re détection
         for s in rec.get("snaps", []):
-            if s.get("result") in ("won", "lost", "push"):   # TOUT l'historique (toutes versions de modèle)
-                seen.setdefault(s.get("sel"), s)
+            if s.get("result") not in ("won", "lost", "push"):   # TOUT l'historique (toutes versions de modèle)
+                continue
+            if (s.get("prob") or 0.0) < PROB_MIN:      # PLANCHER D'AFFICHAGE (user 2026-10-11) : cohérent avec
+                continue                               # recent_settled/enriched_signals -> Stats = cartes par match
+            seen.setdefault(s.get("sel"), s)
         dv = list(seen.values())
         mw = sum(1 for s in dv if s["result"] == "won")
         ml = sum(1 for s in dv if s["result"] == "lost")
