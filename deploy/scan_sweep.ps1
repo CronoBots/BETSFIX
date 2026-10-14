@@ -32,6 +32,13 @@ function Log($m) {
 # RÉVERSIBILITÉ : mode wave-first désactivé -> sweep no-op (le batch matin/soir analyse comme avant).
 if (-not (Test-Path $flag)) { exit 0 }
 
+# ⏸ PAUSE Claude (user 2026-10-14, quota limité) : si data\claude_paused.flag existe, AUCUN sweep (aucun
+# appel claude -p). Backstop jumeau dans generate_analyses.run_claude. Réactiver = supprimer le flag.
+if (Test-Path (Join-Path $root 'data\claude_paused.flag')) {
+    Log 'SWEEP EN PAUSE (data\claude_paused.flag) — aucun appel Claude. Supprimer le flag pour réactiver.'
+    exit 0
+}
+
 # Anti-course : si un generate_analyses tourne déjà (scan matin/soir ou sweep précédent non fini), on ne
 # lance PAS une 2e passe concurrente (deux scans = doublons de cartes / sidecar réécrit en parallèle).
 $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |

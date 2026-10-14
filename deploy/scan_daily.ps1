@@ -13,6 +13,13 @@ function Log($m) {
     "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
+# ⏸ PAUSE Claude (user 2026-10-14, quota limité) : si data\claude_paused.flag existe, AUCUN scan n'est
+# lancé (aucun appel claude -p). Backstop jumeau dans generate_analyses.run_claude. Réactiver = supprimer le flag.
+if (Test-Path (Join-Path $root 'data\claude_paused.flag')) {
+    Log 'SCAN EN PAUSE (data\claude_paused.flag) — aucun appel Claude. Supprimer le flag pour réactiver.'
+    exit 0
+}
+
 # Anti-doublon : si un generate_analyses tourne déjà (scan manuel ou passe précédente non finie),
 # on ne lance PAS une 2e passe (deux scans concurrents = doublons de cartes).
 $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |

@@ -2165,6 +2165,13 @@ def run_claude(prompt: str, timeout: int = 360, model: str | None = None) -> str
     (défaut CLAUDE_MODEL=opus pour tout ce qui DÉCIDE : analyse flagship + règles quant). REPLI sur le modèle
     par défaut du CLI si l'appel avec --model rend une sortie vide (renommage/indispo) -> le scan ne tombe
     JAMAIS à zéro. Un timeout se propage tel quel (le match est sauté par l'appelant, pas de double run)."""
+    # ⏸ KILL-SWITCH quota Claude (user 2026-10-14) : tant que data/claude_paused.flag existe, AUCUN appel
+    # Claude n'est émis (quota limité). Point d'étranglement unique -> couvre scan, debrief, audit méthodo,
+    # narratif. Réactiver = supprimer le fichier. Garde-fou jumeau en sortie anticipée des scan_*.ps1.
+    _pause = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "claude_paused.flag")
+    if os.path.exists(_pause):
+        raise RuntimeError("Claude en PAUSE (data/claude_paused.flag) — appels headless suspendus (quota). "
+                           "Supprimer le fichier pour réactiver.")
     exe = _resolve_claude()
     base = [exe, "-p", "--dangerously-skip-permissions"]
     for cmd in ([*base, "--model", model or CLAUDE_MODEL], base):

@@ -22,6 +22,14 @@ function Log($m) {
     "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
+# ⏸ PAUSE Claude (user 2026-10-14, quota limité) : si data\claude_paused.flag existe, la vague ne lance
+# AUCUNE analyse (aucun appel claude -p). Le règlement reste assuré par la tâche BETSFIX Reconcile (sans
+# Claude). Backstop jumeau dans generate_analyses.run_claude. Réactiver = supprimer le flag.
+if (Test-Path (Join-Path $root 'data\claude_paused.flag')) {
+    Log 'WAVE EN PAUSE (data\claude_paused.flag) — aucun appel Claude. Règlement via BETSFIX Reconcile. Supprimer le flag pour réactiver.'
+    exit 0
+}
+
 # Anti-course : si le SCAN MATIN (generate_analyses) tourne encore, on ne règle PAS en parallèle (évite de
 # régler un sidecar en cours de réécriture). Le règlement repassera au prochain déclencheur / boucle API.
 $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |

@@ -25,6 +25,13 @@ function Log($m) {
     "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m | Add-BfxStream $log
 }
 
+# ⏸ PAUSE Claude (user 2026-10-14, quota limité) : si data\claude_paused.flag existe, AUCUN scan n'est
+# lancé (aucun appel claude -p). Backstop jumeau dans generate_analyses.run_claude. Réactiver = supprimer le flag.
+if (Test-Path (Join-Path $root 'data\claude_paused.flag')) {
+    Log 'SCAN SOIR EN PAUSE (data\claude_paused.flag) — aucun appel Claude. Supprimer le flag pour réactiver.'
+    exit 0
+}
+
 # Détecte un scan/vague concurrent. ⚠️ ON NE SKIPPE PLUS tout le scan du soir là-dessus (bug user 2026-08-30) :
 # la SÉLECTION nuit (écrit juste le programme, AUCUNE carte) + la replanification des vagues DOIVENT tourner
 # même si une vague KO-1h est en cours — sinon, les soirs où un match joue à 20h, la vague de 19h faisait
